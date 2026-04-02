@@ -121,7 +121,7 @@ export default function PolicySearch() {
   };
 
   return (
-    <div className="min-h-full bg-[#f7f8fa]">
+    <div className="h-full overflow-y-auto bg-[#f7f8fa]">
       <div className="mx-auto max-w-[1440px] space-y-6 p-6 md:p-8">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <button

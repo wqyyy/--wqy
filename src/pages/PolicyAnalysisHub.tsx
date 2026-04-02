@@ -66,7 +66,7 @@ export default function PolicyAnalysisHub() {
   }, [keyword]);
 
   return (
-    <div className="min-h-full bg-background">
+    <div className="h-full overflow-y-auto bg-background">
       <div className="mx-auto max-w-[1800px] space-y-8 p-6 md:p-8">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <button

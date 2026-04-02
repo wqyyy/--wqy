@@ -4,11 +4,11 @@ import { PageHero } from "@/components/PageHero";
 
 export default function ReserveLibrary() {
   return (
-    <div className="p-6">
+    <div className="h-full overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <PageHero title="储备库" description="集中沉淀条款模板、主题方案、政策储备和可复用素材，支撑后续快速调用。"/>
 
-        <Card className="p-8">
+        <Card className="h-full overflow-y-auto p-8">
           <div className="flex items-start gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
               <Database className="h-7 w-7 text-primary" />

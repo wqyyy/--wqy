@@ -74,11 +74,9 @@ export function AppLayout() {
           </nav>
         </aside>
 
-        {/* 右侧内容区：绝对定位撑满，子页面可直接用 h-full */}
-        <div className="absolute inset-0 left-[244px] flex flex-col">
-          <main className="flex-1 overflow-auto h-full">
-            <Outlet />
-          </main>
+        {/* 右侧内容区：绝对定位撑满，高度链完整，子页面用 h-full 可继承 */}
+        <div className="absolute inset-0 left-[244px] overflow-hidden">
+          <Outlet />
         </div>
       </div>
 

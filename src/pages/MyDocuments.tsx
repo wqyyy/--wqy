@@ -4,11 +4,11 @@ import { PageHero } from "@/components/PageHero";
 
 export default function MyDocuments() {
   return (
-    <div className="p-6">
+    <div className="h-full overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <PageHero title="我的文档" description="统一管理政策草稿、评估报告、专报和分析记录，便于检索与协同。"/>
 
-        <Card className="p-8">
+        <Card className="h-full overflow-y-auto p-8">
           <div className="flex items-start gap-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10">
               <FolderOpen className="h-7 w-7 text-primary" />

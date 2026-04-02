@@ -10,7 +10,7 @@ const Index = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="p-6">
+    <div className="h-full overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         {/* Header + 流程 */}
         <div className="space-y-4">
@@ -20,7 +20,7 @@ const Index = () => {
           />
 
           {/* 政策兑现流程 */}
-          <Card className="p-6">
+          <Card className="h-full overflow-y-auto p-6">
             <h3 className="text-sm font-bold text-foreground mb-4">政策兑现流程</h3>
             <div className="flex items-center justify-between overflow-x-auto">
               {[
@@ -225,7 +225,7 @@ const Index = () => {
         </div>
 
         {/* 最新生成专报 */}
-        <Card className="p-6">
+        <Card className="h-full overflow-y-auto p-6">
           <h3 className="text-sm font-bold text-foreground mb-4">最近生成专报</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[

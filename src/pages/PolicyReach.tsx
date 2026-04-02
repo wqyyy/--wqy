@@ -499,7 +499,7 @@ export default function PolicyReach() {
   }, [assistantItemId, assistantQuery]);
 
   return (
-    <div className="p-6">
+    <div className="h-full overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <PageHero
           title="政策触达"

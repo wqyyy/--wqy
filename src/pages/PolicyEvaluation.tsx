@@ -64,7 +64,7 @@ const PolicyEvaluation = () => {
   }, []);
 
   return (
-    <div className="p-6">
+    <div className="h-full overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <PageHero
           title="政策评价"
@@ -169,7 +169,7 @@ const PolicyEvaluation = () => {
         </Card>
 
         {/* 核心评估维度 */}
-        <Card className="p-6">
+        <Card className="h-full overflow-y-auto p-6">
           <h3 className="text-base font-semibold text-foreground mb-4">核心评估维度</h3>
           <div className="grid grid-cols-5 gap-4">
             {dimensions.map((d) => (
@@ -188,7 +188,7 @@ const PolicyEvaluation = () => {
         </Card>
 
         {/* 最近评估任务 */}
-        <Card className="p-6">
+        <Card className="h-full overflow-y-auto p-6">
           <h3 className="text-base font-semibold text-foreground mb-4">最近评估任务</h3>
           <div className="grid grid-cols-3 gap-4">
             {recentTasks.map((t) => (

@@ -90,7 +90,7 @@ export default function PolicyWriting() {
   }, [location.state]);
 
   return (
-    <div className="p-6">
+    <div className="h-full overflow-y-auto p-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-8">
         <PageHero
           title="政策制定"
