@@ -1,12 +1,13 @@
-import { Bot, ClipboardCheck, Database, FolderOpen, Home, PenTool, Send } from "lucide-react";
-import { Outlet } from "react-router-dom";
+import { Bot, ClipboardCheck, Database, FolderOpen, Home, PenTool, Send, Sparkles } from "lucide-react";
+import { Outlet, useNavigate } from "react-router-dom";
 import { AiAssistant } from "@/components/AiAssistant";
 import { NavLink } from "@/components/NavLink";
 
 const sideNavItems = [
+  { title: "首页", url: "/home", icon: Sparkles },
   { title: "政策制定", url: "/policy-writing", icon: PenTool },
   { title: "政策触达", url: "/policy-reach", icon: Send },
-  { title: "政策兑现", url: "/", icon: Home },
+  { title: "政策兑现", url: "/dashboard", icon: Home },
   { title: "政策评价", url: "/policy-evaluation", icon: ClipboardCheck },
 ];
 
@@ -16,12 +17,17 @@ const documentNavItems = [
 ];
 
 export function AppLayout() {
+  const navigate = useNavigate();
+
   return (
     <div className="h-screen bg-[#f7f4f4] text-foreground">
-      <div className="flex h-screen">
+      <div className="relative h-screen">
         <aside className="fixed inset-y-0 left-0 z-30 flex w-[244px] flex-col overflow-hidden bg-gradient-to-b from-[#d21639] via-[#c61033] to-[#b80f2f] text-white shadow-[18px_0_40px_rgba(157,12,38,0.22)]">
           <div className="border-b border-white/12 px-6 py-12">
-            <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate("/home")}
+              className="flex items-center gap-4 w-full text-left transition-opacity hover:opacity-80"
+            >
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/14 ring-1 ring-white/12 backdrop-blur">
                 <Bot className="h-7 w-7 text-white" />
               </div>
@@ -29,7 +35,7 @@ export function AppLayout() {
                 <p className="truncate text-[18px] font-bold tracking-[0.02em]">惠企政策大脑</p>
                 <p className="mt-1 text-sm text-white/80">政策管理平台</p>
               </div>
-            </div>
+            </button>
           </div>
 
           <nav className="flex-1 px-5 py-7">
@@ -68,10 +74,9 @@ export function AppLayout() {
           </nav>
         </aside>
 
-        <div className="ml-[244px] flex h-screen flex-1 flex-col overflow-hidden">
-          <main className="flex-1 overflow-auto h-full">
-            <Outlet />
-          </main>
+        {/* 右侧内容区：绝对定位撑满，高度链完整，子页面用 h-full 可继承 */}
+        <div className="absolute inset-0 left-[244px] overflow-hidden">
+          <Outlet />
         </div>
       </div>
 
