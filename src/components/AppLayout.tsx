@@ -21,7 +21,7 @@ export function AppLayout() {
 
   return (
     <div className="h-screen bg-[#f7f4f4] text-foreground">
-      <div className="flex h-screen">
+      <div className="relative h-screen">
         <aside className="fixed inset-y-0 left-0 z-30 flex w-[244px] flex-col overflow-hidden bg-gradient-to-b from-[#d21639] via-[#c61033] to-[#b80f2f] text-white shadow-[18px_0_40px_rgba(157,12,38,0.22)]">
           <div className="border-b border-white/12 px-6 py-12">
             <button
@@ -74,8 +74,9 @@ export function AppLayout() {
           </nav>
         </aside>
 
-        <div className="ml-[244px] flex h-screen flex-1 flex-col overflow-hidden">
-          <main className="flex-1 overflow-auto">
+        {/* 右侧内容区：绝对定位撑满，子页面可直接用 h-full */}
+        <div className="absolute inset-0 left-[244px] flex flex-col">
+          <main className="flex-1 overflow-auto h-full">
             <Outlet />
           </main>
         </div>

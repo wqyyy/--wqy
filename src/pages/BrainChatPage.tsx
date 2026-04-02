@@ -348,7 +348,7 @@ export default function BrainChatPage() {
   };
 
   return (
-    <div className="flex flex-col bg-[#f7f4f4]" style={{ height: "calc(100vh)" }}>
+    <div className="flex h-full flex-col bg-[#f7f4f4]">
       {/* 消息区域 */}
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-3xl space-y-6">

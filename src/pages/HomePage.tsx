@@ -42,7 +42,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="relative w-full overflow-hidden" style={{ height: "calc(100vh)" }}>
+    <div className="relative h-full w-full overflow-hidden">
       {/* 亦庄背景图 */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"

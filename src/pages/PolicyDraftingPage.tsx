@@ -11,7 +11,7 @@ export default function PolicyDraftingPage() {
   } | undefined;
 
   return (
-    <div className="flex flex-col overflow-hidden p-6 md:p-8" style={{ height: "calc(100vh)" }}>
+    <div className="flex h-full flex-col overflow-hidden p-6 md:p-8">
       <div className="flex flex-col flex-1 min-h-0">
         <PolicyDraftingFlow
           onBack={() => navigate("/policy-writing")}
