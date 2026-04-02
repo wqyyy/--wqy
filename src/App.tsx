@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
+import HomePage from "./pages/HomePage";
+import BrainChatPage from "./pages/BrainChatPage";
 import Index from "./pages/Index";
 import PolicyReport from "./pages/PolicyReport";
 import PolicyReportCreate from "./pages/PolicyReportCreate";
@@ -32,8 +34,13 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<Navigate to="/home" replace />} />
+
+          {/* 带侧栏的所有页面 */}
           <Route element={<AppLayout />}>
-            <Route path="/" element={<Index />} />
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/brain-chat" element={<BrainChatPage />} />
+            <Route path="/dashboard" element={<Index />} />
             <Route path="/policy-writing" element={<PolicyWriting />} />
             <Route path="/policy-writing/drafting" element={<PolicyDraftingPage />} />
             <Route path="/policy-writing/pre-evaluation" element={<PolicyPreEvaluationPage />} />
