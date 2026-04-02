@@ -121,10 +121,9 @@ export function AiAssistant() {
   const location = useLocation();
   const scene = useMemo(() => resolveScene(location.pathname), [location.pathname]);
 
-  // 首页和对话页不显示智能助手悬浮窗
-  if (location.pathname === "/home" || location.pathname === "/brain-chat") {
-    return null;
-  }
+  // 是否需要隐藏（首页/对话页），必须等所有 hooks 执行完后再 return
+  const isHidden = location.pathname === "/home" || location.pathname === "/brain-chat";
+
   const [open, setOpen] = useState(true);
   const [maximized, setMaximized] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -588,6 +587,9 @@ export function AiAssistant() {
       void handleSend();
     }
   };
+
+  // 所有 hooks 执行完后才可以 return null（React Hooks 规则）
+  if (isHidden) return null;
 
   // ── 关闭状态：右侧居中头像 + 气泡 ──────────────────────────────
   if (!open) {
