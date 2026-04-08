@@ -26,8 +26,18 @@ function slug(input: string) {
     .toLowerCase();
 }
 
-export async function searchPolicies(policyTitle: string, coreElements?: string): Promise<{ policies: PolicyItem[]; total: number }> {
+export type SearchPoliciesOptions = {
+  /** 为 true 时在结果中优先展示「我的政策库」中的参考条目（默认 true） */
+  prioritizeMyLibrary?: boolean;
+};
+
+export async function searchPolicies(
+  policyTitle: string,
+  coreElements?: string,
+  options?: SearchPoliciesOptions,
+): Promise<{ policies: PolicyItem[]; total: number }> {
   await delay(900);
+  const prioritizeMyLibrary = options?.prioritizeMyLibrary !== false;
   const keyword = policyTitle.replace(/^关于|若干政策措施$|政策措施$/g, "").slice(0, 12) || "产业发展";
   const policies: PolicyItem[] = [
     {
@@ -89,6 +99,28 @@ export async function searchPolicies(policyTitle: string, coreElements?: string)
       level: "beijing",
       source: "北京市政策研究室",
     });
+  }
+
+  if (prioritizeMyLibrary) {
+    const myLibraryItems: PolicyItem[] = [
+      {
+        id: "mylib-1",
+        title: `【我的政策库】与您草稿相关的${keyword}专项收藏`,
+        url: `https://example.com/my-library/${slug(keyword)}-saved-1`,
+        selected: true,
+        level: "beijing",
+        source: "我的政策库",
+      },
+      {
+        id: "mylib-2",
+        title: `【我的政策库】近期收藏的${keyword}配套细则`,
+        url: `https://example.com/my-library/${slug(keyword)}-saved-2`,
+        selected: true,
+        level: "national",
+        source: "我的政策库",
+      },
+    ];
+    policies.unshift(...myLibraryItems);
   }
 
   return { policies, total: policies.length };

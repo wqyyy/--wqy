@@ -1,9 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Search, ExternalLink, Loader2, ChevronDown, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { searchPolicies } from "@/lib/policyDraftApi";
+import { cn } from "@/lib/utils";
 
 export interface PolicyItem {
   id: string;
@@ -34,19 +37,30 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
   const [error, setError] = useState<string | null>(null);
   const [policies, setPolicies] = useState<PolicyItem[]>(externalPolicies.length > 0 ? externalPolicies : []);
   const [collapsedLevels, setCollapsedLevels] = useState<Record<string, boolean>>({});
+  /** 优先参考我的政策库，默认开启；切换后重新拉取检索结果 */
+  const [prioritizeMyLibrary, setPrioritizeMyLibrary] = useState(true);
+  /** 已从父级同步过政策列表时不再用首次空请求覆盖（返回上一步等场景） */
+  const externalAppliedRef = useRef(false);
 
   useEffect(() => {
-    if (externalPolicies.length > 0) return;
+    if (externalPolicies.length > 0 && !externalAppliedRef.current) {
+      externalAppliedRef.current = true;
+      setPolicies(externalPolicies);
+      onPoliciesSelected(externalPolicies);
+      setIsSearching(false);
+      return;
+    }
+
     setIsSearching(true);
     setError(null);
-    searchPolicies(policyTitle, coreElements)
+    searchPolicies(policyTitle, coreElements, { prioritizeMyLibrary })
       .then(({ policies: result }) => {
         setPolicies(result);
         onPoliciesSelected(result);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setIsSearching(false));
-  }, [policyTitle, coreElements]);
+  }, [policyTitle, coreElements, prioritizeMyLibrary]);
 
   const togglePolicy = (id: string) => {
     const updated = policies.map(p => p.id === id ? { ...p, selected: !p.selected } : p);
@@ -94,6 +108,22 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
         />
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
+        <div className="flex items-center gap-2">
+          <Switch
+            id="policy-search-my-library"
+            checked={prioritizeMyLibrary}
+            onCheckedChange={setPrioritizeMyLibrary}
+          />
+          <Label htmlFor="policy-search-my-library" className="cursor-pointer text-sm font-medium text-foreground">
+            优先参考我的政策库
+          </Label>
+        </div>
+        <span className={cn("text-xs text-muted-foreground", prioritizeMyLibrary && "text-primary/80")}>
+          {prioritizeMyLibrary ? "已开启：结果中将优先展示您收藏的政策参考" : "已关闭：按全库检索，不优先展示我的政策库"}
+        </span>
+      </div>
+
       {isSearching ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <Loader2 className="h-8 w-8 text-primary animate-spin" />
@@ -107,7 +137,7 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
             onClick={() => {
               setError(null);
               setIsSearching(true);
-              searchPolicies(policyTitle, coreElements)
+              searchPolicies(policyTitle, coreElements, { prioritizeMyLibrary })
                 .then(({ policies: result }) => { setPolicies(result); onPoliciesSelected(result); })
                 .catch((err: Error) => setError(err.message))
                 .finally(() => setIsSearching(false));

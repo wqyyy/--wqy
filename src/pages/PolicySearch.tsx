@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   ChevronDown,
@@ -73,31 +73,11 @@ export default function PolicySearch() {
   const [searchTarget, setSearchTarget] = useState<SearchTarget>((searchParams.get("target") as SearchTarget) || "title");
   const [sortMode, setSortMode] = useState<SortMode>("time");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [prioritizeMyLibrary, setPrioritizeMyLibrary] = useState(
-    searchParams.get("mylib") !== "0",
-  );
-  /** 记录初次挂载，避免初始化时触发重新查询 */
-  const isFirstRender = useRef(true);
 
   useEffect(() => {
     setKeyword(searchParams.get("q") ?? "");
     setSearchTarget((searchParams.get("target") as SearchTarget) || "title");
-    setPrioritizeMyLibrary(searchParams.get("mylib") !== "0");
   }, [searchParams]);
-
-  /** 切换"优先参考我的政策库"时自动刷新查询 */
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    const next = new URLSearchParams(searchParams);
-    next.set("mylib", prioritizeMyLibrary ? "1" : "0");
-    if (keyword.trim()) next.set("q", keyword.trim());
-    next.set("target", searchTarget);
-    setSearchParams(next);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prioritizeMyLibrary]);
 
   const pageResults = useMemo(() => {
     const normalized = keyword.trim().toLowerCase();
@@ -137,7 +117,6 @@ export default function PolicySearch() {
       next.delete("q");
     }
     next.set("target", searchTarget);
-    next.set("mylib", prioritizeMyLibrary ? "1" : "0");
     setSearchParams(next);
   };
 
@@ -172,36 +151,6 @@ export default function PolicySearch() {
                 <Button className="h-14 rounded-2xl bg-primary px-8 text-lg font-semibold hover:bg-primary/90">
                   高级搜索
                 </Button>
-            </div>
-
-            {/* 优先参考我的政策库 */}
-            <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={prioritizeMyLibrary}
-                onClick={() => setPrioritizeMyLibrary((v) => !v)}
-                className={cn(
-                  "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  prioritizeMyLibrary ? "bg-primary" : "bg-input",
-                )}
-              >
-                <span
-                  className={cn(
-                    "pointer-events-none block h-4 w-4 rounded-full bg-white shadow-lg ring-0 transition-transform",
-                    prioritizeMyLibrary ? "translate-x-4" : "translate-x-0",
-                  )}
-                />
-              </button>
-              <span
-                className="cursor-pointer select-none text-[15px] font-medium text-foreground"
-                onClick={() => setPrioritizeMyLibrary((v) => !v)}
-              >
-                优先参考我的政策库
-              </span>
-              <span className="text-[13px] text-muted-foreground">
-                {prioritizeMyLibrary ? "已开启，将优先匹配您收藏的政策" : "已关闭，从全库检索"}
-              </span>
             </div>
 
             <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
@@ -273,7 +222,6 @@ export default function PolicySearch() {
                     setKeyword("");
                     setSearchTarget("title");
                     setSelectedIds([]);
-                    setPrioritizeMyLibrary(true);
                     setSearchParams({});
                   }}
                 >
