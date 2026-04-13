@@ -4,11 +4,13 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-// GitHub Pages 项目站需子路径；Vercel/本地保持根路径
+// GitHub Pages 项目站为 https://<user>.github.io/<仓库名>/，必须用非根 base，否则请求会打到 /.github.io/assets → 404 白屏。
+// 使用相对 base，不依赖 GITHUB_REPOSITORY（避免未走 Actions、或 env 未传入时仍打成 "/"）。
 const ghPages = process.env.GITHUB_PAGES === "true";
+const base = ghPages ? "./" : "/";
 
 export default defineConfig(({ mode }) => ({
-  base: ghPages ? "/wqy-sidebar-copy/" : "/",
+  base,
   server: {
     host: "::",
     port: 8080,
