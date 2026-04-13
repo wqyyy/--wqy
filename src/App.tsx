@@ -22,7 +22,12 @@ import PolicyDraftingPage from "./pages/PolicyDraftingPage";
 import PolicyPreEvaluationPage from "./pages/PolicyPreEvaluationPage";
 import PolicyWriting from "./pages/PolicyWriting";
 import MyDocuments from "./pages/MyDocuments";
+import MyDocumentDetail from "./pages/MyDocumentDetail";
 import ReserveLibrary from "./pages/ReserveLibrary";
+import PolicyProjectReview from "./pages/PolicyProjectReview";
+import SupportResultPage from "./pages/SupportResultPage";
+import ProjectPublicNoticePage from "./pages/ProjectPublicNoticePage";
+import FundDisbursementPage from "./pages/FundDisbursementPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -55,7 +60,12 @@ const App = () => (
             <Route path="/policy-evaluation" element={<PolicyEvaluation />} />
             <Route path="/policy-analysis" element={<PolicyAnalysis />} />
             <Route path="/policy-reach" element={<PolicyReach />} />
+            <Route path="/policy-project-review" element={<PolicyProjectReview />} />
+            <Route path="/support-result" element={<SupportResultPage />} />
+            <Route path="/project-public-notice" element={<ProjectPublicNoticePage />} />
+            <Route path="/fund-disbursement" element={<FundDisbursementPage />} />
             <Route path="/my-documents" element={<MyDocuments />} />
+            <Route path="/my-documents/:id" element={<MyDocumentDetail />} />
             <Route path="/reserve-library" element={<ReserveLibrary />} />
           </Route>
           <Route path="*" element={<NotFound />} />

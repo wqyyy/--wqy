@@ -46,9 +46,9 @@ const SIZE_COLOR: Record<PushedCompany["size"], string> = {
 };
 
 const reachFlowSteps = [
-  { icon: Tag, title: "政策自动打标", tag: "做识别" },
-  { icon: Users, title: "企业画像匹配", tag: "找对象" },
-  { icon: Send, title: "政策智能推送", tag: "做触达" },
+  { icon: Tag, title: "政策拆解与标注", tag: "做拆解" },
+  { icon: Users, title: "事项申报计划", tag: "做规划" },
+  { icon: Send, title: "事项发布与推送", tag: "做触达" },
   { icon: TrendingUp, title: "触达效果检测", tag: "看反馈" },
 ];
 
@@ -96,8 +96,8 @@ function PolicyList({ onSelect, initialSearch }: { onSelect: (item: PolicyItem) 
   const isExpired = (endDate: string) => new Date(endDate) < new Date();
 
   return (
-    <div className="space-y-5">
-      <Card className="p-5">
+    <div className="space-y-4">
+      <Card className="p-4 md:p-5">
         <div className="flex flex-col gap-3">
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -308,9 +308,9 @@ function PolicyDetail({
   );
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <div>
-        <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+        <button onClick={onBack} className="mb-3 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
           返回事项列表
         </button>
@@ -499,26 +499,25 @@ export default function PolicyReach() {
   }, [assistantItemId, assistantQuery]);
 
   return (
-    <div className="h-full overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6">
+    <div className="h-full overflow-y-auto p-5 md:p-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHero
           title="政策触达"
           description="面向政策执行人员，实现政策与企业的精准匹配与高效触达。"
         />
 
         {!selectedItem && (
-          <div className="space-y-4">
-            <Card className="border border-border px-6 py-4">
-              <h2 className="mb-4 text-base font-bold text-foreground">政策触达流程</h2>
-              <div className="flex items-center justify-between gap-2 overflow-x-auto">
+          <div className="space-y-3">
+            <Card className="h-[156px] rounded-2xl border border-border bg-card px-5 py-4 flex items-center">
+              <div className="w-full flex items-center justify-between gap-2 overflow-x-auto">
                 {reachFlowSteps.map((step, i) => (
                   <div key={step.title} className="flex min-w-[170px] flex-1 items-center">
                     <div className="flex flex-1 flex-col items-center gap-1.5">
                       <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md">
                         <step.icon className="h-5 w-5" />
                       </div>
-                      <span className="whitespace-nowrap text-sm font-semibold text-foreground">{step.title}</span>
-                      <span className="text-xs text-muted-foreground">{step.tag}</span>
+                      <span className="whitespace-nowrap text-xs font-medium text-foreground">{step.title}</span>
+                      <span className="text-[11px] text-muted-foreground">{step.tag}</span>
                     </div>
                     {i < reachFlowSteps.length - 1 && (
                       <ChevronsRight className="h-6 w-6 shrink-0 text-primary/30" />
@@ -528,9 +527,9 @@ export default function PolicyReach() {
               </div>
             </Card>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
               {reachOverviewStats.map((stat) => (
-                <Card key={stat.label} className="border border-border p-5">
+                <Card key={stat.label} className="border border-border px-4 py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">{stat.label}</p>

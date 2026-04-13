@@ -23,7 +23,7 @@ interface StepDef {
 const STEPS: StepDef[] = [
   {
     id: 1,
-    label: "智能政策检索",
+    label: "政策检索",
     sublabel: "根据标题检索相关政策文件",
     icon: Search,
     thoughts: [
@@ -34,13 +34,13 @@ const STEPS: StepDef[] = [
   },
   {
     id: 2,
-    label: "政策对比分析",
-    sublabel: "提取条款结构与核心差异",
+    label: "核心要素生成",
+    sublabel: "提取政策核心条款与关键要素",
     icon: BarChart2,
     thoughts: [
       "提取各参考政策的适用对象与支持方式…",
-      "对比扶持力度、申报条件与资金来源…",
-      "归纳先进做法，识别可借鉴创新点…",
+      "分析扶持力度、申报条件与资金来源…",
+      "归纳核心要素，生成可复用政策骨架…",
     ],
   },
   {
@@ -56,7 +56,7 @@ const STEPS: StepDef[] = [
   },
   {
     id: 4,
-    label: "准备政策编辑",
+    label: "政策编辑",
     sublabel: "载入大纲，即将输出全文",
     icon: BookOpen,
     thoughts: [
@@ -134,7 +134,7 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
       setStepStatuses(["done", "running", "pending", "pending"]);
       setCurrentStep(1);
 
-      // Step 1: 对比分析 (25% → 55%)
+      // Step 1: 核心要素生成 (25% → 55%)
       animateProgress(25, 55, 1300);
       const clearStep1 = runThoughtCycle(1, 1200);
       await analyzePolicies(policies);

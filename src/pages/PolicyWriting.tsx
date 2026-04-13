@@ -1,4 +1,4 @@
-import { Sparkles, FileText, Activity, Clock, ChevronRight, ChevronsRight, PenTool, Shield, Users, Search, BarChart3, FilePen, ClipboardCheck, Wrench, Calculator, Database, BookOpen, Zap, Eye, CheckCircle2 } from "lucide-react";
+import { Sparkles, FileText, Activity, Clock, ChevronRight, ChevronsRight, PenTool, Shield, Users, Search, BarChart3, FilePen, ClipboardCheck, Wrench, Calculator, Database, BookOpen, Zap } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { PageHero } from "@/components/PageHero";
 const stats = [
   { icon: FileText, label: "政策知识库", value: "30万+", desc: "国家到区级政策资金全覆盖", color: "bg-rose-100 text-rose-600", cardBg: "bg-rose-100/80", action: "去检索", link: "/policy-writing/search" },
   { icon: BarChart3, label: "政策对比分析", value: "231", desc: "多地政策对比分析，提升政策设计竞争力", color: "bg-sky-100 text-sky-600", cardBg: "bg-sky-100/80", action: "去分析", link: "/policy-writing/analysis" },
-  { icon: Activity, label: "政策草稿", value: "486", desc: "自动生成核心要点、大纲与正文，支持章节级AI协同。", color: "bg-orange-100 text-orange-600", cardBg: "bg-orange-100/80", action: "去起草", link: "/policy-writing/drafting" },
+  { icon: Activity, label: "政策起草", value: "486", desc: "自动生成核心要点、大纲与正文，支持章节级AI协同。", color: "bg-orange-100 text-orange-600", cardBg: "bg-orange-100/80", action: "去起草", link: "/policy-writing/drafting" },
   { icon: Clock, label: "政策前评估", value: "120", desc: "从合规性、一致性和落地性三方面发现风险并给出修改建议。", color: "bg-emerald-100 text-emerald-600", cardBg: "bg-emerald-100/80", action: "去评估", link: "/policy-writing/pre-evaluation" },
 ];
 
@@ -41,38 +41,11 @@ const topics = [
   },
 ];
 
-const recentDraftTasks = [
-  {
-    title: "北京经开区产业发展促进办法",
-    label: "已完成",
-    time: "2024-03-20",
-    color: "text-emerald-600",
-    bgColor: "bg-emerald-50 border-emerald-200",
-    icon: CheckCircle2,
-  },
-  {
-    title: "科技创新企业扶持专项",
-    label: "进行中",
-    time: "2024-03-19",
-    color: "text-orange-500",
-    bgColor: "bg-orange-50 border-orange-200",
-    icon: Clock,
-  },
-  {
-    title: "中小企业融资支持政策",
-    label: "编辑中",
-    time: "2024-03-18",
-    color: "text-orange-500",
-    bgColor: "bg-orange-50 border-orange-200",
-    icon: Clock,
-  },
-];
-
 export default function PolicyWriting() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 从首页携带的问题，到达后自动打开全屏助手并发送
+  // 从首页携带的问题，到达后自动打开缩小态助手并发送
   useEffect(() => {
     const state = location.state as { assistantQuestion?: string } | undefined;
     if (!state?.assistantQuestion) return;
@@ -90,8 +63,8 @@ export default function PolicyWriting() {
   }, [location.state]);
 
   return (
-    <div className="h-full overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-8">
+    <div className="h-full overflow-y-auto p-5 md:p-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <PageHero
           title="政策制定"
           description="面向政策制定人员，提供从检索分析到自动生成与校验的智能写作工具。"
@@ -107,16 +80,15 @@ export default function PolicyWriting() {
         />
 
         {/* Flow Navigation - Icon Pipeline */}
-        <Card className="px-5 py-3 border border-border">
-          <h2 className="text-[15px] font-bold text-foreground mb-3">政策制定流程</h2>
-          <div className="flex items-center justify-between">
+        <Card className="h-[156px] rounded-2xl border border-border bg-card px-5 py-4 flex items-center">
+          <div className="w-full flex items-center justify-between">
             {flowSteps.map((step, i) => (
               <div key={step.title} className="flex items-center flex-1">
-                <div className="flex flex-col items-center gap-1 cursor-pointer group flex-1 py-1" onClick={() => navigate(step.link)}>
-                  <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary text-primary-foreground shadow-md group-hover:scale-110 transition-transform">
+                <div className="flex flex-col items-center gap-1.5 cursor-pointer group flex-1 py-1" onClick={() => navigate(step.link)}>
+                  <div className="h-12 w-12 rounded-full flex items-center justify-center bg-primary text-primary-foreground shadow-md group-hover:scale-110 transition-transform">
                     <step.icon className="w-4 h-4" />
                   </div>
-                  <span className="text-[13px] font-semibold whitespace-nowrap text-foreground">{step.title}</span>
+                  <span className="text-xs font-medium whitespace-nowrap text-foreground">{step.title}</span>
                   <span className="text-[11px] text-muted-foreground">{step.tag}</span>
                 </div>
                 {i < flowSteps.length - 1 && (
@@ -156,7 +128,7 @@ export default function PolicyWriting() {
         {/* Topic Sketches + Quick Entry */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* 政策主题速写 - 2/3 */}
-          <Card className="p-6 border border-border md:col-span-2">
+          <Card className="p-5 border border-border md:col-span-2">
             <div className="flex items-start justify-between mb-1">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -203,7 +175,7 @@ export default function PolicyWriting() {
           </Card>
 
           {/* 常用功能 - 1/3 */}
-          <Card className="p-6 border border-border">
+          <Card className="p-5 border border-border">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
                 <Zap className="w-4 h-4 text-primary" />
@@ -232,30 +204,6 @@ export default function PolicyWriting() {
           </Card>
         </div>
 
-        <Card className="p-6 border border-border">
-          <h2 className="text-base font-bold text-foreground mb-4">最近起草任务</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {recentDraftTasks.map((task) => (
-              <div
-                key={task.title}
-                className="rounded-xl border border-border p-5 hover:shadow-md transition-shadow cursor-pointer"
-              >
-                <p className="text-base font-semibold text-foreground mb-5">{task.title}</p>
-                <div className="flex items-center justify-between mb-6">
-                  <div className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${task.bgColor} ${task.color}`}>
-                    <task.icon className="w-3.5 h-3.5" />
-                    {task.label}
-                  </div>
-                  <span className="text-sm text-muted-foreground">{task.time}</span>
-                </div>
-                <button className="mx-auto flex items-center gap-1.5 text-primary text-sm font-medium hover:underline">
-                  <Eye className="w-4 h-4" />
-                  查看详情
-                </button>
-              </div>
-            ))}
-          </div>
-        </Card>
       </div>
     </div>
   );

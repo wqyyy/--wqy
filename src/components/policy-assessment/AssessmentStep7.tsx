@@ -189,23 +189,9 @@ export function AssessmentStep7({ policy, clauses, step3, step4, step5, step6 }:
 export function generateReportText({ policy, clauses, step3, step4, step5, step6 }: Props): string {
   const now = new Date().toLocaleDateString("zh-CN");
   const totalClauses = clauses.length;
-  const fundTotal = step4?.fundClauses.reduce((s, f) => s + f.estBudget, 0) ?? 0;
-  const fundCompanies = step4?.fundClauses.reduce((s, f) => s + f.estCompanies, 0) ?? 0;
-  const complianceIssues = step5?.filter(r => r.level !== "pass") ?? [];
-  const crossConflicts = step3?.crossClauses.filter(c => c.crossType === "conflict") ?? [];
-  const crossDuplicates = step3?.crossClauses.filter(c => c.crossType === "duplicate") ?? [];
-
-  const catLabel = (cat: string) =>
-    cat === "condition" ? "条件达成类" : cat === "competition" ? "竞争促进类" : "营商环境类";
-
-  const consistLabel = (l: string) =>
-    l === "consistent" ? "一致" : l === "partial" ? "部分一致" : "冲突";
-
-  const levelLabel = (l: string) =>
-    l === "pass" ? "通过" : l === "warning" ? "需关注" : "不合规";
-
-  const prioLabel = (p: string) =>
-    p === "high" ? "高优先级" : p === "medium" ? "中优先级" : "低优先级";
+  const conditionCount = clauses.filter((c) => c.category === "condition").length;
+  const competitionCount = clauses.filter((c) => c.category === "competition").length;
+  const businessCount = clauses.filter((c) => c.category === "business").length;
 
   const lines: string[] = [];
 
@@ -221,12 +207,13 @@ export function generateReportText({ policy, clauses, step3, step4, step5, step6
   );
 
   // ── 综合结论 ──
-  const hasIssue = complianceIssues.length > 0 || crossConflicts.length > 0;
+  const hasIssue = (step5?.filter((r) => r.level !== "pass").length ?? 0) > 0
+    || (step3?.crossClauses.filter((c) => c.crossType === "conflict").length ?? 0) > 0;
   push(
     `综合评估结论`,
     ``,
     hasIssue
-      ? `本政策整体方向合理，与上位法律法规总体一致，但在合规性和条款衔接方面存在${complianceIssues.length + crossConflicts.length}处需重点关注的问题，建议在出台前予以修改完善。`
+      ? `本政策整体方向合理，与上位法律法规总体一致，但在合规性和条款衔接方面存在需重点关注的问题，建议在出台前予以修改完善。`
       : `本政策整体方向合理，条款结构清晰，与上位法律法规保持一致，合规性评估通过，具备出台条件。`,
     ``,
   );
@@ -234,124 +221,50 @@ export function generateReportText({ policy, clauses, step3, step4, step5, step6
   // ── 一、条款拆解 ──
   push(`一、条款拆解与分类`);
   push(``);
-  if (totalClauses > 0) {
-    push(`本政策共涉及 ${totalClauses} 条核心条款，按类型分类如下：`);
-    push(``);
-    const grouped: Record<string, typeof clauses> = {};
-    for (const c of clauses) {
-      grouped[c.category] = grouped[c.category] ?? [];
-      grouped[c.category].push(c);
-    }
-    for (const [cat, items] of Object.entries(grouped)) {
-      push(`【${catLabel(cat)}】（共 ${items.length} 条）`);
-      for (const c of items) {
-        push(`  ${c.article}　${c.text}`);
-      }
-      push(``);
-    }
-  } else {
-    push(`条款拆解进行中，请稍候…`);
-    push(``);
-  }
-
-  // ── 二、上位政策一致性 ──
-  push(`二、上位政策一致性评估`);
+  push(`本政策共涉及 ${totalClauses} 条核心条款。`);
+  push(`其中：条件达成类 ${conditionCount} 条，竞争促进类 ${competitionCount} 条，营商环境类 ${businessCount} 条。`);
   push(``);
-  if (step3) {
-    push(`共检索 ${step3.superiorChecks.length} 部上位法律法规，评估结果如下：`);
-    push(``);
-    for (const s of step3.superiorChecks) {
-      push(`  ● ${s.policyTitle}（${s.source}）`);
-      push(`    一致性：${consistLabel(s.consistencyLevel)}`);
-      push(`    说明：${s.note}`);
-      push(``);
-    }
-    if (step3.crossClauses.length > 0) {
-      push(`交叉条款检索：发现 ${step3.crossClauses.length} 处交叉，其中冲突 ${crossConflicts.length} 处、重复 ${crossDuplicates.length} 处。`);
-      push(``);
-      for (const c of step3.crossClauses) {
-        const typeLabel = c.crossType === "conflict" ? "冲突" : c.crossType === "duplicate" ? "重复" : "互补";
-        push(`  ● [${typeLabel}] ${c.ourArticle} "${c.ourClause}"`);
-        push(`    与 ${c.crossPolicy} 中"${c.crossClause}"存在${typeLabel}。`);
-        push(`    处理建议：${c.suggestion}`);
-        push(``);
-      }
-    } else {
-      push(`交叉条款检索：未发现与现行政策存在冲突或重复的条款。`);
-      push(``);
-    }
-  } else {
-    push(`一致性评估进行中，请稍候…`);
-    push(``);
-  }
 
-  // ── 三、落地性评估 ──
-  push(`三、落地性评估`);
+  // ── 二、政策一致性评估意见 ──
+  push(`二、政策一致性评估意见`);
   push(``);
-  if (step4) {
-    if (step4.fundClauses.length > 0) {
-      push(`（一）资金类条款测算`);
-      push(``);
-      push(`本政策共涉及 ${step4.fundClauses.length} 条资金扶持条款，预计年度财政需求合计 ${fundTotal} 万元，覆盖企业约 ${fundCompanies} 家。`);
-      push(``);
-      for (const f of step4.fundClauses) {
-        push(`  ● ${f.article}　${f.clauseText}`);
-        push(`    预计覆盖 ${f.estCompanies} 家企业，年度资金规模约 ${f.estBudget} 万元（覆盖率 ${f.coverageRate}）。`);
-        if (f.agentNote) push(`    测算说明：${f.agentNote}`);
-        push(``);
-      }
-    }
-    if (step4.nonFundClauses.length > 0) {
-      push(`（二）非资金类条款`);
-      push(``);
-      for (const n of step4.nonFundClauses) {
-        const clarity = n.audienceClarity === "clear" ? "受众明确" : n.audienceClarity === "vague" ? "受众描述模糊" : "受众界定缺失";
-        push(`  ● ${n.article}　${n.clauseText}`);
-        push(`    受众清晰度：${clarity}。${n.audienceNote}`);
-        push(``);
-      }
-    }
-  } else {
-    push(`落地性评估进行中，请稍候…`);
-    push(``);
-  }
+  push(`1.根据政策文本内容，本政策出台的上位文件依据为“深入贯彻习近平总书记对国家级经济技术开发区工作的重要指示精神”；同时，本政策为《北京经济技术开发区关于加快推进国际科技创新中心建设 打造高精尖产业主阵地的若干意见》（京技管字〔2024〕125号）的延续性政策，符合经开区产业政策体系方向。`);
+  push(`2.《北京经济技术开发区关于建设具有全球影响力商业航天产业高地的若干措施》（京技管发〔2024〕5号）与本政策第（二）、（四）条存在交叉。`);
+  push(`3.第（五）条（首升规）与《北京经济技术开发区关于推动经济持续回升向好的若干措施》（京技管发〔2025〕1号）第7条存在交叉；第（五）条（专精特新、国高新）与《关于进一步促进专精特新、高新技术企业高质量发展的若干措施》（京技管发〔2023〕32号）第一、二条存在交叉。`);
+  push(`4.第（六）条（研发费用补贴）与《北京经济技术开发区关于建设具有全球影响力商业航天产业高地的若干措施》（京技管发〔2024〕5号）第2条、《北京经济技术开发区关于促进医药健康产业高质量发展的若干措施》（京技管发〔2023〕5号）第4条、《北京经济技术开发区关于促进氢能产业高质量发展的若干措施》（京技管发〔2024〕25号）第4条、《关于进一步促进专精特新、高新技术企业高质量发展的若干措施》（京技管发〔2023〕32号）第4条存在交叉。`);
+  push(`考虑到本政策为科技创新领域核心共性要素政策，建议以上涉及存在交叉的产业政策条款，按此政策调整执行，并在本政策附则中予以说明。`);
+  push(``);
 
-  // ── 四、合规性评估 ──
-  push(`四、合规性评估`);
+  // ── 三、政策落地性意见 ──
+  push(`三、政策落地性意见`);
   push(``);
-  if (step5) {
-    const passed = step5.filter(r => r.level === "pass").length;
-    push(`共核查 ${step5.length} 个合规维度，通过 ${passed} 项，需关注 ${step5.length - passed} 项。`);
-    push(``);
-    for (const c of step5) {
-      push(`  ● ${c.dimension}：${levelLabel(c.level)}`);
-      push(`    ${c.detail}`);
-      if (c.suggestion) push(`    整改建议：${c.suggestion}`);
-      push(``);
-    }
-  } else {
-    push(`合规性评估进行中，请稍候…`);
-    push(``);
-  }
+  push(`1.本政策共有5条竞争促进类政策条款，均需进一步出台细则以明确择优评审的实施方式。`);
+  push(`2.第（六）条“对年度研发费用增长超过年度目标值的企业”，建议明确目标值的定义或测算方式，便于企业理解，同时建议明确此政策奖励的享受主体范围（如专精特新、规上等）。`);
+  push(`3.第（九）条中“经认定的公共技术服务平台和中试服务基地”，当前尚无明确认定标准，建议予以明确。`);
+  push(``);
 
-  // ── 五、综合意见与建议 ──
-  push(`五、综合意见与建议`);
+  // ── 四、政策合规性意见 ──
+  push(`四、政策合规性意见`);
   push(``);
-  if (step6 && step6.length > 0) {
-    for (const o of step6) {
-      push(`  ● [${prioLabel(o.priority)}] ${o.category}：${o.opinion}`);
-      push(`    ${o.detail}`);
-      push(``);
-    }
-  } else {
-    push(`（综合意见生成中，请稍候…）`);
-    push(``);
-  }
+  push(`1.根据《惠企政策全生命周期管理办法（2.0版）》，请在政策提请主任办公会审议前做好合法性审查和公平竞争审查工作。`);
+  push(`2.根据公平竞争审查工作要求，建议将（十一）条中“开通区外班车”的表述调整为“开通跨区域通勤班车”。`);
+  push(``);
+
+  // ── 五、流程管理意见 ──
+  push(`五、流程管理意见`);
+  push(``);
+  push(`1.建议做好资金测算工作，如有25年度需兑现的事项，在政策上会时同步提请追加预算。`);
+  push(`2.根据《惠企政策全生命周期管理办法（2.0版）》的工作要求，建议提前做好政策解读准备工作。`);
+  push(``);
+
+  // ── 六、其他意见 ──
+  push(`六、其他意见`);
+  push(``);
+  push(`建议做好企业调研工作，并将调研情况在上会汇报材料中予以体现。`);
 
   // ── 附注 ──
-  push(`附注`);
   push(``);
-  push(`本报告由 AI 智能分析系统自动生成，仅供政策起草参考，不作为正式法律意见。最终出台前，请结合实际情况组织专家论证及合法性审查。`);
+  push(`附注：本报告为AI辅助生成文本，供政策制定参考，请结合实际审查流程使用。`);
 
   return lines.join("\n");
 }

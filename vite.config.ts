@@ -4,8 +4,11 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
+// GitHub Pages 项目站需子路径；Vercel/本地保持根路径
+const ghPages = process.env.GITHUB_PAGES === "true";
+
 export default defineConfig(({ mode }) => ({
-  base: mode === "production" ? "/wqy-sidebar-copy/" : "/",
+  base: ghPages ? "/wqy-sidebar-copy/" : "/",
   server: {
     host: "::",
     port: 8080,

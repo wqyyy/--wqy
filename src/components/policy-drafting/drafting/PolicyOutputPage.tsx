@@ -1667,28 +1667,42 @@ export function PolicyOutputPage({
       </div>
 
       <div className="flex gap-4 flex-1 min-h-0">
-        {/* Left tool sidebar — 無右側面板時垂直置中 */}
-        <div className="w-16 shrink-0 flex flex-col items-center gap-1 pt-2">
-          {editorTools.map((tool) => (
-            <button
-              key={tool.id}
-              onClick={() => handleToolClick(tool.id)}
-              className={`flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg transition-colors cursor-pointer group w-full ${
-                activePanel === tool.id
-                  ? "bg-primary/10 text-primary"
-                  : "hover:bg-accent/50"
-              }`}
-            >
-              <tool.icon className={`h-4 w-4 transition-colors ${
-                activePanel === tool.id ? "text-primary" : "text-muted-foreground group-hover:text-primary"
-              }`} />
-              <span className={`text-[10px] transition-colors leading-tight text-center ${
-                activePanel === tool.id ? "text-primary font-medium" : "text-muted-foreground group-hover:text-primary"
-              }`}>
-                {tool.label}
-              </span>
-            </button>
-          ))}
+        {/* Left tool sidebar */}
+        <div className="w-[132px] shrink-0">
+          <div className="rounded-[26px] border border-border bg-card/95 px-3 py-4 shadow-sm">
+            <div className="flex flex-col gap-2">
+              {editorTools.map((tool) => (
+                <button
+                  key={tool.id}
+                  onClick={() => handleToolClick(tool.id)}
+                  className={`group w-full rounded-2xl px-2 py-2.5 transition-colors ${
+                    activePanel === tool.id ? "bg-muted/70" : "hover:bg-muted/45"
+                  }`}
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+                      <tool.icon
+                        className={`h-7 w-7 transition-colors ${
+                          activePanel === tool.id
+                            ? "text-primary"
+                            : "text-slate-500 group-hover:text-slate-600"
+                        }`}
+                      />
+                    </div>
+                    <span
+                      className={`text-xs leading-none tracking-tight whitespace-nowrap transition-colors ${
+                        activePanel === tool.id
+                          ? "text-primary"
+                          : "text-slate-600 group-hover:text-slate-700"
+                      }`}
+                    >
+                      {tool.label}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Main content area */}

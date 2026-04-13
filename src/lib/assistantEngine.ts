@@ -1,5 +1,5 @@
 import { POLICY_ITEMS, PUSHED_COMPANIES } from "@/data/policyReachData";
-import { policyReports } from "@/data/mockData";
+import { dashboardData, policyReports } from "@/data/mockData";
 
 export type AssistantSceneKey = "writing" | "reach" | "redeem" | "evaluation";
 
@@ -13,9 +13,12 @@ export type AssistantScene = {
 
 export type AssistantMessageAction = {
   label: string;
-  path: string;
+  /** 忽略未完成草稿提醒时不跳转 */
+  path?: string;
   search?: Record<string, string>;
   state?: Record<string, unknown>;
+  dismissIncompleteDraft?: boolean;
+  draftSignature?: string;
 };
 
 export type AssistantMessage = {
@@ -38,12 +41,21 @@ export type AssistantMessage = {
 
 export type AssistantPlan = {
   reply: string;
+  actions?: AssistantMessageAction[];
   action?:
     | { kind: "navigate"; path: string; search?: Record<string, string>; state?: Record<string, unknown> }
     | { kind: "none" }
     | { kind: "stream_draft"; policyTitle: string; fullContent: string };
   source: "model" | "fallback";
 };
+
+type AssistantIntent =
+  | "write_policy"
+  | "search_policy"
+  | "analyze_policy"
+  | "view_data"
+  | "view_report"
+  | "other";
 
 /** 根据政策标题生成一份模拟的政策全文（用于助手内流式输出） */
 export function generateMockPolicyContent(title: string): string {
@@ -169,6 +181,93 @@ const findEvaluationPolicy = (text: string) => {
   return evaluationPolicies.find((item) => normalize(item).includes(n) || n.includes(normalize(item)));
 };
 
+const likelyPolicySuffix = /(政策|办法|措施|方案|意见|通知|细则|条例|指引|规范)$/;
+
+const isLikelyPolicyTitle = (text: string) => {
+  const value = text.trim();
+  if (!value) return false;
+  if (value.length > 40) return false;
+  if (/[?？]/.test(value)) return false;
+  if (/^(帮我|请你|请帮我|查|搜索|检索|分析|对比|写|起草|查看|我想看)/.test(value)) return false;
+  return likelyPolicySuffix.test(value) || value.includes("关于");
+};
+
+const stripCommonPrefixes = (text: string) =>
+  text
+    .replace(/^(帮我|请你|请帮我|麻烦|我想|我想要|我需要|需要|请|想要)/, "")
+    .replace(/^(帮忙|帮忙把)/, "")
+    .trim();
+
+const extractWriteTitle = (text: string) => {
+  const cleaned = stripCommonPrefixes(text)
+    .replace(/^(写一篇|写一份|写个|写|起草一篇|起草一份|起草|撰写一篇|撰写一份|撰写|草拟)/, "")
+    .replace(/^(关于|围绕)/, "")
+    .replace(/(的政策文件|政策文件|政策内容|政策|方案|措施)$/g, "")
+    .trim();
+
+  if (!cleaned) return "政策文件";
+  if (likelyPolicySuffix.test(cleaned) || cleaned.includes("关于")) return cleaned;
+  return `关于${cleaned}的若干政策措施`;
+};
+
+const extractSearchKeyword = (text: string) => {
+  const cleaned = stripCommonPrefixes(text)
+    .replace(/^(帮我查找|帮我查|查找|检索|搜索|查一下|查一查|查询|帮我找|找一下|找找|找|看看|查)/, "")
+    .replace(/^(一些|一下|一下子)/, "")
+    .replace(/(有哪些政策|相关的政策|相关政策|政策有哪些|方面的政策|方面政策|政策)$/g, "")
+    .trim();
+
+  return cleaned || text.trim();
+};
+
+const extractAnalysisTopic = (text: string) =>
+  stripCommonPrefixes(text)
+    .replace(/^(分析|对比分析|对比|比较|帮我分析|帮我对比)/, "")
+    .replace(/(相关政策|政策内容|政策)$/g, "")
+    .trim() || text.trim();
+
+const extractReportKeyword = (text: string) =>
+  stripCommonPrefixes(text)
+    .replace(/^(我想看一下|我想看|查一下|查看|看一下|看|调取|打开)/, "")
+    .replace(/(报告详情|报告|专报)$/g, "")
+    .trim();
+
+const summarizeData = (text: string) => {
+  const focus = /发布/.test(text)
+    ? "publish"
+    : /资金|金额|拨付|补贴/.test(text)
+      ? "funds"
+      : /企业|主体|覆盖/.test(text)
+        ? "enterprise"
+        : "items";
+
+  if (focus === "publish") {
+    return {
+      focus,
+      summary: `经开区当前累计发布政策 ${dashboardData.policyPublished} 项、政策解读 ${dashboardData.policyInterpreted} 项、发布事项 ${dashboardData.itemsPublished} 项。国家级 ${dashboardData.policyByLevel[0].count} 项，北京市级 ${dashboardData.policyByLevel[1].count} 项，经开区级 ${dashboardData.policyByLevel[2].count} 项。`,
+    };
+  }
+
+  if (focus === "funds") {
+    return {
+      focus,
+      summary: `当前本月已拨付资金 ${dashboardData.redeemedFunds.totalMonthly.toLocaleString()} 万元。资金主要集中在科技创新、产业升级和人才引进领域，其中科技创新类占比最高。`,
+    };
+  }
+
+  if (focus === "enterprise") {
+    return {
+      focus,
+      summary: `当前累计扶持企业 ${dashboardData.supportedEnterprises.total.toLocaleString()} 家，主要覆盖新一代信息技术、生物医药和其他重点产业，中小企业占比较高。`,
+    };
+  }
+
+  return {
+    focus,
+    summary: `当前累计兑现事项 ${dashboardData.redeemedItems.total} 项，近年兑现数量在 2024 年达到高峰，科技创新和产业升级是主要扶持方向。`,
+  };
+};
+
 const searchContext = {
   writingPolicies: [
     "人工智能政策",
@@ -183,39 +282,35 @@ const searchContext = {
   evaluationPolicies,
 };
 
-type IntentModule = "writing_search" | "writing_draft" | "reach" | "redeem" | "evaluation";
-
-function detectIntentModule(text: string, scene: AssistantScene): IntentModule {
+function detectIntent(text: string): AssistantIntent {
   const normalized = text.trim();
-  const hasCompany = Boolean(findCompany(normalized));
-  const hasReachItem = Boolean(findPolicyItem(normalized));
-  const hasReport = Boolean(findReport(normalized));
-  const hasEvaluationPolicy = Boolean(findEvaluationPolicy(normalized));
+  if (!normalized) return "other";
 
-  if (hasCompany || hasReachItem || /推送|触达|匹配|画像|目标企业|申报企业|触达对象/.test(normalized)) {
-    return "reach";
+  if (/^(帮我写|请你写|写一篇|写一份|写个|写.*政策|起草|撰写|草拟)/.test(normalized)) {
+    return "write_policy";
   }
 
-  if (hasReport || /专报|兑现|拨付|资金|指标|维度|扶持企业|效果检测|评优/.test(normalized)) {
-    return "redeem";
+  if (/^(分析|对比|对比分析|比较|帮我分析|帮我对比)/.test(normalized)) {
+    return "analyze_policy";
   }
 
-  if (hasEvaluationPolicy || /评估|评价|合规|落地性|一致性|优化建议/.test(normalized)) {
-    return "evaluation";
+  if (/^(我想看一下|我想看|查一下|查看|看一下|看).*(报告|专报)$/.test(normalized) || /(报告|专报)$/.test(normalized)) {
+    return "view_report";
   }
 
-  if (/起草|撰写|草拟|制定|大纲|正文|章节|核心要点|核心要素/.test(normalized)) {
-    return "writing_draft";
+  if (/查.*数据|数据$|兑现数据|指标|数据维度/.test(normalized)) {
+    return "view_data";
   }
 
-  if (/检索|查询|搜索|查找|参考|政策库/.test(normalized)) {
-    return "writing_search";
+  if (/^(帮我查|查找|检索|搜索|查询|帮我找|找一下|找找|看看).*(政策)?/.test(normalized) || /有哪些政策|相关政策/.test(normalized) || isLikelyPolicyTitle(normalized)) {
+    return "search_policy";
   }
 
-  if (scene.key === "reach") return "reach";
-  if (scene.key === "redeem") return "redeem";
-  if (scene.key === "evaluation") return "evaluation";
-  return "writing_draft";
+  if (findCompany(normalized) || findPolicyItem(normalized) || /推送|触达|匹配|画像|目标企业/.test(normalized)) {
+    return "other";
+  }
+
+  return "other";
 }
 
 function buildFallbackPlan(scene: AssistantScene, rawText: string): AssistantPlan {
@@ -224,11 +319,10 @@ function buildFallbackPlan(scene: AssistantScene, rawText: string): AssistantPla
     return { reply: scene.prompt, action: { kind: "none" }, source: "fallback" };
   }
 
-  const intentModule = detectIntentModule(text, scene);
+  const intent = detectIntent(rawText);
 
-  if (intentModule === "writing_search") {
-    const keyword =
-      trimIntentPrefix(text, [/^(检索|查询|搜索|查找|找一下|找找|看看)/, /相关政策$/, /政策$/]) || text;
+  if (intent === "search_policy") {
+    const keyword = extractSearchKeyword(rawText);
     return {
       reply: `已为您检索“${keyword}”相关政策，左侧页面已联动展示检索结果。`,
       action: { kind: "navigate", path: "/policy-writing/search", search: { q: keyword, target: "title" } },
@@ -236,8 +330,8 @@ function buildFallbackPlan(scene: AssistantScene, rawText: string): AssistantPla
     };
   }
 
-  if (intentModule === "writing_draft") {
-    const title = trimIntentPrefix(text, [/^(起草|撰写|草拟|制定|写一份|写)/, /政策文件$/, /文件$/]) || text;
+  if (intent === "write_policy") {
+    const title = extractWriteTitle(rawText);
     const fullContent = generateMockPolicyContent(title);
     return {
       reply: `正在为您起草「${title}」，请稍候…`,
@@ -250,7 +344,105 @@ function buildFallbackPlan(scene: AssistantScene, rawText: string): AssistantPla
     };
   }
 
-  if (intentModule === "reach") {
+  if (intent === "analyze_policy") {
+    const topic = extractAnalysisTopic(rawText);
+    return {
+      reply: `已完成对“${topic}”的初步分析：\n1. 政策目标通常聚焦产业培育、企业扶持和要素保障。\n2. 关键看点建议重点比较支持对象、补贴方式、资金强度和申报门槛。\n3. 如果是跨地区对比，还应关注奖励标准、覆盖范围和兑现机制差异。\n4. 建议进一步结合原文条款逐项比对，以形成更完整的分析结论。`,
+      actions: [
+        {
+          label: "打开对比分析页",
+          path: "/policy-writing/analysis",
+        },
+      ],
+      action: { kind: "none" },
+      source: "fallback",
+    };
+  }
+
+  if (intent === "view_data") {
+    const dataSummary = summarizeData(rawText);
+    return {
+      reply: `${dataSummary.summary} 左侧已为您打开对应的数据看板。`,
+      action: { kind: "navigate", path: "/effect-dashboard", search: { focus: dataSummary.focus } },
+      source: "fallback",
+    };
+  }
+
+  if (intent === "view_report") {
+    const keyword = extractReportKeyword(rawText);
+    const reportMatches = policyReports.filter((item) => {
+      if (!keyword) return true;
+      const n = normalize(keyword);
+      return normalize(item.title).includes(n) || n.includes(normalize(item.title));
+    }).slice(0, 5);
+
+    if (reportMatches.length > 0) {
+      return {
+        reply: keyword
+          ? `已为您找到 ${reportMatches.length} 份与“${keyword}”相关的报告，可点击下方结果查看详情。`
+          : "已为您匹配到以下报告，可点击查看详情。",
+        actions: reportMatches.map((item) => ({
+          label: item.title,
+          path: `/policy-report/${item.id}`,
+        })),
+        action: { kind: "none" },
+        source: "fallback",
+      };
+    }
+
+    const evaluationPolicy = findEvaluationPolicy(rawText);
+    if (evaluationPolicy) {
+      return {
+        reply: `已为您匹配到“${evaluationPolicy}”的评价报告入口，可点击查看完整分析结果。`,
+        actions: [
+          {
+            label: `${evaluationPolicy}评价报告`,
+            path: "/policy-analysis",
+            search: { policy: evaluationPolicy },
+          },
+        ],
+        action: { kind: "none" },
+        source: "fallback",
+      };
+    }
+
+    return {
+      reply: "暂未找到完全匹配的报告，您可以换一个报告名称，或先进入专报列表继续筛选。",
+      actions: [
+        { label: "打开专报列表", path: "/policy-report" },
+      ],
+      action: { kind: "none" },
+      source: "fallback",
+    };
+  }
+
+  const company = findCompany(text);
+  if (company) {
+    return {
+      reply: `已为您定位企业“${company.name}”，左侧页面已自动展开对应触达详情。`,
+      action: {
+        kind: "navigate",
+        path: "/policy-reach",
+        search: { itemId: company.policyId, companyId: company.id, q: company.name },
+      },
+      source: "fallback",
+    };
+  }
+
+  const item = findPolicyItem(text);
+  if (item) {
+    return {
+      reply: `已为您打开“${item.title}”的触达详情，左侧页面可继续查看匹配企业。`,
+      action: {
+        kind: "navigate",
+        path: "/policy-reach",
+        search: { itemId: item.id, q: item.title },
+      },
+      source: "fallback",
+    };
+  }
+
+  if (scene.key === "reach") {
     const company = findCompany(text);
     if (company) {
       return {
@@ -285,51 +477,7 @@ function buildFallbackPlan(scene: AssistantScene, rawText: string): AssistantPla
     };
   }
 
-  if (intentModule === "redeem") {
-    const report = findReport(text);
-    if (report) {
-      return {
-        reply: `已为您打开“${report.title}”，左侧页面正在展示对应专报。`,
-        action: { kind: "navigate", path: `/policy-report/${report.id}` },
-        source: "fallback",
-      };
-    }
-
-    if (/专报|报告/.test(text)) {
-      return {
-        reply: "已为您打开兑现专报页面，左侧可继续查看和生成专报。",
-        action: { kind: "navigate", path: "/policy-report" },
-        source: "fallback",
-      };
-    }
-
-    if (/评优|企业名单|企业排序/.test(text)) {
-      return {
-        reply: "已为您打开企业智能评优页面，左侧可查看企业评优结果。",
-        action: { kind: "navigate", path: "/enterprise-evaluation" },
-        source: "fallback",
-      };
-    }
-
-    const focus = /发布/.test(text)
-      ? "publish"
-      : /资金|金额|拨付|补贴/.test(text)
-      ? "funds"
-      : /企业|主体|覆盖/.test(text)
-      ? "enterprise"
-      : "items";
-
-    const focusLabel =
-      focus === "publish" ? "政策发布情况" : focus === "funds" ? "资金兑现指标" : focus === "enterprise" ? "扶持企业维度" : "兑现事项维度";
-
-    return {
-      reply: `已为您切换到“${focusLabel}”视图，左侧页面正在联动展示相关数据。`,
-      action: { kind: "navigate", path: "/effect-dashboard", search: { focus } },
-      source: "fallback",
-    };
-  }
-
-  if (intentModule === "evaluation") {
+  if (scene.key === "evaluation") {
     const policy = findEvaluationPolicy(text) || trimIntentPrefix(text, [/^(评估|查看|生成|调取)/, /评价报告$/, /报告$/, /政策$/]) || text;
     return {
       reply: `已为您调取“${policy}”的评价分析结果，左侧页面正在生成或展示对应报告。`,
@@ -341,8 +489,7 @@ function buildFallbackPlan(scene: AssistantScene, rawText: string): AssistantPla
   if (scene.key === "writing") {
     const wantsSearch = /检索|查询|搜索|查找|参考|看看|找/.test(text);
     if (wantsSearch) {
-      const keyword =
-        trimIntentPrefix(text, [/^(检索|查询|搜索|查找|找一下|找找|看看)/, /相关政策$/, /政策$/]) || text;
+      const keyword = extractSearchKeyword(text);
       return {
         reply: `已为您检索“${keyword}”相关政策，左侧页面已联动展示检索结果。`,
         action: { kind: "navigate", path: "/policy-writing/search", search: { q: keyword, target: "title" } },
@@ -350,7 +497,7 @@ function buildFallbackPlan(scene: AssistantScene, rawText: string): AssistantPla
       };
     }
 
-    const title = trimIntentPrefix(text, [/^(起草|撰写|草拟|制定|写一份|写)/, /政策文件$/, /文件$/]) || text;
+    const title = extractWriteTitle(text);
     return {
       reply: `已根据“${title}”创建起草任务，并自动带入政策标题和核心要素。`,
       action: {
@@ -367,6 +514,65 @@ function buildFallbackPlan(scene: AssistantScene, rawText: string): AssistantPla
   }
 
   return { reply: scene.prompt, action: { kind: "none" }, source: "fallback" };
+}
+
+async function requestOpenAIText(systemPrompt: string, userPrompt: string): Promise<string | null> {
+  const apiKey = import.meta.env.VITE_OPENAI_API_KEY as string | undefined;
+  if (!apiKey) return null;
+
+  const model = (import.meta.env.VITE_OPENAI_MODEL as string | undefined) || "gpt-4.1-mini";
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.4,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+    }),
+  });
+
+  if (!response.ok) throw new Error("openai_text_failed");
+  const payload = await response.json();
+  return payload?.choices?.[0]?.message?.content ?? null;
+}
+
+async function tryModelDraftPlan(input: string): Promise<AssistantPlan | null> {
+  const title = extractWriteTitle(input);
+  const content = await requestOpenAIText(
+    "你是政府政策起草专家。请根据用户给出的政策主题，直接输出一份正式、完整、结构化的政策初稿正文，语言正式，包含标题、总则、支持措施、保障机制、附则。",
+    `请起草：${title}`,
+  );
+
+  if (!content) return null;
+  return {
+    reply: `正在为您起草「${title}」，请稍候…`,
+    action: { kind: "stream_draft", policyTitle: title, fullContent: content },
+    source: "model",
+  };
+}
+
+async function tryModelAnalysisPlan(input: string): Promise<AssistantPlan | null> {
+  const topic = extractAnalysisTopic(input);
+  const content = await requestOpenAIText(
+    "你是政策分析专家。请围绕用户提出的政策分析主题，输出结构化中文分析。至少包含：分析对象、关键差异、支持方式、适用对象、奖励力度、结论建议。若用户表达的是地区对比，要做清晰对比。",
+    `请分析：${topic}`,
+  );
+
+  if (!content) return null;
+  return {
+    reply: content,
+    actions: [
+      { label: "打开对比分析页", path: "/policy-writing/analysis" },
+    ],
+    action: { kind: "none" },
+    source: "model",
+  };
 }
 
 async function callConfiguredAssistantApi(scene: AssistantScene, input: string, history: AssistantMessage[]): Promise<AssistantPlan | null> {
@@ -435,6 +641,28 @@ async function callOpenAI(scene: AssistantScene, input: string, history: Assista
 }
 
 export async function getAssistantPlan(scene: AssistantScene, input: string, history: AssistantMessage[]): Promise<AssistantPlan> {
+  const intent = detectIntent(input);
+
+  if (intent === "write_policy") {
+    try {
+      const plan = await tryModelDraftPlan(input);
+      if (plan) return plan;
+    } catch {
+      // fallback below
+    }
+    return buildFallbackPlan(scene, input);
+  }
+
+  if (intent === "analyze_policy") {
+    try {
+      const plan = await tryModelAnalysisPlan(input);
+      if (plan) return plan;
+    } catch {
+      // fallback below
+    }
+    return buildFallbackPlan(scene, input);
+  }
+
   try {
     const apiPlan = await callConfiguredAssistantApi(scene, input, history);
     if (apiPlan) return apiPlan;

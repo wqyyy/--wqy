@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { FileText, BarChart3, Award, ArrowRight, BookOpen, Building2, Bot, Wallet, RefreshCw, ChevronRight, Eye, Clock, ClipboardList, DollarSign, Users } from "lucide-react";
+import { FileText, BarChart3, Award, ArrowRight, BookOpen, Building2, Bot, Wallet, RefreshCw, ChevronRight, Eye, Clock, ClipboardList, DollarSign, Users, BadgeCheck, Calendar } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,33 +10,40 @@ const Index = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="h-full overflow-y-auto p-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-6">
+    <div className="h-full overflow-y-auto p-5 md:p-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4">
         {/* Header + 流程 */}
-        <div className="space-y-4">
+        <div className="space-y-3">
           <PageHero
             title="政策兑现"
             description="面向政策执行人员，支持企业评优、效果监测与专报生成，实时掌握兑现情况。"
           />
 
           {/* 政策兑现流程 */}
-          <Card className="h-full overflow-y-auto p-6">
-            <h3 className="text-sm font-bold text-foreground mb-4">政策兑现流程</h3>
-            <div className="flex items-center justify-between overflow-x-auto">
+          <Card className="h-[156px] rounded-2xl border border-border bg-card px-5 py-4 flex items-center">
+            <div className="w-full flex items-center justify-between overflow-x-auto">
               {[
-                { label: "事项发布", icon: BookOpen, highlight: false },
-                { label: "企业申报", icon: Building2, highlight: false },
-                { label: "企业智能评优", icon: Bot, highlight: true },
-                { label: "资金兑现与拨付", icon: Wallet, highlight: true },
-                { label: "专报分析与问题发现", icon: BarChart3, highlight: true },
-                { label: "政策优化迭代", icon: RefreshCw, highlight: false },
+                { label: "企业申报", icon: Building2, highlight: false, iconSoft: true },
+                { label: "申报受理与审核", icon: ClipboardList, highlight: true, iconSoft: true },
+                { label: "企业智能评优", icon: Award, highlight: false, iconSoft: false },
+                { label: "确定扶持结果", icon: BadgeCheck, highlight: true, iconSoft: true },
+                { label: "项目公示", icon: Eye, highlight: false, iconSoft: true },
+                { label: "资金拨付", icon: DollarSign, highlight: true, iconSoft: true },
+                { label: "兑现效果监测", icon: BarChart3, highlight: true, iconSoft: false },
+                { label: "专报分析与评估", icon: FileText, highlight: true, iconSoft: false },
               ].map((step, i, arr) => (
                 <div key={step.label} className="flex items-center gap-1 shrink-0">
-                  <div className="flex flex-col items-center gap-2 min-w-[80px]">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${step.highlight ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground"}`}>
-                      <step.icon className="w-5 h-5" />
+                  <div className="flex flex-col items-center gap-1.5 min-w-[80px]">
+                    <div
+                      className={`h-12 w-12 rounded-full flex items-center justify-center border shadow-sm ${
+                        step.iconSoft
+                          ? "bg-[#fceef2] border-[#e7b8c8] text-[#c41e3a]"
+                          : "bg-[#d21639] border-transparent text-white"
+                      }`}
+                    >
+                      <step.icon className={`w-5 h-5 ${step.iconSoft ? "text-[#c41e3a]" : "text-white"}`} />
                     </div>
-                    <span className={`text-xs whitespace-nowrap ${step.highlight ? "text-primary font-semibold" : "text-muted-foreground"}`}>{step.label}</span>
+                    <span className="whitespace-nowrap text-xs font-medium text-foreground">{step.label}</span>
                   </div>
                   {i < arr.length - 1 && (
                     <div className="flex items-center shrink-0 -mt-5">
@@ -48,9 +55,35 @@ const Index = () => {
               ))}
             </div>
           </Card>
+
+          {/* 兑现统计数据 */}
+          <div className="h-full">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+              {[
+                { label: "申报中", value: "5", unit: "项", icon: Clock, iconBg: "bg-rose-50", iconColor: "text-rose-500" },
+                { label: "申报已截止", value: "316", unit: "项", icon: Calendar, iconBg: "bg-amber-50", iconColor: "text-amber-500" },
+                { label: "已确认扶持结果", value: "5", unit: "项", icon: BadgeCheck, iconBg: "bg-blue-50", iconColor: "text-blue-500" },
+                { label: "已兑现", value: "310", unit: "项", icon: Wallet, iconBg: "bg-emerald-50", iconColor: "text-emerald-500" },
+                { label: "已兑现资金", value: "85.3", unit: "亿元", icon: DollarSign, iconBg: "bg-violet-50", iconColor: "text-violet-500" },
+              ].map((stat) => (
+                <div key={stat.label} className="min-h-[150px] rounded-xl border border-border/80 bg-card px-4 py-4">
+                  <div className="mb-2 flex items-start justify-between gap-2">
+                    <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${stat.iconBg}`}>
+                      <stat.icon className={`h-4 w-4 ${stat.iconColor}`} />
+                    </div>
+                  </div>
+                  <p className="leading-none">
+                    <span className="text-4xl font-bold tracking-tight text-foreground">{stat.value}</span>
+                    <span className="ml-1 text-base font-semibold text-muted-foreground">{stat.unit}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <Card
           className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group flex flex-col"
           onClick={() => navigate("/enterprise-evaluation")}
@@ -96,25 +129,10 @@ const Index = () => {
                 </div>
               </div>
             </div>
-            <div className="bg-accent/50 rounded-lg p-3">
-              <p className="text-xs font-semibold text-foreground mb-2">当前评优事项</p>
-              <div className="space-y-2">
-                <p className="text-[11px] text-muted-foreground leading-relaxed">2026年信息技术产业领域平台建设专项奖励</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">2026年未来能源领域首台（套）首批次区级认定支持</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">2022-2024年度燃料电池汽车示范应用配套支持</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">2025年度未来能源关键技术创新研发支持</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">2025年新增交通运输业企业奖励</p>
-              </div>
-            </div>
-          </div>
-          <div className="px-5 pb-5 mt-auto">
-            <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm">
-              点击进入智能评优
-            </Button>
           </div>
         </Card>
 
-        {/* 兑现效果检测 (stays in middle) */}
+        {/* 兑现效果监测 (stays in middle) */}
         <Card
           className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group flex flex-col"
           onClick={() => navigate("/effect-dashboard")}
@@ -124,7 +142,7 @@ const Index = () => {
               <BarChart3 className="w-6 h-6 text-[hsl(var(--gov-blue))]" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-foreground">兑现效果检测</h3>
+              <h3 className="text-base font-bold text-foreground">兑现效果监测</h3>
               <p className="text-xs text-muted-foreground"><p className="text-xs text-muted-foreground">实时监测，动态评估</p></p>
             </div>
           </div>
@@ -155,33 +173,6 @@ const Index = () => {
                 </ResponsiveContainer>
               </div>
             </div>
-            {/* 下排：企业饼图 + 数字 */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-accent/50 rounded-lg p-2">
-                <p className="text-[10px] text-muted-foreground text-center mb-1">扶持企业分布</p>
-                <ResponsiveContainer width="100%" height={80}>
-                  <PieChart>
-                    <Pie data={[{ name: "大型企业", value: 320 }, { name: "中型企业", value: 980 }, { name: "小微企业", value: 1999 }]} cx="50%" cy="50%" innerRadius={20} outerRadius={32} dataKey="value" strokeWidth={1}>
-                      <Cell fill="hsl(var(--primary))" />
-                      <Cell fill="hsl(var(--gov-blue))" />
-                      <Cell fill="hsl(var(--gov-orange))" />
-                    </Pie>
-                    <Tooltip formatter={(v: number) => `${v}家`} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <p className="text-[10px] text-center text-muted-foreground">共 <span className="font-bold text-foreground">3299</span> 家</p>
-              </div>
-              <div className="bg-accent/50 rounded-lg p-2 flex flex-col items-center justify-center gap-1">
-                <DollarSign className="w-5 h-5 text-primary" />
-                <p className="text-lg font-bold text-foreground leading-tight">85.3<span className="text-[10px] font-normal text-muted-foreground ml-0.5">亿元</span></p>
-                <p className="text-[10px] text-muted-foreground">已兑现资金总额</p>
-              </div>
-            </div>
-          </div>
-          <div className="px-5 pb-5 mt-auto">
-            <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm">
-              点击进入兑现效果检测
-            </Button>
           </div>
         </Card>
 
@@ -201,7 +192,7 @@ const Index = () => {
           </div>
           <div className="px-5 pb-3 flex-1">
             <div className="grid grid-cols-2 gap-3">
-              {["整体态势", "事项分布", "资金分布", "企业分布"].map((label) => (
+              {["整体态势", "事项分布"].map((label) => (
                 <div key={label} className="bg-accent/50 rounded-lg p-3 flex flex-col items-center">
                   <p className="text-xs text-muted-foreground mb-2">【{label}】</p>
                   <div className="w-14 h-14 rounded-full border-4 border-primary/30 border-t-primary border-r-primary/60 relative flex items-center justify-center">
@@ -210,47 +201,62 @@ const Index = () => {
                 </div>
               ))}
             </div>
-            <div className="mt-3 bg-accent/40 rounded-lg p-3">
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                <span className="font-semibold text-foreground">AI优化建议：</span>北京市经开区XX政策资金利用率可提升，建议优化兑现流转效率。
-              </p>
-            </div>
-          </div>
-          <div className="px-5 pb-5 mt-auto">
-            <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground text-sm">
-              点击进入生成专报
-            </Button>
           </div>
         </Card>
         </div>
 
-        {/* 最新生成专报 */}
-        <Card className="h-full overflow-y-auto p-6">
-          <h3 className="text-sm font-bold text-foreground mb-4">最近生成专报</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              { title: "北京经开区产业发展促进办法", status: "已完成", statusColor: "text-green-600 bg-green-50 border-green-200", date: "2024-03-20" },
-              { title: "科技创新企业扶持专项", status: "进行中", statusColor: "text-orange-600 bg-orange-50 border-orange-200", date: "2024-03-19" },
-              { title: "中小企业融资支持政策", status: "编辑中", statusColor: "text-orange-600 bg-orange-50 border-orange-200", date: "2024-03-18" },
-            ].map((report) => (
-              <div key={report.title} className="border rounded-lg p-4 space-y-3">
-                <p className="text-sm font-medium text-foreground">{report.title}</p>
-                <div className="flex items-center justify-between">
-                  <Badge variant="outline" className={`text-[10px] ${report.statusColor}`}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-current mr-1" />
-                    {report.status}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground">{report.date}</span>
-                </div>
-                <div className="flex justify-end">
-                  <button className="flex items-center gap-1 text-xs text-primary hover:underline">
-                    <Eye className="w-3 h-3" /> 查看详情
-                  </button>
+        {/* 兑现执行功能卡片 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          {[
+            {
+              title: "项目审核",
+              desc: "基于政策条件与申报材料进行规则校验与综合评审",
+              icon: ClipboardList,
+              iconColor: "text-blue-600",
+              iconBg: "bg-blue-50",
+              path: "/policy-project-review",
+            },
+            {
+              title: "确定扶持结果",
+              desc: "结合审核结果与评估规则，形成最终扶持名单及支持方式",
+              icon: BadgeCheck,
+              iconColor: "text-emerald-600",
+              iconBg: "bg-emerald-50",
+              path: "/support-result",
+            },
+            {
+              title: "项目公示",
+              desc: "对拟扶持项目进行公开透明展示，支持社会监督与异议反馈",
+              icon: Eye,
+              iconColor: "text-amber-600",
+              iconBg: "bg-amber-50",
+              path: "/project-public-notice",
+            },
+            {
+              title: "资金拨付",
+              desc: "依据最终审批结果完成资金发放与记录归档",
+              icon: Wallet,
+              iconColor: "text-violet-600",
+              iconBg: "bg-violet-50",
+              path: "/fund-disbursement",
+            },
+          ].map((item) => (
+            <Card
+              key={item.title}
+              className={`p-5 ${item.path ? "cursor-pointer transition-shadow hover:shadow-md" : ""}`}
+              onClick={item.path ? () => navigate(item.path) : undefined}
+            >
+              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border/60 bg-card">
+                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${item.iconBg}`}>
+                  <item.icon className={`h-5 w-5 ${item.iconColor}`} />
                 </div>
               </div>
-            ))}
-          </div>
-        </Card>
+              <h3 className="text-base font-bold text-foreground">{item.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.desc}</p>
+            </Card>
+          ))}
+        </div>
+
       </div>
     </div>
   );

@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check, Zap, ListChecks, BookmarkCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  Zap,
+  ListChecks,
+  BookmarkCheck,
+  ClipboardList,
+  Search,
+  Sparkles,
+  ListOrdered,
+  FilePen,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,11 +21,11 @@ import { PolicyOutputPage } from "@/components/policy-drafting/drafting/PolicyOu
 import { QuickDraftProgress } from "@/components/policy-drafting/drafting/QuickDraftProgress";
 
 const flowSteps = [
-  { id: 1, label: "输入政策标题" },
-  { id: 2, label: "政策检索" },
-  { id: 3, label: "核心要素生成" },
-  { id: 4, label: "大纲生成" },
-  { id: 5, label: "政策编辑" },
+  { id: 1, label: "输入政策标题", icon: ClipboardList },
+  { id: 2, label: "政策检索", icon: Search },
+  { id: 3, label: "核心要素生成", icon: Sparkles },
+  { id: 4, label: "大纲生成", icon: ListOrdered },
+  { id: 5, label: "政策编辑", icon: FilePen },
 ];
 
 interface PolicyDraftingFlowProps {
@@ -188,49 +198,48 @@ export function PolicyDraftingFlow({
         返回首页
       </button>
 
-      {/* Flow stepper — 前序已訪問步驟可點擊 */}
-      <div className="flex items-center justify-center gap-0 mb-2">
+      {/* Flow stepper — 按截图样式改为卡片式流程条 */}
+      <div className="rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-foreground">起草流程</h3>
+          <span className="text-xs font-medium text-muted-foreground">{`第 ${currentStep} / 5 步`}</span>
+        </div>
+        <div className="flex items-center justify-center gap-0">
         {flowSteps.map((step, i) => {
-          const isCompleted = currentStep > step.id;
           const isCurrent = currentStep === step.id;
           const isClickable = step.id < currentStep && step.id <= maxReachedStep;
+          const StepIcon = step.icon;
 
           return (
             <div key={step.id} className="flex items-center">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col items-center gap-2">
                 <div
                   onClick={() => handleStepClick(step.id)}
-                  className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 transition-all
-                    ${isCompleted ? "gov-gradient text-primary-foreground" : ""}
-                    ${isCurrent ? "border-2 border-primary text-primary bg-primary/10" : ""}
-                    ${!isCompleted && !isCurrent ? "bg-muted text-muted-foreground" : ""}
-                    ${isClickable ? "cursor-pointer hover:opacity-80 ring-2 ring-primary/30 ring-offset-1" : "cursor-default"}
+                  className={`h-12 w-12 rounded-full border flex items-center justify-center shrink-0 transition-all
+                    ${isCurrent ? "bg-primary text-primary-foreground border-primary shadow-[0_8px_18px_rgba(230,0,50,0.24)]" : ""}
+                    ${!isCurrent ? "bg-white text-[#d8b9c6] border-[#e7ced8]" : ""}
+                    ${isClickable ? "cursor-pointer hover:border-primary/50 hover:text-primary" : "cursor-default"}
                   `}
                 >
-                  {isCompleted ? <Check className="h-3.5 w-3.5" /> : step.id}
+                  <StepIcon className="h-5 w-5" />
                 </div>
                 <span
                   onClick={() => handleStepClick(step.id)}
                   className={`text-xs font-medium whitespace-nowrap transition-colors
-                    ${isCurrent ? "text-primary" : ""}
-                    ${isCompleted ? "text-foreground" : ""}
-                    ${!isCompleted && !isCurrent ? "text-muted-foreground" : ""}
-                    ${isClickable ? "cursor-pointer hover:text-primary underline-offset-2 hover:underline" : "cursor-default"}
+                    ${isCurrent ? "text-foreground" : "text-muted-foreground"}
+                    ${isClickable ? "cursor-pointer hover:text-primary" : "cursor-default"}
                   `}
                 >
                   {step.label}
                 </span>
               </div>
               {i < flowSteps.length - 1 && (
-                <div
-                  className={`w-12 h-[2px] mx-3 transition-colors ${
-                    currentStep > step.id ? "bg-primary" : "bg-border"
-                  }`}
-                />
+                <div className="px-6 md:px-8 text-[#d8b9c6] text-base leading-none select-none -mt-5">{" >> "}</div>
               )}
             </div>
           );
         })}
+        </div>
       </div>
 
       {/* Step content（Step 4 雙欄佈局需跳出 max-w 限制，單獨處理） */}

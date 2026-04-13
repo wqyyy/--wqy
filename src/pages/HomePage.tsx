@@ -7,6 +7,12 @@ import {
   getPendingDraftWake,
   type PendingDraftWake,
 } from "@/lib/policyDraftWake";
+import {
+  ASSISTANT_HOME_GREETING,
+  ASSISTANT_TASK_REMINDER_TITLE,
+  ASSISTANT_TASK_CONTINUE_LABEL,
+  ASSISTANT_TASK_DISMISS_LABEL,
+} from "@/lib/assistantCopy";
 import assistantAvatarImg from "@/assets/ai-assistant-avatar.png";
 
 /** 快捷问题气泡配置 */
@@ -76,9 +82,6 @@ const QUICK_ASSISTANTS = [
 
 /** 无真实未完成草稿时，用于页面展示的模拟任务（便于预览样式与交互） */
 const MOCK_DRAFT_TITLE = "关于促进数据产业高质量发展的若干政策措施（示例）";
-
-const ASSISTANT_HOME_GREETING =
-  "您好，我是智能助手，可以帮您完成政策制定、查询分析与报告生成，也可以继续您未完成的任务";
 
 export default function HomePage() {
   const [inputValue, setInputValue] = useState("");
@@ -185,7 +188,7 @@ export default function HomePage() {
             {/* 任务提醒（问候语下方；有真实数据优先，否则展示模拟） */}
             {showTaskReminder && (
               <div className="relative z-10 border-b border-gray-100 bg-white px-4 pb-3 pt-3">
-                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-500">任务提醒</p>
+                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-500">{ASSISTANT_TASK_REMINDER_TITLE}</p>
                 <p className="text-[13px] leading-relaxed text-gray-800">
                   {draftWake ? buildDraftWakeMessage(draftWake.title) : buildDraftWakeMessage(MOCK_DRAFT_TITLE)}
                 </p>
@@ -195,7 +198,7 @@ export default function HomePage() {
                     onClick={() => navigate("/policy-writing/drafting")}
                     className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-[#d21639] to-[#a00f27] px-2.5 py-1 text-[11px] font-medium text-white shadow-sm transition-opacity hover:opacity-95"
                   >
-                    继续优化
+                    {ASSISTANT_TASK_CONTINUE_LABEL}
                   </button>
                   <button
                     type="button"
@@ -210,7 +213,7 @@ export default function HomePage() {
                     }}
                     className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition-colors hover:bg-gray-50"
                   >
-                    忽略
+                    {ASSISTANT_TASK_DISMISS_LABEL}
                   </button>
                 </div>
               </div>

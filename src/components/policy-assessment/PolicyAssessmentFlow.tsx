@@ -5,17 +5,27 @@ import PolicyAssessmentAuto from "@/components/policy-assessment/PolicyAssessmen
 
 interface Props {
   onBack: () => void;
+  directOpenFinal?: boolean;
+  initialPolicyTitle?: string;
 }
 
-export function PolicyAssessmentFlow({ onBack }: Props) {
-  const [selectedPolicy, setSelectedPolicy] = useState<AssessmentPolicy | null>(null);
+export function PolicyAssessmentFlow({ onBack, directOpenFinal = false, initialPolicyTitle }: Props) {
+  const [selectedPolicy, setSelectedPolicy] = useState<AssessmentPolicy | null>(
+    directOpenFinal
+      ? {
+          id: "direct-pre-eval-doc",
+          title: initialPolicyTitle || "政策前评估报告",
+          source: "library",
+        }
+      : null
+  );
 
   return (
     <div className="flex flex-col h-full">
       {/* 顶部标题栏 */}
       <div className="flex items-center gap-2 mb-5 shrink-0">
         <button
-          onClick={selectedPolicy ? () => setSelectedPolicy(null) : onBack}
+          onClick={selectedPolicy ? () => (directOpenFinal ? onBack() : setSelectedPolicy(null)) : onBack}
           className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -35,7 +45,11 @@ export function PolicyAssessmentFlow({ onBack }: Props) {
         ) : (
           /* 自动评估区：左右分割布局完全在卡片内 */
           <div className="h-full flex overflow-hidden">
-            <PolicyAssessmentAuto policy={selectedPolicy} onBack={() => setSelectedPolicy(null)} />
+            <PolicyAssessmentAuto
+              policy={selectedPolicy}
+              onBack={() => (directOpenFinal ? onBack() : setSelectedPolicy(null))}
+              directOpenFinal={directOpenFinal}
+            />
           </div>
         )}
       </div>

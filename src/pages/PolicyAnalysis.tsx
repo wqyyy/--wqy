@@ -1,608 +1,419 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
-  ArrowLeft,
-  Square,
-  Pencil,
-  Save,
-  X,
-  CheckCircle2,
   Loader2,
-  AlertCircle,
-  PauseCircle,
-  Wifi,
-  Clock,
+  CheckCircle2,
+  Square,
+  RotateCcw,
   ChevronDown,
-  ChevronUp,
   FileText,
-  Brain,
-  Sparkles,
-  Zap,
+  ClipboardList,
+  BarChart3,
+  CircleAlert,
+  Lightbulb,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { markPolicyEvaluated } from "@/lib/policyEvaluationCompleted";
 
-// ─── Types ───
-type AnalysisState = "init" | "running" | "stopped" | "completed" | "failed";
-
-interface ThinkingItem {
-  id: number;
-  text: string;
-  type: "info" | "success" | "warning";
-  timestamp: string;
-}
-
-interface ReportSection {
-  title: string;
-  content: string;
-  status: "pending" | "generating" | "done";
-}
-
-// ─── Mock data ───
-const STEPS = [
-  "整体情况分析",
-  "内容逐条分析",
-  "实施效果分析",
-  "存在问题分析",
-  "优化建议分析",
-  "报告生成",
-];
-
-const THINKING_MESSAGES: { text: string; type: ThinkingItem["type"] }[] = [
-  { text: "正在加载政策基础信息与发布背景...", type: "info" },
-  { text: "整体情况识别完成：已提炼政策目标、适用范围与执行周期", type: "success" },
-  { text: "正在拆解政策条款结构，共识别 12 条核心条款", type: "info" },
-  { text: "内容逐条分析中：已完成扶持对象、扶持方式和申报条件抽取", type: "success" },
-  { text: "正在汇总实施数据，分析覆盖企业、兑现频次与资金规模...", type: "info" },
-  { text: "实施效果分析完成：覆盖企业 326 家，兑现资金 2.3 亿元", type: "success" },
-  { text: "正在识别未兑现条款、执行堵点和落地偏差...", type: "info" },
-  { text: "注意：部分条款兑现率偏低，企业申报周期较长", type: "warning" },
-  { text: "正在生成优化建议，匹配流程优化与条款修订方向...", type: "info" },
-  { text: "优化建议分析完成：已形成 5 条可执行建议", type: "success" },
-  { text: "正在生成政策评价报告...", type: "info" },
-  { text: "报告结构优化中，正在整合 5 个分析维度", type: "info" },
-  { text: "报告生成完成", type: "success" },
-];
-
-const REPORT_SECTIONS: { title: string; content: string }[] = [
+const STAGES = [
   {
-    title: "一、整体情况分析",
-    content:
-      "本政策围绕北京经济技术开发区产业发展目标，聚焦科技创新、高端制造和企业培育等重点方向，构建了较为完整的扶持框架。政策目标明确、适用对象清晰、执行周期合理，在区域产业升级与创新引导方面具备较强针对性。\n\n从整体情况看，政策具备较好的结构基础和实施条件，但部分条款在执行标准与配套机制方面仍有细化空间。",
+    id: 0,
+    label: "整体情况分析",
+    icon: FileText,
+    duration: 1100,
+    thoughts: ["正在读取政策基础信息…", "提取政策目标、覆盖范围和执行周期…", "完成整体运行态势初步判断…"],
   },
   {
-    title: "二、内容逐条分析",
-    content:
-      "逐条分析显示，扶持类条款执行基础较好，资金支持和奖励方向较为明确；资格认定类条款口径较严，对企业资质、研发能力和申报材料完整性要求较高。部分条款存在表述原则性较强、落地路径不够清晰的问题。\n\n从条款设计看，政策主干完整，但个别条款在适用边界、执行说明和操作指引方面仍需进一步明确。",
+    id: 1,
+    label: "内容逐条分析",
+    icon: ClipboardList,
+    duration: 1200,
+    thoughts: ["拆解政策条款结构…", "识别兑现条款与执行条款…", "标注条款执行差异点…"],
   },
   {
-    title: "三、实施效果分析",
-    content:
-      "从实施数据看，政策当前已覆盖 326 家企业，累计兑现资金 2.3 亿元，重点支持对象集中于高新技术企业和创新型中小企业。已兑现条款主要集中在资金奖励和项目补贴类，兑现效率总体较好。\n\n但从实施节奏看，不同条款之间的兑现进度存在差异，部分条款在执行后期出现响应减弱和覆盖不足的情况。",
+    id: 2,
+    label: "实施效果分析",
+    icon: BarChart3,
+    duration: 1100,
+    thoughts: ["汇总政策兑现与覆盖数据…", "测算政策资金使用效率…", "评估产业带动效果…"],
   },
   {
-    title: "四、存在问题分析",
-    content:
-      "当前政策执行中主要存在四类问题：一是部分条款兑现率偏低，存在条款设计与执行条件不完全匹配的现象；二是政策覆盖企业类型仍偏集中，中小微企业受益面不足；三是部分条款申报流程较长，影响企业参与积极性；四是个别支持方向缺乏后续跟踪评估机制。\n\n这些问题在一定程度上影响了政策的普惠性、执行效率和持续性。",
+    id: 3,
+    label: "存在问题分析",
+    icon: CircleAlert,
+    duration: 900,
+    thoughts: ["识别兑现率偏低条款…", "定位企业申报堵点…", "汇总执行过程主要问题…"],
   },
   {
-    title: "五、优化建议分析",
-    content:
-      "建议从五个方面优化政策设计与执行：一是对兑现率偏低的条款补充实施细则和适用指引；二是压缩申报和审批链路，提升企业办理体验；三是增加面向中小微企业的分层扶持机制；四是建立条款级执行跟踪与反馈闭环；五是将阶段性评估结果纳入下一轮政策修订依据。\n\n通过以上优化，可进一步提升政策的执行效率、覆盖广度和实际成效。",
+    id: 4,
+    label: "优化建议分析",
+    icon: Lightbulb,
+    duration: 900,
+    thoughts: ["匹配可执行优化路径…", "生成分层改进建议…", "形成政策修订方向…"],
   },
 ];
 
-const WAIT_TIPS = [
-  { maxSeconds: 10, text: "正在启动分析引擎..." },
-  { maxSeconds: 30, text: "正在深度解析政策内容，请稍候" },
-  { maxSeconds: 60, text: "本次分析包含 6 个阶段，AI 正在逐步生成结论" },
-  { maxSeconds: Infinity, text: "报告生成中，结果将持续输出，请耐心等待" },
+const STAGE_OUTPUTS = [
+  `（一）政策目标与导向匹配度
+本政策聚焦外商投资企业高质量发展，围绕“稳存量、扩增量、提质量、优生态”进行制度设计，与经开区现阶段产业升级和开放型经济发展目标整体一致。政策目标与区域产业方向、招商导向、创新驱动逻辑保持同向，具备较强战略协同性。
+
+（二）政策结构完整性评估
+从结构上看，政策形成“项目引进—要素支持—经营服务—评估监督”的闭环框架，条款间前后衔接较为顺畅。前端强化项目落地和总部功能导入，中端突出研发、人才、资金等核心要素保障，末端强调绩效评估和资金使用约束，整体治理链条较完整。
+
+（三）政策适用对象与覆盖边界
+当前政策对重点外资企业、链主企业和技术密集型企业的支持导向明确，有利于快速形成示范效应；但对中小外资企业、功能型平台企业和初创型科技企业的适配支持仍可细化，建议后续增加分层条款口径，提升政策普惠度与可达性。
+
+（四）阶段性运行判断
+综合判断，本政策具备较好的总体设计基础与执行潜力，政策方向正确、框架完整、重点突出。下一步需重点在可操作细则、跨部门协同和企业端体验上持续补强，以确保政策效能稳定释放。`,
+  `（一）奖励补贴类条款
+奖励补贴条款执行基础较好，企业关注度高、申报动力强，是当前政策发挥效果最直接的条款类型。条款对企业投资信心和经营预期具有正向支撑作用，但在奖励标准分档、兑现节奏与绩效挂钩机制方面仍有进一步透明化空间。
+
+（二）资格认定与门槛类条款
+资格认定类条款对政策精准投放具有必要性，但部分口径偏原则化，企业在“是否符合、如何举证、何时提交”上存在理解偏差。建议统一认定边界、补充判定示例并明确否决项清单，降低企业申报不确定性。
+
+（三）流程执行与材料要求
+当前条款在材料标准、部门流转和反馈时限方面仍存在细节不一问题，导致企业重复沟通成本偏高。建议建立条款-流程-材料一体化清单，推动“同口径审核、同标准反馈”，形成更稳定的执行体验。
+
+（四）条款可持续性与可复用性
+从中长期看，鼓励研发投入、产业协同和技术升级类条款具有较高可持续性，能够持续促进企业能力建设。建议将高频应用条款沉淀为标准模块，提升后续政策迭代效率和跨政策复用能力。`,
+  `（一）企业覆盖与兑现表现
+从实施结果看，政策对重点企业覆盖较快，兑现效率总体可控，能够形成较好的阶段性示范。高成长、高研发投入企业受益更明显，政策对企业扩产增资和技术迭代形成了实际激励。
+
+（二）资金使用效率与杠杆效应
+政策资金投向总体与区域产业导向一致，重点领域集中度较高，具备一定资源聚焦效果。部分条款已呈现“财政资金撬动社会投资”的正向杠杆，但不同条款之间边际效果差异较大，需建立条款级投入产出评估机制。
+
+（三）产业带动与生态联动
+政策对产业链协同、上下游配套和创新平台建设具有积极带动作用，尤其在先进制造、科技服务和跨境协同创新领域效果初显。建议后续强化产业链关键环节指标跟踪，验证政策对链条韧性和竞争力提升的贡献度。
+
+（四）企业感知与办理体验
+企业端反馈显示，政策价值认可度较高，但办理便利度在不同条款间不均衡。建议继续压缩“知晓—匹配—申报—兑现”链路时长，提升政策可感知、可获得、可验证水平。`,
+  `（一）条款执行尺度不一致
+部分条款在不同承办环节存在解释差异，导致企业预期管理难度上升。该问题易引发“同类事项不同判断”的体验偏差，影响政策公信力与稳定性。
+
+（二）跨部门协同与数据复用不足
+目前跨部门协同机制虽已建立，但在信息共享、材料复用、节点反馈方面仍存在断点。企业重复提交、重复说明现象尚未完全消除，影响整体办理效率。
+
+（三）政策触达结构不均衡
+头部企业和既有重点企业受益更充分，新设中小外资企业在政策识别、申报辅导和流程适配方面支持不足，可能导致政策效果集中化，削弱普惠性和外溢效应。
+
+（四）后评价机制深度不足
+当前复盘以结果汇总为主，缺乏条款级问题画像、原因拆解和整改闭环跟踪，难以为下一轮政策修订提供高质量证据。建议尽快建立标准化后评价指标体系与案例库。`,
+  `（一）近期可执行优化建议（0-3个月）
+1. 对低兑现率条款发布配套指引，明确申报口径、材料模板、常见否决场景。
+2. 建立“单一窗口 + 并联审核”机制，减少企业多头沟通。
+3. 对中小外资企业提供分层辅导服务，提升匹配精度与申报成功率。
+
+（二）中期机制化优化建议（3-12个月）
+1. 构建条款级KPI体系，至少覆盖：触达率、申报率、兑现时效、企业满意度、资金杠杆率。
+2. 建立后评价专题库，沉淀问题清单、典型案例、整改进度与复盘结论。
+3. 将后评价结果与政策修订、预算安排、事项配置联动，形成“评估-优化-再评估”闭环。
+
+（三）长期治理能力建设建议
+1. 推动政策条款标准化和模块化，提升跨政策复用能力。
+2. 强化多语种、场景化政策解读，提升国际化企业政策可理解性。
+3. 建设政策运行监测看板，实现条款级动态预警和滚动优化。
+
+综合建议：以“精准条款、高效流程、数据复盘、持续迭代”为主线，逐步实现政策从“可执行”向“高质量执行”升级。`,
 ];
 
-// ─── Component ───
-const PolicyAnalysis = () => {
+const SECTION_TITLES = [
+  "一、整体情况分析",
+  "二、内容逐条分析",
+  "三、实施效果分析",
+  "四、存在问题分析",
+  "五、优化建议分析",
+];
+
+export default function PolicyAnalysis() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [state, setState] = useState<AnalysisState>("init");
-  const [currentStep, setCurrentStep] = useState(0);
-  const [thinkingItems, setThinkingItems] = useState<ThinkingItem[]>([]);
-  const [reportSections, setReportSections] = useState<ReportSection[]>(
-    REPORT_SECTIONS.map((s) => ({ title: s.title, content: "", status: "pending" }))
-  );
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [isEditing, setIsEditing] = useState(false);
-  const [thinkingExpanded, setThinkingExpanded] = useState(true);
-  const [completedModules, setCompletedModules] = useState(0);
-  const thinkingRef = useRef<HTMLDivElement>(null);
-  const reportRef = useRef<HTMLDivElement>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const animationRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const stateRef = useRef(state);
   const policyName = searchParams.get("policy") || "北京经开区产业发展促进办法";
+  const directFinal = searchParams.get("directFinal") === "1";
 
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+  const [stage, setStage] = useState(0);
+  const [finished, setFinished] = useState(false);
+  const [stopped, setStopped] = useState(false);
+  const [expandedThinking, setExpandedThinking] = useState<number | null>(0);
+  const [typingText, setTypingText] = useState("");
+  const [editableResults, setEditableResults] = useState<string[]>(Array(STAGES.length).fill(""));
+  const [thoughtLogs, setThoughtLogs] = useState<string[]>(Array(STAGES.length).fill(""));
+  const [runKey, setRunKey] = useState(0);
+  const [openFinalMode, setOpenFinalMode] = useState(directFinal);
+  const typingCancelRef = useRef<(() => void) | null>(null);
+  const stopRef = useRef(false);
 
-  const getWaitTip = () => {
-    return WAIT_TIPS.find((t) => elapsedTime < t.maxSeconds)?.text || "";
-  };
-
-  const now = () => {
-    const d = new Date();
-    return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}:${d.getSeconds().toString().padStart(2, "0")}`;
-  };
-
-  const addThinking = useCallback((text: string, type: ThinkingItem["type"]) => {
-    setThinkingItems((prev) => [
-      ...prev,
-      { id: Date.now() + Math.random(), text, type, timestamp: now() },
-    ]);
+  const handleStop = useCallback(() => {
+    stopRef.current = true;
+    setStopped(true);
+    setFinished(true);
+    setStage(STAGES.length);
   }, []);
 
-  // Auto-scroll thinking panel
-  useEffect(() => {
-    if (thinkingRef.current) {
-      thinkingRef.current.scrollTop = thinkingRef.current.scrollHeight;
-    }
-  }, [thinkingItems]);
-
-  // Timer
-  useEffect(() => {
-    if (state === "running") {
-      intervalRef.current = setInterval(() => setElapsedTime((t) => t + 1), 1000);
-    }
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, [state]);
-
-  // Simulate analysis
-  const runAnalysis = useCallback(() => {
-    setState("running");
-    setElapsedTime(0);
-    setThinkingItems([]);
-    setReportSections(REPORT_SECTIONS.map((s) => ({ title: s.title, content: "", status: "pending" })));
-    setCompletedModules(0);
-    setCurrentStep(0);
-
-    let thinkIdx = 0;
-    let sectionIdx = 0;
-    const stageBreakpoints = [0, 2, 4, 6, 8, 10];
-
-    const processThinking = () => {
-      if (stateRef.current !== "running") return;
-      if (thinkIdx < THINKING_MESSAGES.length) {
-        const msg = THINKING_MESSAGES[thinkIdx];
-        addThinking(msg.text, msg.type);
-        const nextIndex = thinkIdx + 1;
-        const nextStage = stageBreakpoints.reduce((stage, breakpoint, index) => (nextIndex > breakpoint ? index : stage), 0);
-        setCurrentStep(Math.min(nextStage, STEPS.length - 1));
-        thinkIdx++;
-
-        animationRef.current = setTimeout(processThinking, 800 + Math.random() * 1200);
-      } else {
-        // Start report generation
-        setCurrentStep(STEPS.length - 1);
-        processReport();
-      }
-    };
-
-    const processReport = () => {
-      if (stateRef.current !== "running") return;
-      if (sectionIdx < REPORT_SECTIONS.length) {
-        // Set current section to generating
-        setReportSections((prev) =>
-          prev.map((s, i) =>
-            i === sectionIdx ? { ...s, status: "generating" } : s
-          )
-        );
-
-        // Simulate streaming text
-        const fullContent = REPORT_SECTIONS[sectionIdx].content;
-        const words = fullContent.split("");
-        let charIdx = 0;
-        const currentSectionIdx = sectionIdx;
-
-        const streamChar = () => {
-          if (stateRef.current !== "running") return;
-          if (charIdx < words.length) {
-            const chunk = words.slice(charIdx, charIdx + 3 + Math.floor(Math.random() * 5)).join("");
-            charIdx += chunk.length;
-            setReportSections((prev) =>
-              prev.map((s, i) =>
-                i === currentSectionIdx
-                  ? { ...s, content: fullContent.substring(0, charIdx) }
-                  : s
-              )
-            );
-            animationRef.current = setTimeout(streamChar, 20 + Math.random() * 30);
-          } else {
-            // Section complete
-            setReportSections((prev) =>
-              prev.map((s, i) =>
-                i === currentSectionIdx ? { ...s, status: "done", content: fullContent } : s
-              )
-            );
-            setCompletedModules((m) => m + 1);
-            sectionIdx++;
-            animationRef.current = setTimeout(processReport, 500);
-          }
-        };
-        streamChar();
-      } else {
-        // All done
-        setState("completed");
-        setCurrentStep(STEPS.length - 1);
-      }
-    };
-
-    animationRef.current = setTimeout(processThinking, 1000);
-  }, [addThinking]);
-
-  // Auto-start
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setState("init");
-      setTimeout(runAnalysis, 1500);
-    }, 500);
-    return () => {
-      clearTimeout(timer);
-      if (animationRef.current) clearTimeout(animationRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  const handleRestart = useCallback(() => {
+    setOpenFinalMode(false);
+    stopRef.current = false;
+    setStopped(false);
+    setFinished(false);
+    setStage(0);
+    setExpandedThinking(0);
+    setTypingText("");
+    setEditableResults(Array(STAGES.length).fill(""));
+    setThoughtLogs(Array(STAGES.length).fill(""));
+    setRunKey((k) => k + 1);
   }, []);
 
-  const handleStop = () => {
-    setState("stopped");
-    if (animationRef.current) clearTimeout(animationRef.current);
-  };
+  useEffect(() => {
+    if (openFinalMode) {
+      setThoughtLogs(STAGES.map((item) => item.thoughts.join("\n")));
+      setEditableResults([...STAGE_OUTPUTS]);
+      setFinished(true);
+      setStopped(false);
+      setStage(STAGES.length);
+      setExpandedThinking(null);
+      return;
+    }
 
-  const handleEdit = () => setIsEditing(true);
-  const handleSave = () => {
-    setIsEditing(false);
-  };
-  const handleCancelEdit = () => setIsEditing(false);
+    stopRef.current = false;
+    let mounted = true;
+    const stoppedNow = () => !mounted || stopRef.current;
 
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
-  };
+    const run = async () => {
+      for (let i = 0; i < STAGES.length; i++) {
+        setStage(i);
+        setExpandedThinking(i);
+        setThoughtLogs((prev) => {
+          const next = [...prev];
+          next[i] = STAGES[i].thoughts.join("\n");
+          return next;
+        });
+        await new Promise((r) => setTimeout(r, STAGES[i].duration));
+        if (stoppedNow()) return;
+        setEditableResults((prev) => {
+          const next = [...prev];
+          next[i] = STAGE_OUTPUTS[i];
+          return next;
+        });
+        setExpandedThinking(null);
+      }
 
-  const statusConfig: Record<AnalysisState, { label: string; color: string; icon: React.ElementType }> = {
-    init: { label: "初始化中", color: "bg-muted text-muted-foreground", icon: Loader2 },
-    running: { label: "分析中", color: "bg-blue-100 text-blue-700", icon: Loader2 },
-    stopped: { label: "已停止", color: "bg-orange-100 text-orange-700", icon: PauseCircle },
-    completed: { label: "已完成", color: "bg-green-100 text-green-700", icon: CheckCircle2 },
-    failed: { label: "失败", color: "bg-red-100 text-red-700", icon: AlertCircle },
-  };
+      setFinished(true);
+      setStage(STAGES.length);
+      window.dispatchEvent(
+        new CustomEvent("assistant:eval-report-done", {
+          detail: { title: policyName },
+        })
+      );
+    };
 
-  const { label: statusLabel, color: statusColor, icon: StatusIcon } = statusConfig[state];
-  const totalStages = STEPS.length;
-  const totalSections = REPORT_SECTIONS.length;
-  const completedStages =
-    state === "completed" ? totalStages : state === "running" ? Math.min(currentStep, totalStages - 1) : 0;
-  const progressPercent = state === "completed" ? 100 : Math.round((completedStages / totalStages) * 100);
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, [policyName, runKey, openFinalMode]);
+
+  useEffect(() => {
+    typingCancelRef.current?.();
+    setTypingText("");
+    const stageIdx = finished ? -1 : stage;
+    if (stageIdx < 0 || stageIdx >= STAGES.length) return;
+    const full = STAGES[stageIdx].thoughts.join("\n");
+    let i = 0;
+    let cancelled = false;
+    typingCancelRef.current = () => {
+      cancelled = true;
+    };
+    const tick = () => {
+      if (cancelled) return;
+      i++;
+      setTypingText(full.slice(0, i));
+      if (i < full.length) setTimeout(tick, 18);
+    };
+    setTimeout(tick, 120);
+    return () => {
+      cancelled = true;
+    };
+  }, [stage, finished]);
+
+  /** 评估流程自然完成后记录，供政策评价列表展示「重新评估」（中途停止不计入） */
+  useEffect(() => {
+    if (!finished || stopped) return;
+    markPolicyEvaluated(policyName);
+  }, [finished, stopped, policyName]);
+
+  const flowCurrent = Math.min(stage + 1, STAGES.length);
+  const statusLabel = stopped ? "已停止" : finished ? "已完成" : STAGES[stage]?.label || "执行中";
+  const finalReportText = [
+    "政策评价报告",
+    `评估对象：${policyName}`,
+    `评估日期：${new Date().toLocaleDateString("zh-CN")}`,
+    "",
+    ...SECTION_TITLES.map((title, idx) => `${title}\n${editableResults[idx] || STAGE_OUTPUTS[idx]}`),
+  ].join("\n\n");
 
   return (
-    <div className="flex flex-col h-full bg-background">
-      {/* ─── Header ─── */}
-      <div className="border-b border-border bg-card px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate("/policy-evaluation")}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              返回
-            </Button>
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-lg font-bold text-foreground">
-                  {state === "completed" ? "报告生成完成" : "政策评估分析中"}
-                </h1>
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium",
-                    statusColor
-                  )}
-                >
-                  <StatusIcon
-                    className={cn("w-3.5 h-3.5", state === "running" || state === "init" ? "animate-spin" : "")}
-                  />
-                  {statusLabel}
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground mt-0.5">
-                {policyName} · 综合评估
-              </p>
-            </div>
+    <div className="h-full min-h-0 w-full overflow-y-auto">
+      <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
+        <div className="rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground">政策评价流程</h3>
+            <span className="text-xs font-medium text-muted-foreground">{`第 ${flowCurrent} / ${STAGES.length} 步`}</span>
           </div>
-          <div className="flex items-center gap-2">
-            {state === "running" && (
-              <Button variant="outline" size="sm" onClick={handleStop} className="text-destructive border-destructive/30 hover:bg-destructive/10">
-                <Square className="w-3.5 h-3.5 mr-1.5" />
-                停止分析
-              </Button>
-            )}
-            {(state === "completed" || state === "stopped") && !isEditing && (
-              <Button variant="outline" size="sm" onClick={handleEdit}>
-                <Pencil className="w-3.5 h-3.5 mr-1.5" />
-                编辑报告
-              </Button>
-            )}
-            {isEditing && (
-              <>
-                <Button variant="outline" size="sm" onClick={handleCancelEdit}>
-                  <X className="w-3.5 h-3.5 mr-1.5" />
-                  取消
-                </Button>
-                <Button size="sm" onClick={handleSave} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                  <Save className="w-3.5 h-3.5 mr-1.5" />
-                  保存
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Global Tip ─── */}
-      {(state === "running" || state === "init") && (
-        <div className="px-6 py-2 bg-accent/50 border-b border-border">
-          <div className="flex items-center gap-2 text-sm text-accent-foreground">
-            <Sparkles className="w-4 h-4" />
-            <span>{getWaitTip()}</span>
-          </div>
-        </div>
-      )}
-
-      {state === "failed" && (
-        <div className="px-6 py-2 bg-destructive/10 border-b border-destructive/20">
-          <div className="flex items-center gap-2 text-sm text-destructive">
-            <AlertCircle className="w-4 h-4" />
-            <span>分析过程出现异常，部分内容可能不完整</span>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Main Content ─── */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: Thinking Panel */}
-        <div
-          className={cn(
-            "border-r border-border bg-card flex flex-col transition-all duration-300",
-            thinkingExpanded ? "w-[380px]" : "w-[48px]"
-          )}
-        >
-          {thinkingExpanded ? (
-            <>
-              <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-primary" />
-                  <span className="text-sm font-semibold text-foreground">分析过程</span>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setThinkingExpanded(false)} className="h-7 w-7 p-0">
-                  <ChevronDown className="w-4 h-4" />
-                </Button>
-              </div>
-
-              {/* Current Step */}
-              <div className="px-4 py-3 border-b border-border bg-accent/30">
-                <p className="text-xs text-muted-foreground mb-1">当前阶段</p>
-                <div className="flex items-center gap-2">
-                  {state === "running" && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
-                  <span className="text-sm font-medium text-foreground">
-                    {state === "completed" ? "分析完成" : `正在进行「${STEPS[currentStep]}」`}
-                  </span>
-                </div>
-              </div>
-
-              {/* Step Progress */}
-              <div className="px-4 py-3 border-b border-border">
-                <div className="flex items-center gap-1">
-                  {STEPS.map((step, i) => {
-                    const isDone = state === "completed" ? true : i < currentStep;
-                    const isCurrent = state !== "completed" && i === currentStep;
-                    return (
-                      <div key={step} className="flex-1 flex flex-col items-center">
-                        <div
-                          className={cn(
-                            "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold",
-                            isDone
-                              ? "bg-primary text-primary-foreground"
-                              : isCurrent
-                              ? "bg-primary/20 text-primary border-2 border-primary"
-                              : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {isDone ? "✓" : i + 1}
-                        </div>
-                        <span className="text-[10px] mt-1 text-muted-foreground text-center leading-tight">
-                          {step}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Thinking Stream */}
-              <div ref={thinkingRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-                {thinkingItems.map((item) => (
-                  <div key={item.id} className="flex gap-2 text-xs">
-                    <span className="text-muted-foreground whitespace-nowrap font-mono">{item.timestamp}</span>
-                    <span
-                      className={cn(
-                        item.type === "success"
-                          ? "text-green-600"
-                          : item.type === "warning"
-                          ? "text-orange-600"
-                          : "text-foreground"
-                      )}
+          <div className="flex items-center justify-center">
+            {STAGES.map((s, i) => {
+              const Icon = s.icon;
+              const isCurrent = flowCurrent === s.id + 1;
+              const isPending = flowCurrent < s.id + 1;
+              return (
+                <div key={s.id} className="flex items-center">
+                  <div className="flex flex-col items-center gap-2">
+                    <div
+                      className={`h-12 w-12 rounded-full border flex items-center justify-center shrink-0
+                      ${isCurrent ? "bg-primary text-primary-foreground border-primary shadow-[0_8px_18px_rgba(230,0,50,0.24)]" : ""}
+                      ${isPending ? "bg-white text-[#d8b9c6] border-[#e7ced8]" : ""}
+                      ${!isCurrent && !isPending ? "bg-primary/10 text-primary border-primary/30" : ""}`}
                     >
-                      {item.type === "success" && "✅ "}
-                      {item.type === "warning" && "⚠️ "}
-                      {item.text}
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className={`text-xs font-medium whitespace-nowrap ${isPending ? "text-muted-foreground" : "text-foreground"}`}>
+                      {s.label}
                     </span>
                   </div>
-                ))}
-                {(state === "running" || state === "init") && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <div className="flex gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "0ms" }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "150ms" }} />
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style={{ animationDelay: "300ms" }} />
-                    </div>
-                    <span>思考中...</span>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col items-center py-3">
-              <Button variant="ghost" size="sm" onClick={() => setThinkingExpanded(true)} className="h-7 w-7 p-0">
-                <ChevronUp className="w-4 h-4" />
-              </Button>
-              <div className="mt-2 writing-mode-vertical text-xs text-muted-foreground" style={{ writingMode: "vertical-rl" }}>
-                分析过程
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Right: Report Panel */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="px-6 py-3 border-b border-border flex items-center justify-between bg-card">
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold text-foreground">评估报告</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-              <span>已完成 {completedStages}/{totalStages} 模块</span>
-              <span>{progressPercent}%</span>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="px-6 pt-2">
-            <Progress value={progressPercent} className="h-1.5" />
-          </div>
-
-          {/* Report Content */}
-          <div ref={reportRef} className="flex-1 overflow-y-auto px-6 py-6">
-            {/* Report title */}
-            <div className="max-w-3xl mx-auto">
-              <div className="text-center mb-8">
-                <h2 className="text-xl font-bold text-foreground">
-                  {policyName} · 政策评估报告
-                </h2>
-                <p className="text-sm text-muted-foreground mt-2">
-                  生成时间：2024年3月20日 | AI 智能分析
-                </p>
-              </div>
-
-              {/* Sections */}
-              <div className="space-y-6">
-                {reportSections.map((section, i) => (
-                  <div key={i} className="border-b border-border pb-6 last:border-0">
-                    <h3 className="text-base font-bold text-foreground mb-3 flex items-center gap-2">
-                      {section.status === "done" && (
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      )}
-                      {section.status === "generating" && (
-                        <Loader2 className="w-4 h-4 text-primary animate-spin" />
-                      )}
-                      {section.status === "pending" && (
-                        <div className="w-4 h-4 rounded-full border-2 border-muted" />
-                      )}
-                      {section.title}
-                    </h3>
-                    {section.status === "pending" ? (
-                      <div className="space-y-2">
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-5/6" />
-                        <Skeleton className="h-4 w-4/6" />
-                      </div>
-                    ) : isEditing && (section.status === "done" || state === "stopped") ? (
-                      <textarea
-                        className="w-full min-h-[120px] p-3 border border-input rounded-lg text-sm text-foreground leading-relaxed bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-y"
-                        defaultValue={section.content}
-                        onChange={(e) => {
-                          setReportSections((prev) =>
-                            prev.map((s, idx) =>
-                              idx === i ? { ...s, content: e.target.value } : s
-                            )
-                          );
-                        }}
-                      />
-                    ) : (
-                      <div className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-                        {section.content}
-                        {section.status === "generating" && (
-                          <span className="inline-block w-0.5 h-4 bg-primary ml-0.5 animate-pulse" />
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Generating tip */}
-              {state === "running" && (
-                <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-                  <Zap className="w-4 h-4 text-primary" />
-                  <span>
-                    正在生成第 {Math.min(completedModules + 1, totalSections)} 部分...
-                  </span>
+                  {i < STAGES.length - 1 && (
+                    <div className="px-6 md:px-8 text-[#d8b9c6] text-base leading-none select-none -mt-5">{">>"}</div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })}
           </div>
         </div>
-      </div>
 
-      {/* ─── Footer Status ─── */}
-      <div className="border-t border-border bg-card px-6 py-2.5">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5" />
-              已用时：{formatTime(elapsedTime)}
-            </span>
-            <span>
-              已完成 {completedStages}/{totalStages} 模块
-            </span>
+        <div className="rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-1.5">
+              {!finished ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <CheckCircle2 className="h-4 w-4 text-primary" />}
+              <span className="text-sm text-muted-foreground">{statusLabel}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {finished && (
+                <button
+                  onClick={() => {
+                    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>政策评价报告预览</title>
+                    <style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,PingFang SC,Hiragino Sans GB,Microsoft YaHei,sans-serif;padding:24px;line-height:1.9;color:#1f2937;white-space:pre-wrap;}h1{font-size:20px;margin:0 0 16px;}</style>
+                    </head><body><h1>政策评价报告（预览）</h1>${finalReportText.replace(/</g, "&lt;")}</body></html>`;
+                    const w = window.open("", "_blank");
+                    if (!w) return;
+                    w.document.write(html);
+                    w.document.close();
+                  }}
+                  className="py-1.5 px-3 rounded-lg gov-gradient text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+                >
+                  预览报告
+                </button>
+              )}
+              {finished && (
+                <button
+                  onClick={() => {
+                    const blob = new Blob([finalReportText], { type: "text/plain;charset=utf-8" });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url;
+                    a.download = `${policyName}_政策评价报告_${new Date().toLocaleDateString("zh-CN").replace(/\//g, "")}.txt`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="py-1.5 px-3 rounded-lg gov-gradient text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+                >
+                  导出报告
+                </button>
+              )}
+              {!finished && (
+                <button
+                  onClick={handleStop}
+                  className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+                >
+                  <Square className="h-3 w-3 fill-current" />
+                  停止生成
+                </button>
+              )}
+              {finished && (
+                <button
+                  onClick={handleRestart}
+                  className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  重新生成
+                </button>
+              )}
+              <button
+                onClick={() => navigate("/policy-evaluation")}
+                className="py-1.5 px-3 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+              >
+                返回政策列表
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="flex items-center gap-1.5">
-              <Wifi className="w-3.5 h-3.5" />
-              流式连接：{state === "running" ? "正常" : state === "completed" ? "已断开" : "待连接"}
-            </span>
-            <span>
-              生成状态：
-              {state === "running"
-                ? "进行中"
-                : state === "completed"
-                ? "已完成"
-                : state === "stopped"
-                ? "已停止"
-                : state === "failed"
-                ? "异常"
-                : "准备中"}
-            </span>
+
+          <div className="space-y-3 p-4">
+            {STAGES.map((s, i) => {
+              const Icon = s.icon;
+              const active = !finished && stage === i;
+              const done = finished || stage > i;
+              const hasResult = !!editableResults[i];
+              const thinkingOpen = expandedThinking === i && (active || done);
+
+              return (
+                <div key={s.id} className="rounded-xl border border-border bg-white min-h-[320px]">
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
+                    onClick={() => setExpandedThinking(thinkingOpen ? null : i)}
+                  >
+                    <Icon className={`h-4 w-4 shrink-0 ${active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground/50"}`} />
+                    <span className={`flex-1 text-sm font-medium ${active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground"}`}>
+                      {s.label}
+                    </span>
+                    {active ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : done ? <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> : null}
+                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${thinkingOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {thinkingOpen && (
+                    <div className="px-4 pb-3">
+                      <div className="rounded-lg border border-border bg-muted/25 p-3">
+                        <p className="mb-2 text-xs font-medium text-muted-foreground">思考过程</p>
+                        <pre className="whitespace-pre-wrap text-xs text-muted-foreground leading-relaxed">
+                          {active ? typingText : thoughtLogs[i] || STAGES[i].thoughts.join("\n")}
+                          {active && <span className="inline-block w-0.5 h-3 bg-primary ml-0.5 animate-pulse align-middle" />}
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+                  {!thinkingOpen && (done || active) && (
+                    <div className="px-4 pb-3">
+                      <p className="text-xs text-muted-foreground">思考过程已记录，点击上方可展开查看。</p>
+                    </div>
+                  )}
+
+                  <div className="px-4 pb-4">
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">分析结果（可编辑）</p>
+                    <textarea
+                      value={editableResults[i]}
+                      onChange={(e) =>
+                        setEditableResults((prev) => {
+                          const next = [...prev];
+                          next[i] = e.target.value;
+                          return next;
+                        })
+                      }
+                      placeholder={done ? "" : "该维度分析完成后会自动填充结果"}
+                      spellCheck={false}
+                      className="min-h-[180px] w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm leading-7 outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    {!hasResult && !active && !done && <p className="mt-2 text-xs text-muted-foreground">等待执行该维度分析…</p>}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
     </div>
   );
-};
-
-export default PolicyAnalysis;
+}

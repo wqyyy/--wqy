@@ -29,7 +29,7 @@ interface Props {
 }
 
 export function AssessmentStep1({ selected, onSelect }: Props) {
-  const [tab, setTab] = useState<"upload" | "library">("upload");
+  const [tab, setTab] = useState<"upload" | "library">("library");
   const [librarySearch, setLibrarySearch] = useState("");
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({ all: true });
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -81,8 +81,8 @@ export function AssessmentStep1({ selected, onSelect }: Props) {
       {/* Tab */}
       <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
         {[
-          { key: "upload", label: "本地上传" },
           { key: "library", label: "从起草库选择" },
+          { key: "upload", label: "本地上传" },
         ].map(t => (
           <button
             key={t.key}

@@ -27,9 +27,19 @@ import {
   type AssistantScene,
   type AssistantSceneKey,
 } from "@/lib/assistantEngine";
+import {
+  buildDraftWakeMessage,
+  dismissDraftWake,
+  getPendingDraftWake,
+  POLICY_DRAFT_COMPLETED_KEY,
+} from "@/lib/policyDraftWake";
+import {
+  ASSISTANT_HOME_GREETING,
+  ASSISTANT_TASK_CONTINUE_LABEL,
+  ASSISTANT_TASK_DISMISS_LABEL,
+} from "@/lib/assistantCopy";
 
-const GLOBAL_GREETING =
-  "您好，我是智能助手。您可以随时问我政策制定、政策触达、政策兑现、政策评价相关的任何问题，我会帮您联动页面处理。";
+const GLOBAL_GREETING = ASSISTANT_HOME_GREETING;
 const GLOBAL_PLACEHOLDER = "请输入政策相关问题，我来帮您联动页面";
 const LEGACY_SCENE_PROMPTS = [
   "当前在政策制定页面。需要我帮您起草、检索政策，也可以直接问我触达、兑现或评价相关问题。",
@@ -183,16 +193,28 @@ export function AiAssistant() {
     return () => window.removeEventListener("policy-assistant:open", handleOpen);
   }, []);
 
+  /** 首页等处忽略草稿后，同步关闭当前草稿类气泡 */
+  useEffect(() => {
+    const handleWakeChange = () => {
+      if (getPendingDraftWake()) return;
+      setBubbleHint((prev) =>
+        prev?.actions?.some((a) => a.dismissIncompleteDraft) ? null : prev,
+      );
+    };
+    window.addEventListener("policy-draft-wake:changed", handleWakeChange);
+    return () => window.removeEventListener("policy-draft-wake:changed", handleWakeChange);
+  }, []);
+
   /** 待发送的初始问题（来自首页跳转），处理完后置 null */
   const [pendingQuestion, setPendingQuestion] = useState<string | null>(null);
 
-  // 监听首页跳转携带的问题，自动打开全屏助手
+  // 监听首页跳转携带的问题，自动打开缩小态助手
   useEffect(() => {
     const handleAsk = (e: Event) => {
       const question = (e as CustomEvent<{ question: string }>).detail?.question;
       if (!question) return;
       setOpen(true);
-      setMaximized(true);
+      setMaximized(false);
       setHistoryOpen(false);
       setPendingQuestion(question);
     };
@@ -229,43 +251,68 @@ export function AiAssistant() {
   useEffect(() => {
     const pathname = location.pathname;
 
-    // 切换路由时先清除旧气泡，避免显示上一个路由的残留提示
+    if (pathname === "/home" || pathname === "/brain-chat") {
+      setBubbleHint(null);
+      return;
+    }
+
+    /** 未完成政策草稿：优先唤醒（任务状态感知） */
+    const pendingDraft = getPendingDraftWake();
+    if (pendingDraft) {
+      const hint: ProactiveHint = {
+        text: buildDraftWakeMessage(pendingDraft.title),
+        actions: [
+          { label: ASSISTANT_TASK_CONTINUE_LABEL, path: "/policy-writing/drafting" },
+          { label: ASSISTANT_TASK_DISMISS_LABEL, dismissIncompleteDraft: true, draftSignature: pendingDraft.signature },
+        ],
+      };
+      const msgKey = `draft-msg-injected-${pendingDraft.signature}`;
+      const convId = currentConversationIdRef.current;
+      if (openRef.current && convId && !pushedEventsRef.current.has(msgKey)) {
+        pushedEventsRef.current.add(msgKey);
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.id === convId
+              ? {
+                  ...conv,
+                  messages: [
+                    ...conv.messages,
+                    { role: "assistant" as const, content: hint.text, actions: hint.actions },
+                  ],
+                  updatedAt: Date.now(),
+                }
+              : conv,
+          ),
+        );
+      }
+      if (!openRef.current) {
+        setBubbleHint(hint);
+      }
+      return;
+    }
+
     setBubbleHint(null);
 
-    // 无需提示的页面直接返回
+    // 以下页面不展示其它路由类气泡
     if (
-      pathname === "/home" ||
-      pathname === "/brain-chat" ||
       pathname.startsWith("/my-documents") ||
       pathname.startsWith("/reserve-library") ||
       pathname.startsWith("/enterprise-evaluation") ||
       pathname.startsWith("/effect-dashboard") ||
       pathname.startsWith("/policy-report")
-    ) return;
+    ) {
+      return;
+    }
 
     // 归一化路径用于去重 key（/ 和 /dashboard 都算「政策兑现」同一页）
-    const normalizedPath = (pathname === "/" || pathname === "/dashboard") ? "/dashboard" : pathname;
-    // 用「归一化路径 + 当天日期」作为 key 做内存去重
+    const normalizedPath = pathname === "/" || pathname === "/dashboard" ? "/dashboard" : pathname;
     const today = new Date().toDateString();
     const routeKey = `route-${normalizedPath}-${today}`;
     if (pushedEventsRef.current.has(routeKey)) return;
 
-    // 根据路由决定气泡内容（始终以气泡形式展示，不注入消息）
     let hint: ProactiveHint | null = null;
 
-    if (pathname.startsWith("/policy-writing/drafting")) {
-      try {
-        const saved = JSON.parse(localStorage.getItem("policy-draft-outline") ?? "null");
-        const completed = localStorage.getItem("policy-draft-completed") === "1";
-        if (saved && !completed) {
-          hint = {
-            text: `「${saved.title}」的政策大纲已保存，您尚未完成起草，点击下方可继续。`,
-            actions: [{ label: "继续起草", path: "/policy-writing/drafting" }],
-          };
-        }
-      } catch { /* ignore */ }
-
-    } else if (pathname.startsWith("/policy-writing/pre-evaluation")) {
+    if (pathname.startsWith("/policy-writing/pre-evaluation")) {
       try {
         const done = JSON.parse(localStorage.getItem("policy-pre-eval-done") ?? "null");
         if (done?.title) {
@@ -356,11 +403,19 @@ export function AiAssistant() {
     const handleOutlineSaved = (e: Event) => {
       const detail = (e as CustomEvent<{ title: string; draftCompleted: boolean }>).detail;
       if (detail.draftCompleted) return;
-      localStorage.setItem("policy-draft-outline", JSON.stringify({ title: detail.title, savedAt: Date.now() }));
-      localStorage.removeItem("policy-draft-completed");
+      try {
+        window.localStorage.removeItem(POLICY_DRAFT_COMPLETED_KEY);
+      } catch {
+        /* ignore */
+      }
+      const wake = getPendingDraftWake();
+      if (!wake) return;
       setBubbleHint({
-        text: `「${detail.title}」的政策大纲已保存，您尚未完成起草，点击下方可继续。`,
-        actions: [{ label: "继续起草", path: "/policy-writing/drafting" }],
+        text: buildDraftWakeMessage(wake.title),
+        actions: [
+          { label: ASSISTANT_TASK_CONTINUE_LABEL, path: "/policy-writing/drafting" },
+          { label: ASSISTANT_TASK_DISMISS_LABEL, dismissIncompleteDraft: true, draftSignature: wake.signature },
+        ],
       });
     };
 
@@ -547,7 +602,7 @@ export function AiAssistant() {
       if (plan.action?.kind === "stream_draft") {
         const { policyTitle, fullContent } = plan.action;
         // 先插入一条「正在起草」提示消息 + 空的流式占位
-        const introMsg: AssistantMessage = { role: "assistant", content: plan.reply };
+        const introMsg: AssistantMessage = { role: "assistant", content: plan.reply, actions: plan.actions };
         const streamMsg: AssistantMessage = {
           role: "assistant",
           content: "",
@@ -568,7 +623,7 @@ export function AiAssistant() {
       }
 
       executePlan(plan);
-      const assistantMessage: AssistantMessage = { role: "assistant", content: plan.reply };
+      const assistantMessage: AssistantMessage = { role: "assistant", content: plan.reply, actions: plan.actions };
       updateConversation(currentConversation.id, [...nextMessages, assistantMessage]);
     } catch {
       const fallbackMessage: AssistantMessage = {
@@ -588,16 +643,29 @@ export function AiAssistant() {
     }
   };
 
+  /** 主动唤醒气泡与会话内操作按钮 */
+  const runProactiveAction = useCallback((action: AssistantMessageAction) => {
+    if (action.dismissIncompleteDraft) {
+      if (action.draftSignature) dismissDraftWake(action.draftSignature);
+      setBubbleHint(null);
+      return;
+    }
+    if (!action.path) return;
+    setBubbleHint(null);
+    const search = action.search ? `?${new URLSearchParams(action.search).toString()}` : "";
+    navigate(`${action.path}${search}`, { state: action.state });
+  }, [navigate]);
+
   // 所有 hooks 执行完后才可以 return null（React Hooks 规则）
   if (isHidden) return null;
 
   // ── 关闭状态：右侧居中头像 + 气泡 ──────────────────────────────
   if (!open) {
     return (
-      <div className="fixed right-0 top-1/2 z-50 -translate-y-1/2 flex flex-col items-end gap-2">
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
         {/* 对话气泡提示 */}
         {bubbleHint && (
-          <div className="relative mr-[68px] mb-1 max-w-[240px] animate-in fade-in slide-in-from-right-4 duration-300">
+          <div className="relative mb-1 max-w-[240px] animate-in fade-in slide-in-from-bottom-2 duration-300">
             <div className="rounded-2xl rounded-br-sm bg-white border border-border shadow-lg px-3.5 py-3 text-xs text-foreground leading-relaxed">
               <p>{bubbleHint.text}</p>
               {/* 气泡内的操作链接 */}
@@ -606,16 +674,16 @@ export function AiAssistant() {
                   {bubbleHint.actions.map((action) => (
                     <button
                       key={action.label}
-                      className="inline-flex items-center gap-1 rounded-md bg-primary/8 border border-primary/20 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/15 transition-colors"
-                      onClick={() => {
-                        setBubbleHint(null);
-                        const search = action.search
-                          ? `?${new URLSearchParams(action.search).toString()}`
-                          : "";
-                        navigate(`${action.path}${search}`, { state: action.state });
-                      }}
+                      type="button"
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
+                        action.dismissIncompleteDraft
+                          ? "border border-border bg-muted/80 text-muted-foreground hover:bg-muted"
+                          : "bg-primary/8 border border-primary/20 text-primary hover:bg-primary/15",
+                      )}
+                      onClick={() => runProactiveAction(action)}
                     >
-                      <ExternalLink className="h-2.5 w-2.5" />
+                      {!action.dismissIncompleteDraft && <ExternalLink className="h-2.5 w-2.5" />}
                       {action.label}
                     </button>
                   ))}
@@ -623,7 +691,7 @@ export function AiAssistant() {
               )}
             </div>
             {/* 气泡尖角 */}
-            <div className="absolute -right-2 bottom-2 w-0 h-0 border-t-[6px] border-t-transparent border-l-[8px] border-l-white border-b-[6px] border-b-transparent drop-shadow-sm" />
+            <div className="absolute -right-2 bottom-3 w-0 h-0 border-t-[6px] border-t-transparent border-l-[8px] border-l-white border-b-[6px] border-b-transparent drop-shadow-sm" />
             {/* 关闭气泡按钮 */}
             <button
               className="absolute -top-2 -right-2 h-4 w-4 rounded-full bg-muted border border-border flex items-center justify-center hover:bg-muted-foreground/20 transition-colors"
@@ -638,10 +706,10 @@ export function AiAssistant() {
         <div className="relative">
           <button
             onClick={() => setOpen(true)}
-            className="h-14 w-14 overflow-hidden rounded-l-full border-2 border-r-0 border-primary bg-primary/10 shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl"
+            className="h-14 w-14 overflow-hidden rounded-full border-2 border-primary bg-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl"
             title="打开智能助手"
           >
-            <img src={avatarImg} alt="智能助手" className="h-full w-full object-cover contrast-125 saturate-150 brightness-90" />
+            <img src={avatarImg} alt="智能助手" className="h-full w-full object-cover" />
           </button>
           {/* 有气泡时的红点提示 */}
           {bubbleHint && (
@@ -662,7 +730,9 @@ export function AiAssistant() {
       {/* 标题栏 */}
       <div className="flex h-12 shrink-0 items-center justify-between bg-primary px-4">
         <div className="flex items-center gap-2">
-          <img src={avatarImg} alt="" className="h-7 w-7 rounded-full object-cover brightness-110 contrast-110" />
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-transparent">
+            <img src={avatarImg} alt="" className="h-full w-full rounded-full object-cover" />
+          </div>
           <span className="text-sm font-bold tracking-wide text-primary-foreground">智能助手</span>
           <span className="rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] text-primary-foreground/90">
             全局助手
@@ -781,9 +851,13 @@ export function AiAssistant() {
                         <button
                           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
                           onClick={() => {
+                            setOpen(false);
+                            setMaximized(false);
+                            setHistoryOpen(false);
                             navigate("/policy-writing/drafting", {
                               state: {
-                                directContent: message.streamContent,
+                                directContent: message.streamFullContent ?? message.streamContent,
+                                initialTitle: message.streamPolicyTitle,
                                 policyTitle: message.streamPolicyTitle,
                               },
                             });
@@ -813,15 +887,16 @@ export function AiAssistant() {
                         {message.actions.map((action) => (
                           <button
                             key={action.label}
-                            className="inline-flex items-center gap-1 rounded-md border border-primary/30 bg-primary/8 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/15 transition-colors"
-                            onClick={() => {
-                              const search = action.search
-                                ? `?${new URLSearchParams(action.search).toString()}`
-                                : "";
-                              navigate(`${action.path}${search}`, { state: action.state });
-                            }}
+                            type="button"
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
+                              action.dismissIncompleteDraft
+                                ? "border border-border bg-background text-muted-foreground hover:bg-muted"
+                                : "border border-primary/30 bg-primary/8 text-primary hover:bg-primary/15",
+                            )}
+                            onClick={() => runProactiveAction(action)}
                           >
-                            <ExternalLink className="h-2.5 w-2.5" />
+                            {!action.dismissIncompleteDraft && <ExternalLink className="h-2.5 w-2.5" />}
                             {action.label}
                           </button>
                         ))}
