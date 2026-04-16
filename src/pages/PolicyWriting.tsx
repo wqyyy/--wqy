@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { PageHero } from "@/components/PageHero";
+import {
+  DATA_INDUSTRY_POLICY_DESC,
+  DATA_INDUSTRY_POLICY_TITLE,
+} from "@/lib/samplePolicyDocuments";
 
 const stats = [
   { icon: FileText, label: "政策知识库", value: "30万+", desc: "国家到区级政策资金全覆盖", color: "bg-rose-100 text-rose-600", cardBg: "bg-rose-100/80", action: "去检索", link: "/policy-writing/search" },
@@ -24,20 +28,23 @@ const topics = [
   {
     icon: Shield,
     iconColor: "bg-primary/10 text-primary",
-    title: "加快推进数据产业高质量发展",
-    desc: "围绕数据要素流通、数据基础设施建设和场景应用培育，推动数据产业集聚发展。",
+    title: DATA_INDUSTRY_POLICY_TITLE,
+    desc: DATA_INDUSTRY_POLICY_DESC,
+    featured: true as const,
   },
   {
     icon: Activity,
     iconColor: "bg-violet-500/10 text-violet-500",
     title: "加快推动产业金融高质量发展",
     desc: "聚焦基金引导、信贷支持和融资服务创新，提升金融服务实体产业发展的能力。",
+    featured: false as const,
   },
   {
     icon: Users,
     iconColor: "bg-emerald-500/10 text-emerald-500",
     title: "优化营商环境十大行动方案",
     desc: "从审批提速、服务优化和要素保障等方面推出举措，持续提升企业获得感与便利度。",
+    featured: false as const,
   },
 ];
 
@@ -156,19 +163,46 @@ export default function PolicyWriting() {
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">{topic.desc}</p>
                   </div>
-                  <button
-                    className="text-xs text-primary font-medium hover:underline flex items-center gap-1 shrink-0 mt-1"
-                    onClick={() =>
-                      navigate("/policy-writing/drafting", {
-                        state: {
-                          initialTitle: topic.title,
-                          autoGenerateCoreElements: true,
-                        },
-                      })
-                    }
-                  >
-                    开始写作 <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex flex-col gap-2 shrink-0 mt-1 sm:items-end">
+                    {topic.featured ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 rounded-full px-3 text-xs"
+                          onClick={() =>
+                            navigate("/policy-writing/drafting", {
+                              state: { policyTitle: DATA_INDUSTRY_POLICY_TITLE },
+                            })
+                          }
+                        >
+                          政策起草
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="h-8 rounded-full px-3 text-xs"
+                          onClick={() =>
+                            navigate("/policy-writing/pre-evaluation", {
+                              state: { policyTitle: DATA_INDUSTRY_POLICY_TITLE },
+                            })
+                          }
+                        >
+                          政策前评估
+                        </Button>
+                      </>
+                    ) : (
+                      <button
+                        className="text-xs text-primary font-medium hover:underline flex items-center gap-1"
+                        onClick={() =>
+                          navigate("/policy-writing/drafting", {
+                            state: { policyTitle: topic.title },
+                          })
+                        }
+                      >
+                        开始写作 <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </Card>
               ))}
             </div>

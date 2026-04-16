@@ -10,15 +10,20 @@ interface Props {
 }
 
 export function PolicyAssessmentFlow({ onBack, directOpenFinal = false, initialPolicyTitle }: Props) {
-  const [selectedPolicy, setSelectedPolicy] = useState<AssessmentPolicy | null>(
-    directOpenFinal
-      ? {
-          id: "direct-pre-eval-doc",
-          title: initialPolicyTitle || "政策前评估报告",
-          source: "library",
-        }
-      : null
-  );
+  const [selectedPolicy, setSelectedPolicy] = useState<AssessmentPolicy | null>(() => {
+    if (directOpenFinal) {
+      return {
+        id: "direct-pre-eval-doc",
+        title: initialPolicyTitle || "政策前评估报告",
+        source: "library",
+      };
+    }
+    const t = initialPolicyTitle?.trim();
+    if (t) {
+      return { id: "preset-guided-policy", title: t, source: "library" };
+    }
+    return null;
+  });
 
   return (
     <div className="flex flex-col h-full">

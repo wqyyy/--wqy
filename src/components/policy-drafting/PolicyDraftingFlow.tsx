@@ -9,7 +9,7 @@ import {
   Search,
   Sparkles,
   ListOrdered,
-  FilePen,
+  ScrollText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,13 +19,14 @@ import { PolicyAnalysisStep, type ClauseComparison } from "@/components/policy-d
 import { OutlineGenerationStep, ReferenceDocPanel, type OutlineSection } from "@/components/policy-drafting/drafting/OutlineGenerationStep";
 import { PolicyOutputPage } from "@/components/policy-drafting/drafting/PolicyOutputPage";
 import { QuickDraftProgress } from "@/components/policy-drafting/drafting/QuickDraftProgress";
+import { DATA_INDUSTRY_POLICY_TITLE } from "@/lib/samplePolicyDocuments";
 
 const flowSteps = [
   { id: 1, label: "输入政策标题", icon: ClipboardList },
   { id: 2, label: "政策检索", icon: Search },
   { id: 3, label: "核心要素生成", icon: Sparkles },
   { id: 4, label: "大纲生成", icon: ListOrdered },
-  { id: 5, label: "政策编辑", icon: FilePen },
+  { id: 5, label: "正文生成", icon: ScrollText },
 ];
 
 interface PolicyDraftingFlowProps {
@@ -43,7 +44,7 @@ export function PolicyDraftingFlow({
   const [currentStep, setCurrentStep] = useState(1);
   /** 已完成（訪問過）的最大步驟，用於控制步驟條可點擊範圍 */
   const [maxReachedStep, setMaxReachedStep] = useState(1);
-  const [title, setTitle] = useState(initialTitle || "");
+  const [title, setTitle] = useState(() => initialTitle?.trim() || DATA_INDUSTRY_POLICY_TITLE);
   const [coreElements, setCoreElements] = useState("");
   const [coreItems, setCoreItems] = useState<{ id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[]>([]);
   const [selectedPolicies, setSelectedPolicies] = useState<PolicyItem[]>([]);
@@ -52,7 +53,7 @@ export function PolicyDraftingFlow({
   const [draggingDocTitle, setDraggingDocTitle] = useState<string | null>(null);
   /** 大纲已保存状态（localStorage 持久化） */
   const [outlineSaved, setOutlineSaved] = useState(false);
-  /** 起草是否已完成（进入步骤5即算完成） */
+  /** 起草是否已完成（进入正文生成页面即算完成） */
   const [draftCompleted, setDraftCompleted] = useState(false);
   /** 快速起草模式：显示进度页，完成后直接进入编辑器（打字机模式） */
   const [quickMode, setQuickMode] = useState(false);
@@ -61,7 +62,13 @@ export function PolicyDraftingFlow({
   const [quickDraftResult, setQuickDraftResult] = useState<{
     policies: PolicyItem[];
     outline: OutlineSection[];
+    coreElements?: string;
   }>({ policies: [], outline: [] });
+
+  useEffect(() => {
+    const t = initialTitle?.trim();
+    if (t) setTitle(t);
+  }, [initialTitle]);
 
   const goNext = () => {
     if (currentStep < 5) {
@@ -83,7 +90,8 @@ export function PolicyDraftingFlow({
   };
 
   /** 快速起草：后台各步骤完成后直接跳到编辑器（打字机模式） */
-  const handleQuickDraftComplete = (result: { policies: PolicyItem[]; outline: OutlineSection[] }) => {
+  const handleQuickDraftComplete = (result: { policies: PolicyItem[]; outline: OutlineSection[]; coreElements: string }) => {
+    setCoreElements(result.coreElements);
     setQuickDraftResult(result);
     setQuickDraftReady(true);
   };
@@ -93,7 +101,7 @@ export function PolicyDraftingFlow({
     return (
       <div className="flex-1 flex flex-col min-h-0">
         <PolicyOutputPage
-          policyTitle={initialTitle || "政策文件"}
+          policyTitle={initialTitle?.trim() || DATA_INDUSTRY_POLICY_TITLE}
           coreElements={coreElements}
           selectedPolicies={[]}
           outline={[]}
@@ -144,7 +152,7 @@ export function PolicyDraftingFlow({
     );
   }
 
-  // Step 5: Full-page editor（分步起草）
+  // Step 5: 正文生成页（分步起草）
   if (currentStep === 5) {
     // 进入编辑器即标记起草已完成（写入 localStorage，助手读取此标记判断是否提示）
     if (!draftCompleted) {
@@ -264,7 +272,7 @@ export function PolicyDraftingFlow({
               </Label>
               <Input
                 id="policy-title"
-                placeholder="请输入政策标题，例如：关于促进新一代信息技术产业发展的若干政策"
+                placeholder={DATA_INDUSTRY_POLICY_TITLE}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="h-11"
@@ -347,6 +355,7 @@ export function PolicyDraftingFlow({
           <div className="bg-card rounded-xl border border-border p-6 space-y-6">
             <PolicyAnalysisStep
               selectedPolicies={selectedPolicies}
+              policyTitle={title}
               onAnalysisComplete={setAnalysisResult}
               onCoreElementsChange={(v: string) => setCoreElements(v)}
               onCoreElementsItemsChange={(items) => setCoreItems(items)}
@@ -411,7 +420,7 @@ export function PolicyDraftingFlow({
                     onClick={goNext}
                     className="flex-1 h-11 gov-gradient text-primary-foreground hover:opacity-90 transition-opacity text-sm font-medium"
                   >
-                    下一步：生成政策全文
+                    下一步：生成正文
                   </Button>
                 </div>
                 {outlineSaved && (

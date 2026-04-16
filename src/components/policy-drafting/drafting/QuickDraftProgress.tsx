@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, Loader2, Search, BarChart2, FileText, BookOpen, Sparkles } from "lucide-react";
-import { searchPolicies, analyzePolicies, generateOutline } from "@/lib/policyDraftApi";
+import { searchPolicies, analyzePolicies, generateCoreElementsFromPolicies, generateOutline } from "@/lib/policyDraftApi";
 import type { PolicyItem } from "./PolicySearchStep";
 import type { OutlineSection } from "./OutlineGenerationStep";
 
 interface QuickDraftProgressProps {
   policyTitle: string;
   coreElements: string;
-  /** 所有步骤完成后回调，携带检索结果与大纲 */
-  onComplete: (result: { policies: PolicyItem[]; outline: OutlineSection[] }) => void;
+  /** 所有步骤完成后回调，携带检索结果、大纲与用于生成的核心要素文本 */
+  onComplete: (result: { policies: PolicyItem[]; outline: OutlineSection[]; coreElements: string }) => void;
 }
 
 interface StepDef {
@@ -77,7 +77,11 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
   const [overallProgress, setOverallProgress] = useState(0);
   const [thoughtVisible, setThoughtVisible] = useState(true);
 
-  const resultRef = useRef<{ policies: PolicyItem[]; outline: OutlineSection[] }>({ policies: [], outline: [] });
+  const resultRef = useRef<{ policies: PolicyItem[]; outline: OutlineSection[]; coreElements: string }>({
+    policies: [],
+    outline: [],
+    coreElements: "",
+  });
   const hasRunRef = useRef(false);
 
   /** 平滑过渡到新思考文字 */
@@ -138,6 +142,8 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
       animateProgress(25, 55, 1300);
       const clearStep1 = runThoughtCycle(1, 1200);
       await analyzePolicies(policies);
+      const { coreElements: generatedCore, items: coreItems } = await generateCoreElementsFromPolicies(policies, policyTitle);
+      resultRef.current.coreElements = generatedCore;
       clearStep1();
 
       setStepStatuses(["done", "done", "running", "pending"]);
@@ -146,7 +152,12 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
       // Step 2: 大纲生成 (55% → 85%)
       animateProgress(55, 85, 1400);
       const clearStep2 = runThoughtCycle(2, 1300);
-      const { outline } = await generateOutline({ policyTitle, coreElements, selectedPolicies: policies });
+      const { outline } = await generateOutline({
+        policyTitle,
+        coreElements: generatedCore,
+        selectedPolicies: policies,
+        coreItems,
+      });
       resultRef.current.outline = outline;
       clearStep2();
 

@@ -6,7 +6,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { searchPolicies } from "@/lib/policyDraftApi";
-import { cn } from "@/lib/utils";
 
 export interface PolicyItem {
   id: string;
@@ -37,7 +36,7 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
   const [error, setError] = useState<string | null>(null);
   const [policies, setPolicies] = useState<PolicyItem[]>(externalPolicies.length > 0 ? externalPolicies : []);
   const [collapsedLevels, setCollapsedLevels] = useState<Record<string, boolean>>({});
-  /** 优先参考我的政策库，默认开启；切换后重新拉取检索结果 */
+  /** 优先参考我的素材库，默认开启；切换后重新拉取检索结果 */
   const [prioritizeMyLibrary, setPrioritizeMyLibrary] = useState(true);
   /** 已从父级同步过政策列表时不再用首次空请求覆盖（返回上一步等场景） */
   const externalAppliedRef = useRef(false);
@@ -116,12 +115,14 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
             onCheckedChange={setPrioritizeMyLibrary}
           />
           <Label htmlFor="policy-search-my-library" className="cursor-pointer text-sm font-medium text-foreground">
-            优先参考我的政策库
+            优先参考我的素材库
           </Label>
         </div>
-        <span className={cn("text-xs text-muted-foreground", prioritizeMyLibrary && "text-primary/80")}>
-          {prioritizeMyLibrary ? "已开启：结果中将优先展示您收藏的政策参考" : "已关闭：按全库检索，不优先展示我的政策库"}
-        </span>
+        {!prioritizeMyLibrary && (
+          <span className="text-xs text-muted-foreground">
+            已关闭：按全库检索，不优先展示我的素材库
+          </span>
+        )}
       </div>
 
       {isSearching ? (

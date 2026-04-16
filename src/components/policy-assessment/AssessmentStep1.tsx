@@ -13,6 +13,16 @@ export interface AssessmentPolicy {
 }
 
 const LIBRARY_POLICIES = [
+  {
+    id: "lp-kechuang-main",
+    title: "北京经济技术开发区关于进一步激发创新活力 打造高精尖产业主阵地的若干意见",
+    dept: "经开区",
+  },
+  {
+    id: "lp-data-industry",
+    title: "北京经济技术开发区关于加快推进数据产业高质量发展的若干措施",
+    dept: "经开区",
+  },
   { id: "lp1", title: "关于促进新一代信息技术产业高质量发展的若干政策措施", dept: "发改委" },
   { id: "lp2", title: "关于支持人工智能产业创新发展的若干措施", dept: "科技局" },
   { id: "lp3", title: "北京经济技术开发区促进高精尖产业发展若干政策", dept: "经开区" },

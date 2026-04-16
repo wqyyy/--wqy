@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Loader2, AlertTriangle, FileText, Plus, X } from "lucide-react";
+import { Loader2, FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import type { PolicyItem } from "./PolicySearchStep";
 import { generateCoreElementsFromPolicies } from "@/lib/policyDraftApi";
 
 interface PolicyAnalysisStepProps {
   selectedPolicies: PolicyItem[];
+  /** 与起草标题一致时用于选用数据产业等专项生成模板 */
+  policyTitle?: string;
   /** 分析完成後回傳结果给父层（兼容旧逻辑） */
   onAnalysisComplete?: (analysis: ClauseComparison[]) => void;
   /** 生成的核心要素（换行分隔）发生变化时回调 */
@@ -27,23 +29,7 @@ export interface ClauseComparison {
 }
 
 
-function HighlightCell({ text, isHighlighted, highlightType }: { text: string; isHighlighted: boolean; highlightType?: "high" | "medium" | "unique" }) {
-  if (!isHighlighted) return <span>{text}</span>;
-
-  const bgMap = {
-    high: "bg-destructive/10 text-destructive border-destructive/20",
-    medium: "bg-yellow-500/10 text-yellow-700 border-yellow-500/20",
-    unique: "bg-blue-500/10 text-blue-700 border-blue-500/20",
-  };
-
-  return (
-    <span className={`inline-block px-1.5 py-0.5 rounded text-xs border ${bgMap[highlightType || "high"]}`}>
-      {text}
-    </span>
-  );
-}
-
-export function PolicyAnalysisStep({ selectedPolicies, onAnalysisComplete, onCoreElementsChange, onCoreElementsItemsChange }: PolicyAnalysisStepProps) {
+export function PolicyAnalysisStep({ selectedPolicies, policyTitle = "", onAnalysisComplete, onCoreElementsChange, onCoreElementsItemsChange }: PolicyAnalysisStepProps) {
   const [isGenerating, setIsGenerating] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<{ id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[]>([]);
@@ -52,7 +38,7 @@ export function PolicyAnalysisStep({ selectedPolicies, onAnalysisComplete, onCor
   useEffect(() => {
     setIsGenerating(true);
     setError(null);
-    generateCoreElementsFromPolicies(selectedPolicies)
+    generateCoreElementsFromPolicies(selectedPolicies, policyTitle)
       .then(({ coreElements, items: result }) => {
         setItems(result);
         onCoreElementsChange?.(coreElements);
@@ -60,8 +46,7 @@ export function PolicyAnalysisStep({ selectedPolicies, onAnalysisComplete, onCor
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setIsGenerating(false));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [selectedPolicies, policyTitle]);
 
   const removeItem = (id: string) => {
     const next = items.filter(i => i.id !== id);
@@ -77,6 +62,13 @@ export function PolicyAnalysisStep({ selectedPolicies, onAnalysisComplete, onCor
     setItems(next);
     setNewItemText("");
     onCoreElementsChange?.(next.map(it => it.text).join("\n"));
+    onCoreElementsItemsChange?.(next);
+  };
+
+  const updateItemText = (id: string, text: string) => {
+    const next = items.map((i) => (i.id === id ? { ...i, text } : i));
+    setItems(next);
+    onCoreElementsChange?.(next.map((it) => it.text).join("\n"));
     onCoreElementsItemsChange?.(next);
   };
 
@@ -102,7 +94,7 @@ export function PolicyAnalysisStep({ selectedPolicies, onAnalysisComplete, onCor
       <div>
         <h3 className="text-base font-semibold text-foreground mb-1">核心要素生成</h3>
         <p className="text-xs text-muted-foreground">
-          从选中的参考政策中总结出核心要点，并标注来源。支持手动添加和删除要点。
+          从选中的参考政策中总结出核心要点，并标注来源。每条要点可直接编辑，并支持手动添加和删除。
         </p>
       </div>
 
@@ -110,7 +102,17 @@ export function PolicyAnalysisStep({ selectedPolicies, onAnalysisComplete, onCor
         {items.map((it) => (
           <div key={it.id} className="flex items-start justify-between gap-3 p-3 border border-border rounded-lg">
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-foreground">{it.text}</div>
+              <textarea
+                value={it.text}
+                onChange={(e) => updateItemText(it.id, e.target.value)}
+                rows={3}
+                className={cn(
+                  "w-full min-h-[72px] resize-y rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground",
+                  "ring-offset-background placeholder:text-muted-foreground",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                )}
+                aria-label="核心要素内容"
+              />
               <div className="mt-2 flex flex-wrap gap-2">
                 <TooltipProvider>
                   {it.refs.map((r) => (

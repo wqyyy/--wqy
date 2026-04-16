@@ -1797,11 +1797,11 @@ export function PolicyOutputPage({
                   </div>
                 ) : (
                   <>
-                {/* 段落逐行渲染，完成後支援 hover 互動 */}
-                <div className="text-sm text-foreground leading-[1.8] space-y-1 pr-4">
+                {/* 段落按块渲染：避免逐行碎片化展示，完成后支持 hover 交互 */}
+                <div className="text-base text-foreground leading-[1.95] space-y-3 pr-4">
                   {isComplete ? (
-                    displayedText.split("\n").map((line, idx) => {
-                      const trimmed = line.trim();
+                    displayedText.split(/\n{2,}/).map((block, idx) => {
+                      const trimmed = block.trim();
                       if (!trimmed) return <div key={idx} className="h-2" />;
                       const isActive = activeParagraph === idx;
                       const isMenuOpen = paraMenuIdx === idx;
@@ -1836,7 +1836,7 @@ export function PolicyOutputPage({
                               isActive || isMenuOpen ? "bg-primary/5" : ""
                             }`}
                           >
-                            {renderHighlightedText(line)}
+                            <div className="whitespace-pre-line">{renderHighlightedText(trimmed)}</div>
                           </div>
 
                           {/* 操作選單 */}
@@ -1892,7 +1892,7 @@ export function PolicyOutputPage({
                       );
                     })
                   ) : (
-                    <div className="whitespace-pre-line">
+                    <div className="whitespace-pre-line text-base leading-[1.95]">
                       {displayedText}<span className="inline-block w-0.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
                     </div>
                   )}

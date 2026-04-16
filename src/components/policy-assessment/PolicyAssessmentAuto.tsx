@@ -7,11 +7,57 @@ import type { Step3Result } from "./AssessmentStep3";
 import type { Step4Result } from "./AssessmentStep4";
 import type { Step5Result } from "./AssessmentStep5";
 import type { Step6Result } from "./AssessmentStep6";
+import { buildGovReportPreviewHtml } from "@/lib/govReportHeaderHtml";
 
 interface Props {
   policy: AssessmentPolicy;
   onBack: () => void;
   directOpenFinal?: boolean;
+}
+
+function extractSectionBody(text: string, heading: string, nextHeadings: string[]): string {
+  const start = text.indexOf(heading);
+  if (start < 0) return "";
+  const bodyStart = start + heading.length;
+  let end = text.length;
+  for (const next of nextHeadings) {
+    const idx = text.indexOf(next, bodyStart);
+    if (idx >= 0 && idx < end) end = idx;
+  }
+  return text.slice(bodyStart, end).trim();
+}
+
+function replaceSectionBody(text: string, heading: string, nextHeadings: string[], newBody: string): string {
+  const start = text.indexOf(heading);
+  if (start < 0) return text;
+  const bodyStart = start + heading.length;
+  let end = text.length;
+  for (const next of nextHeadings) {
+    const idx = text.indexOf(next, bodyStart);
+    if (idx >= 0 && idx < end) end = idx;
+  }
+  const normalized = newBody.trim();
+  return `${text.slice(0, bodyStart)}\n${normalized}\n\n${text.slice(end).trimStart()}`;
+}
+
+function mapReportToEditableSections(reportText: string): string[] {
+  return [
+    extractSectionBody(reportText, "一、条款拆解与分类", ["二、政策一致性评估意见"]),
+    extractSectionBody(reportText, "二、政策一致性评估意见", ["三、政策落地性意见"]),
+    extractSectionBody(reportText, "三、政策落地性意见", ["四、政策合规性意见"]),
+    extractSectionBody(reportText, "四、政策合规性意见", ["五、流程管理意见"]),
+    extractSectionBody(reportText, "六、其他意见", ["附注："]),
+  ];
+}
+
+function mergeEditableSectionsIntoReport(reportText: string, editableSections: string[]): string {
+  let merged = reportText;
+  merged = replaceSectionBody(merged, "一、条款拆解与分类", ["二、政策一致性评估意见"], editableSections[0] || "");
+  merged = replaceSectionBody(merged, "二、政策一致性评估意见", ["三、政策落地性意见"], editableSections[1] || "");
+  merged = replaceSectionBody(merged, "三、政策落地性意见", ["四、政策合规性意见"], editableSections[2] || "");
+  merged = replaceSectionBody(merged, "四、政策合规性意见", ["五、流程管理意见"], editableSections[3] || "");
+  merged = replaceSectionBody(merged, "六、其他意见", ["附注："], editableSections[4] || "");
+  return merged;
 }
 
 function mockExtractClauses(_title: string): Clause[] {
@@ -135,6 +181,24 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
     setRunKey(k => k + 1);
   }, []);
 
+  const buildReportSections = useCallback((input: {
+    clauses: Clause[];
+    step3: Step3Result | null;
+    step4: Step4Result | null;
+    step5: Step5Result | null;
+    step6: Step6Result | null;
+  }) => {
+    const text = generateReportText({
+      policy,
+      clauses: input.clauses,
+      step3: input.step3,
+      step4: input.step4,
+      step5: input.step5,
+      step6: input.step6,
+    });
+    return mapReportToEditableSections(text);
+  }, [policy]);
+
   // ── 自动执行流程 ──────────────────────────────────────────
   useEffect(() => {
     if (openFinalMode) {
@@ -143,6 +207,14 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
       const defaultStep4 = mockStep4(defaultClauses);
       const defaultStep5 = mockStep5();
       const defaultStep6 = mockStep6();
+      const defaultReportText = generateReportText({
+        policy,
+        clauses: defaultClauses,
+        step3: defaultStep3,
+        step4: defaultStep4,
+        step5: defaultStep5,
+        step6: defaultStep6,
+      });
 
       setClauses(defaultClauses);
       setStep3(defaultStep3);
@@ -150,27 +222,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
       setStep5(defaultStep5);
       setStep6(defaultStep6);
       setThoughtLogs(STAGES.map((item) => item.thoughts.join("\n")));
-      setEditableResults([
-        `共拆解 ${defaultClauses.length} 条条款。\n` +
-          `条件达成类：${defaultClauses.filter(c => c.category === "condition").length} 条\n` +
-          `竞争促进类：${defaultClauses.filter(c => c.category === "competition").length} 条\n` +
-          `营商环境类：${defaultClauses.filter(c => c.category === "business").length} 条\n\n` +
-          `【条件达成类】\n` +
-          defaultClauses.filter(c => c.category === "condition").map(c => `· ${c.article} ${c.text}`).join("\n") +
-          `\n\n【竞争促进类】\n` +
-          defaultClauses.filter(c => c.category === "competition").map(c => `· ${c.article} ${c.text}`).join("\n") +
-          `\n\n【营商环境类】\n` +
-          defaultClauses.filter(c => c.category === "business").map(c => `· ${c.article} ${c.text}`).join("\n"),
-        `上位一致性 ${defaultStep3.superiorChecks.length} 条，交叉条款 ${defaultStep3.crossClauses.length} 条。\n` +
-          defaultStep3.superiorChecks.map(s => `· ${s.policyTitle}（${s.consistencyLevel}）：${s.note}`).join("\n") +
-          "\n交叉条款：\n" +
-          defaultStep3.crossClauses.map(c => `· ${c.ourArticle} ${c.ourClause} vs ${c.crossPolicy}：${c.suggestion}`).join("\n"),
-        `资金类 ${defaultStep4.fundClauses.length} 条，非资金类 ${defaultStep4.nonFundClauses.length} 条。\n` +
-          defaultStep4.fundClauses.map(f => `· ${f.article} ${f.clauseText}：覆盖 ${f.estCompanies} 家，预算 ${f.estBudget} 万元`).join("\n") +
-          "\n非资金类：\n" + defaultStep4.nonFundClauses.map(n => `· ${n.article}：${n.audienceNote}`).join("\n"),
-        defaultStep5.map(s => `· ${s.dimension}（${s.level}）：${s.detail}${s.suggestion ? " → " + s.suggestion : ""}`).join("\n"),
-        defaultStep6.map(o => `· [${o.priority}] ${o.category}：${o.opinion}\n  ${o.detail}`).join("\n"),
-      ]);
+      setEditableResults(mapReportToEditableSections(defaultReportText));
       setFinished(true);
       setStopped(false);
       setStage(STAGES.length);
@@ -183,6 +235,12 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
     const stopped = () => !mounted || stopRef.current;
 
     const run = async () => {
+      let currentClauses: Clause[] = [];
+      let currentStep3: Step3Result | null = null;
+      let currentStep4: Step4Result | null = null;
+      let currentStep5: Step5Result | null = null;
+      let currentStep6: Step6Result | null = null;
+
       setStage(0);
       setExpandedThinking(0);
       setThoughtLogs(prev => {
@@ -192,7 +250,19 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
       });
       await new Promise(r => setTimeout(r, STAGES[0].duration));
       if (stopped()) return;
-      setClauses(mockExtractClauses(policy.title));
+      currentClauses = mockExtractClauses(policy.title);
+      setClauses(currentClauses);
+      setEditableResults((prev) => {
+        const next = [...prev];
+        next[0] = buildReportSections({
+          clauses: currentClauses,
+          step3: currentStep3,
+          step4: currentStep4,
+          step5: currentStep5,
+          step6: currentStep6,
+        })[0] || next[0];
+        return next;
+      });
       setExpandedThinking(null);
 
       setStage(1);
@@ -204,8 +274,19 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
       });
       await new Promise(r => setTimeout(r, STAGES[1].duration));
       if (stopped()) return;
-      const r3 = mockStep3([]);
-      setStep3(r3);
+      currentStep3 = mockStep3(currentClauses);
+      setStep3(currentStep3);
+      setEditableResults((prev) => {
+        const next = [...prev];
+        next[1] = buildReportSections({
+          clauses: currentClauses,
+          step3: currentStep3,
+          step4: currentStep4,
+          step5: currentStep5,
+          step6: currentStep6,
+        })[1] || next[1];
+        return next;
+      });
       setExpandedThinking(null);
 
       setStage(2);
@@ -217,7 +298,19 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
       });
       await new Promise(r => setTimeout(r, STAGES[2].duration));
       if (stopped()) return;
-      setStep4(mockStep4([]));
+      currentStep4 = mockStep4(currentClauses);
+      setStep4(currentStep4);
+      setEditableResults((prev) => {
+        const next = [...prev];
+        next[2] = buildReportSections({
+          clauses: currentClauses,
+          step3: currentStep3,
+          step4: currentStep4,
+          step5: currentStep5,
+          step6: currentStep6,
+        })[2] || next[2];
+        return next;
+      });
       setExpandedThinking(null);
 
       setStage(3);
@@ -229,7 +322,19 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
       });
       await new Promise(r => setTimeout(r, STAGES[3].duration));
       if (stopped()) return;
-      setStep5(mockStep5());
+      currentStep5 = mockStep5();
+      setStep5(currentStep5);
+      setEditableResults((prev) => {
+        const next = [...prev];
+        next[3] = buildReportSections({
+          clauses: currentClauses,
+          step3: currentStep3,
+          step4: currentStep4,
+          step5: currentStep5,
+          step6: currentStep6,
+        })[3] || next[3];
+        return next;
+      });
       setExpandedThinking(null);
 
       setStage(4);
@@ -241,7 +346,19 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
       });
       await new Promise(r => setTimeout(r, STAGES[4].duration));
       if (stopped()) return;
-      setStep6(mockStep6());
+      currentStep6 = mockStep6();
+      setStep6(currentStep6);
+      setEditableResults((prev) => {
+        const next = [...prev];
+        next[4] = buildReportSections({
+          clauses: currentClauses,
+          step3: currentStep3,
+          step4: currentStep4,
+          step5: currentStep5,
+          step6: currentStep6,
+        })[4] || next[4];
+        return next;
+      });
       setExpandedThinking(null);
 
       setFinished(true);
@@ -256,7 +373,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
     run();
     return () => { mounted = false; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [policy, runKey, openFinalMode]);
+  }, [policy, runKey, openFinalMode, buildReportSections]);
 
   // ── 每步骤进入时打字机输出思考文字 ────────────────────────
   useEffect(() => {
@@ -290,49 +407,6 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
     ? STAGES[stage].label
     : "已完成";
 
-  const stageResults = [
-    clauses.length > 0
-      ? `共拆解 ${clauses.length} 条条款。\n` +
-        `条件达成类：${clauses.filter(c => c.category === "condition").length} 条\n` +
-        `竞争促进类：${clauses.filter(c => c.category === "competition").length} 条\n` +
-        `营商环境类：${clauses.filter(c => c.category === "business").length} 条\n\n` +
-        `【条件达成类】\n` +
-        clauses.filter(c => c.category === "condition").map(c => `· ${c.article} ${c.text}`).join("\n") +
-        `\n\n【竞争促进类】\n` +
-        clauses.filter(c => c.category === "competition").map(c => `· ${c.article} ${c.text}`).join("\n") +
-        `\n\n【营商环境类】\n` +
-        clauses.filter(c => c.category === "business").map(c => `· ${c.article} ${c.text}`).join("\n")
-      : "",
-    step3
-      ? `上位一致性 ${step3.superiorChecks.length} 条，交叉条款 ${step3.crossClauses.length} 条。\n` +
-        step3.superiorChecks.map(s => `· ${s.policyTitle}（${s.consistencyLevel}）：${s.note}`).join("\n") +
-        "\n交叉条款：\n" +
-        step3.crossClauses.map(c => `· ${c.ourArticle} ${c.ourClause} vs ${c.crossPolicy}：${c.suggestion}`).join("\n")
-      : "",
-    step4
-      ? `资金类 ${step4.fundClauses.length} 条，非资金类 ${step4.nonFundClauses.length} 条。\n` +
-        step4.fundClauses.map(f => `· ${f.article} ${f.clauseText}：覆盖 ${f.estCompanies} 家，预算 ${f.estBudget} 万元`).join("\n") +
-        "\n非资金类：\n" + step4.nonFundClauses.map(n => `· ${n.article}：${n.audienceNote}`).join("\n")
-      : "",
-    step5
-      ? step5.map(s => `· ${s.dimension}（${s.level}）：${s.detail}${s.suggestion ? " → " + s.suggestion : ""}`).join("\n")
-      : "",
-    step6
-      ? step6.map(o => `· [${o.priority}] ${o.category}：${o.opinion}\n  ${o.detail}`).join("\n")
-      : "",
-  ];
-
-  useEffect(() => {
-    setEditableResults(prev => {
-      const next = [...prev];
-      stageResults.forEach((text, idx) => {
-        if (text && !next[idx]) next[idx] = text;
-      });
-      return next;
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clauses, step3, step4, step5, step6, finished]);
-
   const flowSteps = STAGES;
   const flowCurrent = Math.min(stage + 1, STAGES.length);
   const finalReportText = generateReportText({
@@ -343,6 +417,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
     step5: step5 ?? mockStep5(),
     step6: step6 ?? mockStep6(),
   });
+  const mergedFinalReportText = mergeEditableSectionsIntoReport(finalReportText, editableResults);
 
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto">
@@ -401,9 +476,11 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
               {finished && (
                 <button
                   onClick={() => {
-                    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>前评估报告预览</title>
-                    <style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,PingFang SC,Hiragino Sans GB,Microsoft YaHei,sans-serif;padding:24px;line-height:1.9;color:#1f2937;white-space:pre-wrap;}h1{font-size:20px;margin:0 0 16px;}</style>
-                    </head><body><h1>政策前评估报告意见书（预览）</h1>${finalReportText.replace(/</g, "&lt;")}</body></html>`;
+                    const html = buildGovReportPreviewHtml({
+                      windowTitle: "前评估报告预览",
+                      documentTitle: `关于《${policy.title}》的前评估意见`,
+                      bodyText: mergedFinalReportText,
+                    });
                     const w = window.open("", "_blank");
                     if (!w) return;
                     w.document.write(html);
@@ -417,7 +494,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
               {finished && (
                 <button
                   onClick={() => {
-                    const blob = new Blob([finalReportText], { type: "text/plain;charset=utf-8" });
+                    const blob = new Blob([mergedFinalReportText], { type: "text/plain;charset=utf-8" });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement("a");
                     a.href = url;

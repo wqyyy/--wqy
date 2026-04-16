@@ -1,12 +1,19 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Download, FileText, CheckCircle, AlertTriangle, XCircle, Loader2, Printer } from "lucide-react";
+import { Download, FileText, CheckCircle, AlertTriangle, XCircle, Loader2 } from "lucide-react";
+import { GovRedHeaderBlock } from "@/components/report/GovRedHeaderBlock";
 import type { AssessmentPolicy } from "./AssessmentStep1";
 import type { Clause } from "./AssessmentStep2";
 import type { Step3Result } from "./AssessmentStep3";
 import type { Step4Result } from "./AssessmentStep4";
 import type { Step5Result } from "./AssessmentStep5";
 import type { Step6Result } from "./AssessmentStep6";
+import {
+  KECHUANG_V1_COMPLIANCE_OPINIONS,
+  KECHUANG_V1_CONSISTENCY_OPINIONS,
+  KECHUANG_V1_LANDING_OPINIONS,
+  KECHUANG_V1_OTHER_OPINIONS,
+} from "@/lib/preAssessmentKechuangV1";
 
 interface Props {
   policy: AssessmentPolicy;
@@ -76,27 +83,21 @@ export function AssessmentStep7({ policy, clauses, step3, step4, step5, step6 }:
         <p className="text-sm text-muted-foreground">汇总所有评估结果，生成可供下载的前评估报告意见书</p>
       </div>
 
-      {/* 報告預覽卡 */}
+      {/* 報告預覽卡（红头公文版式） */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        {/* 報告標題 */}
-        <div className="bg-primary/5 border-b border-border px-6 py-5">
-          <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <FileText className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-1">政策前评估报告意见书</p>
-              <h3 className="text-base font-semibold text-foreground leading-snug">{policy.title}</h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                评估日期：{new Date().toLocaleDateString("zh-CN")} · 共 {totalClauses} 条政策条款
-              </p>
-            </div>
-            {/* 綜合評分 */}
-            <div className="ml-auto text-center shrink-0">
-              <p className={`text-3xl font-bold ${scoreColor}`}>{overallScore}</p>
-              <p className={`text-xs font-medium ${scoreColor}`}>{scoreLabel}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">综合评分</p>
-            </div>
+        <GovRedHeaderBlock documentTitle={`关于《${policy.title}》的前评估意见`} />
+
+        <div className="flex items-start justify-between gap-4 border-b border-border bg-muted/10 px-6 py-4">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-muted-foreground">政策前评估报告意见书</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              评估日期：{new Date().toLocaleDateString("zh-CN")} · 共 {totalClauses} 条政策条款
+            </p>
+          </div>
+          <div className="text-center shrink-0">
+            <p className={`text-3xl font-bold ${scoreColor}`}>{overallScore}</p>
+            <p className={`text-xs font-medium ${scoreColor}`}>{scoreLabel}</p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">综合评分</p>
           </div>
         </div>
 
@@ -228,26 +229,19 @@ export function generateReportText({ policy, clauses, step3, step4, step5, step6
   // ── 二、政策一致性评估意见 ──
   push(`二、政策一致性评估意见`);
   push(``);
-  push(`1.根据政策文本内容，本政策出台的上位文件依据为“深入贯彻习近平总书记对国家级经济技术开发区工作的重要指示精神”；同时，本政策为《北京经济技术开发区关于加快推进国际科技创新中心建设 打造高精尖产业主阵地的若干意见》（京技管字〔2024〕125号）的延续性政策，符合经开区产业政策体系方向。`);
-  push(`2.《北京经济技术开发区关于建设具有全球影响力商业航天产业高地的若干措施》（京技管发〔2024〕5号）与本政策第（二）、（四）条存在交叉。`);
-  push(`3.第（五）条（首升规）与《北京经济技术开发区关于推动经济持续回升向好的若干措施》（京技管发〔2025〕1号）第7条存在交叉；第（五）条（专精特新、国高新）与《关于进一步促进专精特新、高新技术企业高质量发展的若干措施》（京技管发〔2023〕32号）第一、二条存在交叉。`);
-  push(`4.第（六）条（研发费用补贴）与《北京经济技术开发区关于建设具有全球影响力商业航天产业高地的若干措施》（京技管发〔2024〕5号）第2条、《北京经济技术开发区关于促进医药健康产业高质量发展的若干措施》（京技管发〔2023〕5号）第4条、《北京经济技术开发区关于促进氢能产业高质量发展的若干措施》（京技管发〔2024〕25号）第4条、《关于进一步促进专精特新、高新技术企业高质量发展的若干措施》（京技管发〔2023〕32号）第4条存在交叉。`);
-  push(`考虑到本政策为科技创新领域核心共性要素政策，建议以上涉及存在交叉的产业政策条款，按此政策调整执行，并在本政策附则中予以说明。`);
+  push(...KECHUANG_V1_CONSISTENCY_OPINIONS);
   push(``);
 
   // ── 三、政策落地性意见 ──
   push(`三、政策落地性意见`);
   push(``);
-  push(`1.本政策共有5条竞争促进类政策条款，均需进一步出台细则以明确择优评审的实施方式。`);
-  push(`2.第（六）条“对年度研发费用增长超过年度目标值的企业”，建议明确目标值的定义或测算方式，便于企业理解，同时建议明确此政策奖励的享受主体范围（如专精特新、规上等）。`);
-  push(`3.第（九）条中“经认定的公共技术服务平台和中试服务基地”，当前尚无明确认定标准，建议予以明确。`);
+  push(...KECHUANG_V1_LANDING_OPINIONS);
   push(``);
 
   // ── 四、政策合规性意见 ──
   push(`四、政策合规性意见`);
   push(``);
-  push(`1.根据《惠企政策全生命周期管理办法（2.0版）》，请在政策提请主任办公会审议前做好合法性审查和公平竞争审查工作。`);
-  push(`2.根据公平竞争审查工作要求，建议将（十一）条中“开通区外班车”的表述调整为“开通跨区域通勤班车”。`);
+  push(...KECHUANG_V1_COMPLIANCE_OPINIONS);
   push(``);
 
   // ── 五、流程管理意见 ──
@@ -260,7 +254,7 @@ export function generateReportText({ policy, clauses, step3, step4, step5, step6
   // ── 六、其他意见 ──
   push(`六、其他意见`);
   push(``);
-  push(`建议做好企业调研工作，并将调研情况在上会汇报材料中予以体现。`);
+  push(...KECHUANG_V1_OTHER_OPINIONS);
 
   // ── 附注 ──
   push(``);

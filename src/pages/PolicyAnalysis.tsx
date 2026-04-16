@@ -13,6 +13,7 @@ import {
   Lightbulb,
 } from "lucide-react";
 import { markPolicyEvaluated } from "@/lib/policyEvaluationCompleted";
+import { buildGovReportPreviewHtml } from "@/lib/govReportHeaderHtml";
 
 const STAGES = [
   {
@@ -296,9 +297,11 @@ export default function PolicyAnalysis() {
               {finished && (
                 <button
                   onClick={() => {
-                    const html = `<!doctype html><html><head><meta charset="utf-8"/><title>政策评价报告预览</title>
-                    <style>body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,PingFang SC,Hiragino Sans GB,Microsoft YaHei,sans-serif;padding:24px;line-height:1.9;color:#1f2937;white-space:pre-wrap;}h1{font-size:20px;margin:0 0 16px;}</style>
-                    </head><body><h1>政策评价报告（预览）</h1>${finalReportText.replace(/</g, "&lt;")}</body></html>`;
+                    const html = buildGovReportPreviewHtml({
+                      documentTitle: `关于《${policyName}》的政策评价报告`,
+                      bodyText: finalReportText,
+                      windowTitle: "政策评价报告预览",
+                    });
                     const w = window.open("", "_blank");
                     if (!w) return;
                     w.document.write(html);

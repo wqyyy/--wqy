@@ -137,7 +137,7 @@ export function ReferenceDocPanel({
   const panelContent = (
     <>
       <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
-        <p className="text-sm font-semibold text-foreground">参考文档库</p>
+        <p className="text-sm font-semibold text-foreground">参考政策</p>
         <p className="text-xs text-muted-foreground mt-0.5">拖拽文档到左侧章节</p>
       </div>
       <div className="overflow-y-auto flex-1 p-2 space-y-1">
