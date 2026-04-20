@@ -29,6 +29,23 @@ const flowSteps = [
   { id: 5, label: "正文生成", icon: ScrollText },
 ];
 
+const policyTypeOptions = [
+  "实施方案",
+  "实施细则",
+  "实施意见",
+  "实施办法",
+  "若干措施",
+  "管理办法",
+  "工作方案",
+] as const;
+
+function inferPolicyTypeFromTitle(title: string): (typeof policyTypeOptions)[number] {
+  const text = title.trim();
+  if (!text) return "若干措施";
+  const matched = policyTypeOptions.find((option) => text.includes(option));
+  return matched ?? "若干措施";
+}
+
 interface PolicyDraftingFlowProps {
   onBack: () => void;
   initialTitle?: string;
@@ -45,6 +62,7 @@ export function PolicyDraftingFlow({
   /** 已完成（訪問過）的最大步驟，用於控制步驟條可點擊範圍 */
   const [maxReachedStep, setMaxReachedStep] = useState(1);
   const [title, setTitle] = useState(() => initialTitle?.trim() || DATA_INDUSTRY_POLICY_TITLE);
+  const [policyType, setPolicyType] = useState<(typeof policyTypeOptions)[number]>("若干措施");
   const [coreElements, setCoreElements] = useState("");
   const [coreItems, setCoreItems] = useState<{ id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[]>([]);
   const [selectedPolicies, setSelectedPolicies] = useState<PolicyItem[]>([]);
@@ -69,6 +87,10 @@ export function PolicyDraftingFlow({
     const t = initialTitle?.trim();
     if (t) setTitle(t);
   }, [initialTitle]);
+
+  useEffect(() => {
+    setPolicyType(inferPolicyTypeFromTitle(title));
+  }, [title]);
 
   const goNext = () => {
     if (currentStep < 5) {
@@ -277,6 +299,32 @@ export function PolicyDraftingFlow({
                 onChange={(e) => setTitle(e.target.value)}
                 className="h-11"
               />
+            </div>
+
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">
+                政策类型 <span className="text-primary">*</span>
+              </Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+                {policyTypeOptions.map((option) => {
+                  const checked = policyType === option;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setPolicyType(option)}
+                      className={`h-10 rounded-lg border text-sm transition-colors ${
+                        checked
+                          ? "border-primary bg-primary/5 text-primary font-medium"
+                          : "border-border text-muted-foreground hover:text-foreground hover:border-primary/40"
+                      }`}
+                      aria-pressed={checked}
+                    >
+                      {option}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* 起草方式选择 */}

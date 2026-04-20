@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, ExternalLink, Loader2, ChevronDown, ChevronRight } from "lucide-react";
+import { Search, ExternalLink, Loader2, ChevronDown, ChevronRight, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import { searchPolicies } from "@/lib/policyDraftApi";
 
 export interface PolicyItem {
@@ -31,11 +32,13 @@ const levelLabels: Record<string, string> = {
 };
 
 export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected, policies: externalPolicies }: PolicySearchStepProps) {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(policyTitle);
   const [isSearching, setIsSearching] = useState(externalPolicies.length === 0);
+  const [isSearchingMore, setIsSearchingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [policies, setPolicies] = useState<PolicyItem[]>(externalPolicies.length > 0 ? externalPolicies : []);
   const [collapsedLevels, setCollapsedLevels] = useState<Record<string, boolean>>({});
+  const [searchHint, setSearchHint] = useState<string | null>(null);
   /** 优先参考我的素材库，默认开启；切换后重新拉取检索结果 */
   const [prioritizeMyLibrary, setPrioritizeMyLibrary] = useState(true);
   /** 已从父级同步过政策列表时不再用首次空请求覆盖（返回上一步等场景） */
@@ -61,6 +64,10 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
       .finally(() => setIsSearching(false));
   }, [policyTitle, coreElements, prioritizeMyLibrary]);
 
+  useEffect(() => {
+    setSearchQuery(policyTitle);
+  }, [policyTitle]);
+
   const togglePolicy = (id: string) => {
     const updated = policies.map(p => p.id === id ? { ...p, selected: !p.selected } : p);
     setPolicies(updated);
@@ -79,13 +86,51 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
     onPoliciesSelected(updated);
   };
 
-  const filteredPolicies = searchQuery
-    ? policies.filter(p => p.title.includes(searchQuery) || p.source?.includes(searchQuery))
-    : policies;
+  const removeSelectedPolicy = (id: string) => {
+    const updated = policies.map((p) => (p.id === id ? { ...p, selected: false } : p));
+    setPolicies(updated);
+    onPoliciesSelected(updated);
+  };
+
+  const mergePolicies = (current: PolicyItem[], incoming: PolicyItem[]) => {
+    const existingIds = new Set(current.map((item) => item.id));
+    const deduped = incoming.filter((item) => !existingIds.has(item.id));
+    return [...current, ...deduped];
+  };
+
+  const handleSearchMore = async () => {
+    const keyword = searchQuery.trim();
+    if (!keyword) return;
+    setSearchHint(null);
+    setIsSearchingMore(true);
+    try {
+      const { policies: more } = await searchPolicies(policyTitle, coreElements, {
+        prioritizeMyLibrary,
+        query: keyword,
+        appendMode: true,
+      });
+      const appended = more.map((item) => ({
+        ...item,
+        id: `extra-${item.level}-${Date.now()}-${item.id}`,
+      }));
+      const merged = mergePolicies(policies, appended);
+      const addedCount = merged.length - policies.length;
+      setPolicies(merged);
+      onPoliciesSelected(merged);
+      setSearchHint(addedCount > 0 ? `已新增 ${addedCount} 条与“${keyword}”相关政策，请勾选后加入参考。` : `未找到新的“${keyword}”相关政策。`);
+    } catch (err) {
+      setSearchHint(err instanceof Error ? `检索失败：${err.message}` : "检索失败，请重试");
+    } finally {
+      setIsSearchingMore(false);
+    }
+  };
+
+  const filteredPolicies = policies;
 
   const levels: Array<"national" | "beijing" | "other"> = ["national", "beijing", "other"];
 
   const selectedCount = policies.filter(p => p.selected).length;
+  const selectedPolicies = policies.filter((p) => p.selected);
 
   return (
     <div className="space-y-5">
@@ -97,15 +142,33 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
       </div>
 
       {/* Search bar */}
-      <div className="relative">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          placeholder="搜索政策库..."
+          placeholder="输入关键词检索更多政策（如：营商环境）"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              void handleSearchMore();
+            }
+          }}
           className="pl-9 h-9 text-sm"
         />
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 px-3 text-xs"
+          onClick={() => void handleSearchMore()}
+          disabled={!searchQuery.trim() || isSearchingMore}
+        >
+          {isSearchingMore ? "检索中..." : "检索更多"}
+        </Button>
       </div>
+      {searchHint && <p className="text-xs text-muted-foreground -mt-3">{searchHint}</p>}
 
       <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-2.5">
         <div className="flex items-center gap-2">
@@ -156,6 +219,8 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
             </p>
           </div>
 
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+            <div className="space-y-4">
           {levels.map(level => {
             const levelPolicies = filteredPolicies.filter(p => p.level === level);
             if (levelPolicies.length === 0) return null;
@@ -243,6 +308,44 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
               </div>
             );
           })}
+            </div>
+
+          <aside className="h-fit self-start rounded-lg border border-border bg-card">
+            <div className="border-b border-border px-4 py-3">
+              <h4 className="text-sm font-semibold text-foreground">
+                已加入参考（{selectedPolicies.length}）
+              </h4>
+              <p className="mt-1 text-xs text-muted-foreground">
+                可删除不需要的参考政策
+              </p>
+            </div>
+            <div className="max-h-[560px] overflow-y-auto">
+              {selectedPolicies.length === 0 ? (
+                <p className="px-4 py-6 text-xs text-muted-foreground">
+                  暂无已选政策，请在左侧勾选加入参考。
+                </p>
+              ) : (
+                <div className="divide-y divide-border">
+                  {selectedPolicies.map((policy) => (
+                    <div key={policy.id} className="flex items-start gap-2 px-4 py-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm text-foreground">{policy.title}</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        onClick={() => removeSelectedPolicy(policy.id)}
+                        title="移除参考"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </aside>
+          </div>
         </div>
       )}
     </div>

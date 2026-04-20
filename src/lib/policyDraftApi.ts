@@ -30,6 +30,10 @@ function slug(input: string) {
 export type SearchPoliciesOptions = {
   /** 为 true 时在结果中优先展示「我的素材库」中的参考条目（默认 true） */
   prioritizeMyLibrary?: boolean;
+  /** 额外检索关键词（用于“检索更多”） */
+  query?: string;
+  /** 追加模式：新增结果默认不勾选 */
+  appendMode?: boolean;
 };
 
 export async function searchPolicies(
@@ -42,52 +46,55 @@ export async function searchPolicies(
   const keyword = isDataIndustryPolicyDraft(policyTitle)
     ? "数据产业"
     : policyTitle.replace(/^关于|若干政策措施$|政策措施$/g, "").slice(0, 12) || "产业发展";
+  const query = options?.query?.trim();
+  const effectiveKeyword = query || keyword;
+  const defaultSelected = options?.appendMode ? false : true;
   const policies: PolicyItem[] = [
     {
       id: "national-1",
-      title: `国家层面关于支持${keyword}高质量发展的指导意见`,
-      url: `https://example.com/policies/${slug(keyword)}-national-1`,
-      selected: true,
+      title: `国家层面关于支持${effectiveKeyword}高质量发展的指导意见`,
+      url: `https://example.com/policies/${slug(effectiveKeyword)}-national-1`,
+      selected: defaultSelected,
       level: "national",
       source: levelSources.national,
     },
     {
       id: "national-2",
-      title: `关于促进${keyword}技术创新与成果转化的实施方案`,
-      url: `https://example.com/policies/${slug(keyword)}-national-2`,
-      selected: true,
+      title: `关于促进${effectiveKeyword}技术创新与成果转化的实施方案`,
+      url: `https://example.com/policies/${slug(effectiveKeyword)}-national-2`,
+      selected: defaultSelected,
       level: "national",
       source: "工业和信息化部",
     },
     {
       id: "beijing-1",
-      title: `北京市关于加快${keyword}产业布局的若干措施`,
-      url: `https://example.com/policies/${slug(keyword)}-beijing-1`,
-      selected: true,
+      title: `北京市关于加快${effectiveKeyword}产业布局的若干措施`,
+      url: `https://example.com/policies/${slug(effectiveKeyword)}-beijing-1`,
+      selected: defaultSelected,
       level: "beijing",
       source: levelSources.beijing,
     },
     {
       id: "beijing-2",
-      title: `北京市支持${keyword}企业创新发展的专项政策`,
-      url: `https://example.com/policies/${slug(keyword)}-beijing-2`,
-      selected: true,
+      title: `北京市支持${effectiveKeyword}企业创新发展的专项政策`,
+      url: `https://example.com/policies/${slug(effectiveKeyword)}-beijing-2`,
+      selected: defaultSelected,
       level: "beijing",
       source: "北京市经济和信息化局",
     },
     {
       id: "other-1",
-      title: `先进地区${keyword}产业扶持政策对比样本`,
-      url: `https://example.com/policies/${slug(keyword)}-other-1`,
-      selected: true,
+      title: `先进地区${effectiveKeyword}产业扶持政策对比样本`,
+      url: `https://example.com/policies/${slug(effectiveKeyword)}-other-1`,
+      selected: defaultSelected,
       level: "other",
       source: levelSources.other,
     },
     {
       id: "other-2",
-      title: `${keyword}重点企业培育与招商支持政策`,
-      url: `https://example.com/policies/${slug(keyword)}-other-2`,
-      selected: true,
+      title: `${effectiveKeyword}重点企业培育与招商支持政策`,
+      url: `https://example.com/policies/${slug(effectiveKeyword)}-other-2`,
+      selected: defaultSelected,
       level: "other",
       source: "示范园区政策库",
     },
@@ -96,28 +103,28 @@ export async function searchPolicies(
   if (coreElements?.trim()) {
     policies.push({
       id: "beijing-3",
-      title: `北京市围绕核心要素完善${keyword}政策体系的实施意见`,
-      url: `https://example.com/policies/${slug(keyword)}-beijing-3`,
-      selected: true,
+      title: `北京市围绕核心要素完善${effectiveKeyword}政策体系的实施意见`,
+      url: `https://example.com/policies/${slug(effectiveKeyword)}-beijing-3`,
+      selected: defaultSelected,
       level: "beijing",
       source: "北京市政策研究室",
     });
   }
 
-  if (prioritizeMyLibrary) {
+  if (prioritizeMyLibrary && !options?.appendMode) {
     const myLibraryItems: PolicyItem[] = [
       {
         id: "mylib-1",
-        title: `【我的素材库】与您草稿相关的${keyword}专项收藏`,
-        url: `https://example.com/my-library/${slug(keyword)}-saved-1`,
+        title: `【我的素材库】与您草稿相关的${effectiveKeyword}专项收藏`,
+        url: `https://example.com/my-library/${slug(effectiveKeyword)}-saved-1`,
         selected: true,
         level: "beijing",
         source: "我的素材库",
       },
       {
         id: "mylib-2",
-        title: `【我的素材库】近期收藏的${keyword}配套细则`,
-        url: `https://example.com/my-library/${slug(keyword)}-saved-2`,
+        title: `【我的素材库】近期收藏的${effectiveKeyword}配套细则`,
+        url: `https://example.com/my-library/${slug(effectiveKeyword)}-saved-2`,
         selected: true,
         level: "national",
         source: "我的素材库",
