@@ -38,6 +38,18 @@ const PARA_ACTIONS = [
 ] as const;
 
 type CalculatorTab = "calculator" | "result" | "companies";
+type CalcFieldType = "numeric" | "tag";
+
+type ParsedCalcCondition = {
+  id: string;
+  label: string;
+  fieldType: CalcFieldType;
+  metric?: string;
+  operator?: ">" | ">=" | "<" | "<=";
+  value?: string;
+  unit?: string;
+  tags?: string[];
+};
 
 type CompanyRecord = {
   id: number;
@@ -87,15 +99,24 @@ const CALCULATOR_CATEGORY_DATA = [
   { name: "其他", value: 1 },
 ];
 
-function PolicyCalculatorWorkspace() {
+function PolicyCalculatorWorkspace({ initialClauseContent }: { initialClauseContent?: string }) {
   const [activeTab, setActiveTab] = useState<CalculatorTab>("calculator");
-  const [clauseContent, setClauseContent] = useState("对在经开区注册的专精特新企业，实缴资本大于100万的按照实缴资本5%给予支持，最高不超过300万");
+  const [clauseContent, setClauseContent] = useState("年度研发费用增长超过年度目标值的商业航天大中型重点企业、专精特新“小巨人”企业，按照高出部分的20%给予支持，每年最高为300万元");
   const [supportMode, setSupportMode] = useState<"fixed" | "ratio">("ratio");
-  const [capitalValue, setCapitalValue] = useState("100");
-  const [ratioValue, setRatioValue] = useState("5.00");
+  const [capitalValue, setCapitalValue] = useState("年度目标值");
+  const [ratioValue, setRatioValue] = useState("20.00");
   const [maxAmount, setMaxAmount] = useState("300.00");
   const [isCalculating, setIsCalculating] = useState(false);
-  const [resultReady, setResultReady] = useState(true);
+  const [resultReady, setResultReady] = useState(false);
+  const [estimateConditions, setEstimateConditions] = useState<string[]>([]);
+  const [calcConditions, setCalcConditions] = useState<ParsedCalcCondition[]>([]);
+  const [modelThinking, setModelThinking] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (initialClauseContent && initialClauseContent.trim()) {
+      setClauseContent(initialClauseContent.trim());
+    }
+  }, [initialClauseContent]);
 
   const companyCount = 204;
   const totalSupport = 26706.12;
@@ -103,11 +124,126 @@ function PolicyCalculatorWorkspace() {
 
   const startCalculation = () => {
     setIsCalculating(true);
+    setResultReady(false);
+    setModelThinking([]);
     setTimeout(() => {
+      setCalcConditions([
+        {
+          id: "calc-industry",
+          label: "行业领域",
+          fieldType: "tag",
+          tags: ["商业航天"],
+        },
+        {
+          id: "calc-qualification",
+          label: "企业资质类-资质称号",
+          fieldType: "tag",
+          tags: ["大中型重点企业", "专精特新“小巨人”企业"],
+        },
+      ]);
+      setEstimateConditions(["年度研发费用增长超过年度目标值"]);
+      setModelThinking([
+        "识别条款限定对象：行业领域为商业航天，企业类型为大中型重点企业或专精特新“小巨人”企业。",
+        "识别可估算口径：年度研发费用增长需超过年度目标值，但企业年度目标值属于外部变量，需通过历史研发费用、年度目标台账或申报数据估算。",
+        "识别扶持方式：按高出年度目标值部分的20%给予支持，并设置单家企业每年最高300万元上限。",
+        "据此先筛选符合行业和资质标签的企业，再按研发费用增长超额部分进行模型估算并汇总资金需求。",
+      ]);
       setIsCalculating(false);
       setResultReady(true);
-      setActiveTab("result");
     }, 1000);
+  };
+
+  const handleSmartParse = () => {
+    const nextEstimateConditions: string[] = [];
+    const nextCalcConditions: ParsedCalcCondition[] = [];
+    const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
+
+    const metricConfigs = [
+      { keyword: "实缴资本", metric: "实缴资本", unit: "万元" },
+      { keyword: "注册资本", metric: "注册资本", unit: "万元" },
+      { keyword: "营收", metric: "营业收入", unit: "万元" },
+      { keyword: "营业收入", metric: "营业收入", unit: "万元" },
+      { keyword: "研发投入", metric: "研发投入", unit: "万元" },
+    ] as const;
+
+    metricConfigs.forEach((cfg) => {
+      const idx = clauseContent.indexOf(cfg.keyword);
+      if (idx === -1) return;
+      const segment = clauseContent.slice(Math.max(0, idx), Math.min(clauseContent.length, idx + 18));
+      const valueMatch = segment.match(/(\d+(?:\.\d+)?)/);
+      const op =
+        segment.includes("大于等于") || segment.includes("不低于") || segment.includes("不少于")
+          ? ">="
+          : segment.includes("小于等于") || segment.includes("不高于") || segment.includes("不超过")
+          ? "<="
+          : segment.includes("大于")
+          ? ">"
+          : segment.includes("小于")
+          ? "<"
+          : undefined;
+      if (!valueMatch || !op) {
+        nextEstimateConditions.push(`${cfg.metric}条件表述不完整，需按公开数据与历史数据估算。`);
+        return;
+      }
+      nextCalcConditions.push({
+        id: makeId("calc"),
+        label: cfg.metric,
+        fieldType: "numeric",
+        metric: cfg.metric,
+        operator: op,
+        value: valueMatch[1],
+        unit: cfg.unit,
+      });
+    });
+
+    const qualificationTags: string[] = [];
+    if (/小巨人/.test(clauseContent)) {
+      qualificationTags.push("专精特新“小巨人”企业");
+    } else if (/专精特新/.test(clauseContent)) {
+      qualificationTags.push("专精特新");
+    }
+    if (/大中型重点企业/.test(clauseContent)) qualificationTags.push("大中型重点企业");
+    if (/高新/.test(clauseContent)) qualificationTags.push("高新技术企业");
+    if (/瞪羚/.test(clauseContent)) qualificationTags.push("瞪羚企业");
+    if (qualificationTags.length > 0) {
+      nextCalcConditions.push({
+        id: makeId("calc"),
+        label: "企业资质类-资质称号",
+        fieldType: "tag",
+        tags: qualificationTags,
+      });
+    }
+
+    if (/医药健康|自动驾驶|具身智能|工业制造/.test(clauseContent)) {
+      nextEstimateConditions.push("属于医药健康、自动驾驶、具身智能、工业制造四大领域之一");
+    }
+    if (/商业航天/.test(clauseContent)) {
+      nextCalcConditions.push({
+        id: makeId("calc"),
+        label: "行业领域",
+        fieldType: "tag",
+        tags: ["商业航天"],
+      });
+    }
+    if (/年度研发费用增长超过年度目标值|研发费用增长超过年度目标值/.test(clauseContent)) {
+      nextEstimateConditions.push("年度研发费用增长超过年度目标值");
+    }
+    if (/语料库|行业数据库|数据集/.test(clauseContent)) {
+      nextEstimateConditions.push("建设并开放人工智能语料库或行业数据库");
+    }
+    if (nextEstimateConditions.length === 0) {
+      nextEstimateConditions.push("条款含标签库外条件，需基于公开数据与历史兑现数据估算");
+    }
+    if (nextCalcConditions.length === 0) {
+      nextCalcConditions.push({
+        id: makeId("calc"),
+        label: "当前未识别到可判定测算条件",
+        fieldType: "tag",
+        tags: ["请手动添加可测算条件"],
+      });
+    }
+    setCalcConditions(nextCalcConditions);
+    setEstimateConditions(nextEstimateConditions);
   };
 
   const renderTabButton = (tab: CalculatorTab, label: string) => (
@@ -153,7 +289,7 @@ function PolicyCalculatorWorkspace() {
                   />
                   <div className="mt-2 text-right text-sm text-muted-foreground">{clauseContent.length} / 500</div>
                 </div>
-                <Button className="mt-4 rounded-xl bg-primary px-6 hover:bg-primary/90">智能解析</Button>
+                <Button onClick={handleSmartParse} className="mt-4 rounded-xl bg-primary px-6 hover:bg-primary/90">智能解析</Button>
               </div>
 
               <div className="px-5 py-5">
@@ -163,11 +299,32 @@ function PolicyCalculatorWorkspace() {
                     测算条件
                   </h3>
                   <div className="flex items-center gap-6 text-primary">
-                    <button type="button" className="flex items-center gap-2 text-[15px] font-medium">
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 text-[15px] font-medium"
+                      onClick={() =>
+                        setCalcConditions((prev) => [
+                          ...prev,
+                          {
+                            id: `calc-manual-${Date.now()}`,
+                            label: "新增测算条件",
+                            fieldType: "numeric",
+                            metric: "实缴资本",
+                            operator: ">",
+                            value: "0",
+                            unit: "万元",
+                          },
+                        ])
+                      }
+                    >
                       <Plus className="h-4 w-4" />
                       添加条件
                     </button>
-                    <button type="button" className="flex items-center gap-2 text-[15px] font-medium">
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 text-[15px] font-medium"
+                      onClick={() => setCalcConditions([])}
+                    >
                       <X className="h-4 w-4" />
                       清空条件
                     </button>
@@ -175,28 +332,104 @@ function PolicyCalculatorWorkspace() {
                 </div>
 
                 <div className="space-y-8">
-                  <div>
-                    <p className="mb-3 text-[15px] font-medium text-foreground">实缴资本</p>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <input value="实缴资本" readOnly className="h-12 w-[180px] rounded-xl border border-border bg-muted/20 px-4 text-[15px] text-muted-foreground" />
-                      <button type="button" className="flex h-12 w-16 items-center justify-center rounded-xl border border-border bg-background text-[24px] text-foreground">
-                        &gt;
-                      </button>
-                      <input value={capitalValue} onChange={(e) => setCapitalValue(e.target.value)} className="h-12 w-[140px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-primary/20" />
-                      <span className="text-[18px] text-foreground">万元</span>
-                      <button type="button" className="rounded-full border border-border p-1 text-muted-foreground"><Plus className="h-4 w-4" /></button>
-                      <button type="button" className="rounded-full border border-border p-1 text-muted-foreground"><X className="h-4 w-4" /></button>
-                    </div>
-                  </div>
+                  {calcConditions.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                      暂无可测算条件，请点击底部「模型估算」后展示模型解析出的标签。
+                    </p>
+                  ) : (
+                    calcConditions.map((condition) => (
+                      <div key={condition.id}>
+                        <p className="mb-3 text-[15px] font-medium text-foreground">{condition.label}</p>
+                        {condition.fieldType === "numeric" ? (
+                          <div className="flex flex-wrap items-center gap-3">
+                            <input
+                              value={condition.metric || "指标"}
+                              readOnly
+                              className="h-12 w-[180px] rounded-xl border border-border bg-muted/20 px-4 text-[15px] text-muted-foreground"
+                            />
+                            <button type="button" className="flex h-12 w-16 items-center justify-center rounded-xl border border-border bg-background text-[24px] text-foreground">
+                              {condition.operator || ">"}
+                            </button>
+                            <input
+                              value={condition.value || ""}
+                              onChange={(e) =>
+                                setCalcConditions((prev) =>
+                                  prev.map((item) =>
+                                    item.id === condition.id ? { ...item, value: e.target.value } : item,
+                                  ),
+                                )
+                              }
+                              className="h-12 w-[140px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                            <span className="text-[18px] text-foreground">{condition.unit || "万元"}</span>
+                            <button
+                              type="button"
+                              className="rounded-full border border-border p-1 text-muted-foreground"
+                              onClick={() => setCalcConditions((prev) => prev.filter((item) => item.id !== condition.id))}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-3">
+                            {(condition.tags || []).map((tag, tagIdx) => (
+                              <span key={`${condition.id}-${tagIdx}`} className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2 text-[15px] text-foreground">
+                                {tag}
+                              </span>
+                            ))}
+                            <button
+                              type="button"
+                              className="rounded-full border border-border p-1 text-muted-foreground"
+                              onClick={() => setCalcConditions((prev) => prev.filter((item) => item.id !== condition.id))}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
 
                   <div>
-                    <p className="mb-3 text-[15px] font-medium text-foreground">企业资质类-资质称号</p>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2 text-[15px] text-foreground">
-                        专精特新
-                        <X className="h-4 w-4 text-muted-foreground" />
-                      </span>
-                      <button type="button" className="rounded-full border border-border p-1 text-muted-foreground"><X className="h-4 w-4" /></button>
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-[15px] font-medium text-foreground">估算条件</p>
+                      <button
+                        type="button"
+                        onClick={() => setEstimateConditions([])}
+                        className="text-sm font-medium text-primary"
+                      >
+                        清空估算条件
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {estimateConditions.length === 0 ? (
+                        <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                          暂无估算条件，请点击底部「模型估算」后展示模型解析结果。
+                        </p>
+                      ) : (
+                        estimateConditions.map((condition, index) => (
+                          <div key={`${condition}-${index}`} className="flex items-center gap-2">
+                            <input
+                              value={condition}
+                              onChange={(e) =>
+                                setEstimateConditions((prev) =>
+                                  prev.map((item, i) => (i === index ? e.target.value : item)),
+                                )
+                              }
+                              className="h-12 flex-1 rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setEstimateConditions((prev) => prev.filter((_, i) => i !== index))
+                              }
+                              className="rounded-full border border-border p-1 text-muted-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
 
@@ -217,6 +450,7 @@ function PolicyCalculatorWorkspace() {
                       <div className="flex items-center gap-3">
                         <span className="text-[15px] font-medium text-foreground">依据指标:</span>
                         <select className="h-12 w-[180px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none">
+                          <option>年度研发费用增长</option>
                           <option>实缴资本</option>
                           <option>营业收入</option>
                           <option>研发投入</option>
@@ -240,7 +474,7 @@ function PolicyCalculatorWorkspace() {
                 </div>
 
                 <Button onClick={startCalculation} className="mt-8 rounded-xl bg-primary px-8 py-6 text-[16px] hover:bg-primary/90" disabled={isCalculating}>
-                  {isCalculating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />测算中...</> : "开始测算"}
+                  {isCalculating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />模型估算中...</> : "模型估算"}
                 </Button>
               </div>
             </div>
@@ -251,32 +485,51 @@ function PolicyCalculatorWorkspace() {
                   <span className="h-8 w-1 rounded-full bg-primary" />
                   测算结果
                 </h3>
-                <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <div className="rounded-2xl bg-blue-50 p-5">
-                    <p className="text-[16px] font-semibold text-foreground">获扶持企业</p>
-                    <p className="mt-3 text-5xl font-bold text-slate-900">{companyCount}<span className="ml-2 text-2xl font-medium">家</span></p>
+                {!resultReady ? (
+                  <div className="mt-5 rounded-2xl border border-dashed border-border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+                    点击左侧「模型估算」后，将在此展示模型思考过程与估算结果。
                   </div>
-                  <div className="rounded-2xl bg-blue-50 p-5">
-                    <p className="text-[16px] font-semibold text-foreground">总扶持金额</p>
-                    <p className="mt-3 text-5xl font-bold text-slate-900">{totalSupport.toFixed(2)}<span className="ml-2 text-2xl font-medium">万元</span></p>
-                  </div>
-                </div>
-                <div className="mt-6 border-t border-border pt-5">
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-[15px] font-semibold text-foreground">以下为符合条件的部分企业名称（最多显示100家企业）</p>
-                    <button type="button" onClick={() => setActiveTab("companies")} className="text-[15px] font-medium text-primary">
-                      查看更多企业信息 &gt;
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 gap-x-10 gap-y-3 text-[15px] leading-7 text-foreground md:grid-cols-2">
-                    {displayedCompanies.slice(0, 12).map((company) => (
-                      <div key={company.id} className="flex gap-3">
-                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground" />
-                        <span>{company.name}</span>
+                ) : (
+                  <>
+                    <div className="mt-5 rounded-2xl bg-primary/5 p-5">
+                      <p className="text-[16px] font-semibold text-foreground">模型估算思考过程</p>
+                      <ol className="mt-3 space-y-2 text-sm leading-7 text-muted-foreground">
+                        {modelThinking.map((step, index) => (
+                          <li key={`${step}-${index}`} className="flex gap-2">
+                            <span className="font-semibold text-primary">{index + 1}.</span>
+                            <span>{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                    <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div className="rounded-2xl bg-blue-50 p-5">
+                        <p className="text-[16px] font-semibold text-foreground">获扶持企业</p>
+                        <p className="mt-3 text-5xl font-bold text-slate-900">{companyCount}<span className="ml-2 text-2xl font-medium">家</span></p>
                       </div>
-                    ))}
-                  </div>
-                </div>
+                      <div className="rounded-2xl bg-blue-50 p-5">
+                        <p className="text-[16px] font-semibold text-foreground">总扶持金额</p>
+                        <p className="mt-3 text-5xl font-bold text-slate-900">{totalSupport.toFixed(2)}<span className="ml-2 text-2xl font-medium">万元</span></p>
+                      </div>
+                    </div>
+                    <div className="mt-6 border-t border-border pt-5">
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-[15px] font-semibold text-foreground">以下为符合条件的部分企业名称（最多显示100家企业）</p>
+                        <button type="button" onClick={() => setActiveTab("companies")} className="text-[15px] font-medium text-primary">
+                          查看更多企业信息 &gt;
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-x-10 gap-y-3 text-[15px] leading-7 text-foreground md:grid-cols-2">
+                        {displayedCompanies.slice(0, 12).map((company) => (
+                          <div key={company.id} className="flex gap-3">
+                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground" />
+                            <span>{company.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1377,6 +1630,10 @@ export function PolicyOutputPage({
   const [paraMenuIdx, setParaMenuIdx] = useState<number | null>(null);
   const [paraActionResult, setParaActionResult] = useState<{ idx: number; action: string; text: string } | null>(null);
   const [paraActionLoading, setParaActionLoading] = useState(false);
+  const [selectedClauseText, setSelectedClauseText] = useState("");
+  const [calculatorClausePrefill, setCalculatorClausePrefill] = useState("");
+  const [selectionActionLoading, setSelectionActionLoading] = useState<string | null>(null);
+  const editorBodyRef = useRef<HTMLDivElement | null>(null);
 
   /** AI 全文潤色 */
   const [isPolishing, setIsPolishing] = useState(false);
@@ -1606,8 +1863,61 @@ export function PolicyOutputPage({
     );
   };
 
+  const isPolicyHeadingLine = (line: string) => {
+    const text = line.replace(/\[ref:\d+\]/g, "").trim();
+    if (!text) return false;
+    if (text === policyTitle.trim()) return true;
+    return /^(第[一二三四五六七八九十\d]+[章节条]|[一二三四五六七八九十]+、|[（(][一二三四五六七八九十\d]+[）)]|附则|总则|支持内容|申报条件|申报流程)/.test(text);
+  };
+
+  const renderPolicyLines = (text: string, keyPrefix: string) =>
+    text.split("\n").map((line, lineIndex) => {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) return <div key={`${keyPrefix}-${lineIndex}`} className="h-2" />;
+      const isHeading = isPolicyHeadingLine(trimmedLine);
+      return (
+        <p
+          key={`${keyPrefix}-${lineIndex}`}
+          className={isHeading ? "font-semibold text-foreground" : ""}
+          style={isHeading ? undefined : { textIndent: "2em" }}
+        >
+          {renderHighlightedText(trimmedLine)}
+        </p>
+      );
+    });
+
   const handleToolClick = (id: string) => {
     setActivePanel((prev) => (prev === id ? null : id));
+  };
+
+  const handleUseSelectionForCalculation = () => {
+    if (!selectedClauseText.trim()) return;
+    setCalculatorClausePrefill(selectedClauseText.trim());
+    setActivePanel("calculate");
+  };
+
+  const applySelectionTextAction = (action: "polish" | "expand" | "accompany") => {
+    const selected = selectedClauseText.trim();
+    if (!selected) return;
+    setSelectionActionLoading(action);
+    setTimeout(() => {
+      const content = fullContentRef.current || displayedText;
+      let replaced = selected;
+      if (action === "polish") {
+        replaced = `经润色：${selected.replace(/，/g, "，并").replace(/。?$/, "。")}`;
+      } else if (action === "expand") {
+        replaced = `${selected} 同时，进一步细化适用对象、申报流程和绩效评估标准，明确审核口径与责任分工，提升条款可执行性。`;
+      } else if (action === "accompany") {
+        replaced = `${selected} 建议补充：符合条件的企业应在本区持续经营并按要求提交佐证材料，主管部门按程序组织审核兑现。`;
+      }
+
+      const next = content.includes(selected) ? content.replace(selected, replaced) : content;
+      fullContentRef.current = next;
+      setDisplayedText(next);
+      setSelectionActionLoading(null);
+      setSelectedClauseText("");
+      window.getSelection()?.removeAllRanges();
+    }, 700);
   };
 
   return (
@@ -1712,7 +2022,7 @@ export function PolicyOutputPage({
           className="flex-1 bg-card rounded-xl border border-border min-w-0 flex flex-col min-h-0"
         >
           {activePanel === "calculate" ? (
-            <PolicyCalculatorWorkspace />
+            <PolicyCalculatorWorkspace initialClauseContent={calculatorClausePrefill} />
           ) : (
             <>
               {/* Editor toolbar */}
@@ -1779,10 +2089,23 @@ export function PolicyOutputPage({
               </div>
 
               <div
+                ref={editorBodyRef}
                 className="px-12 py-8 overflow-y-auto flex-1"
                 onClick={(e) => {
                   if ((e.target as HTMLElement).closest("[data-para-menu]")) return;
                   setParaMenuIdx(null);
+                }}
+                onMouseUp={() => {
+                  const selection = window.getSelection();
+                  if (!selection || selection.rangeCount === 0) return;
+                  const selectedText = selection.toString().trim();
+                  if (!selectedText) return;
+                  const range = selection.getRangeAt(0);
+                  const container = editorBodyRef.current;
+                  if (!container) return;
+                  const withinEditor = container.contains(range.commonAncestorContainer);
+                  if (!withinEditor) return;
+                  setSelectedClauseText(selectedText);
                 }}
               >
                 <p className="font-semibold text-lg mb-6 text-foreground text-center">{policyTitle}</p>
@@ -1836,7 +2159,7 @@ export function PolicyOutputPage({
                               isActive || isMenuOpen ? "bg-primary/5" : ""
                             }`}
                           >
-                            <div className="whitespace-pre-line">{renderHighlightedText(trimmed)}</div>
+                            <div className="space-y-2">{renderPolicyLines(trimmed, `block-${idx}`)}</div>
                           </div>
 
                           {/* 操作選單 */}
@@ -1855,6 +2178,13 @@ export function PolicyOutputPage({
                                     key={action.id}
                                     className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-muted transition-colors text-left"
                                     onClick={() => {
+                                      if (action.id === "calculate") {
+                                        setCalculatorClausePrefill(trimmed);
+                                        setActivePanel("calculate");
+                                        setParaMenuIdx(null);
+                                        setParaActionLoading(false);
+                                        return;
+                                      }
                                       setParaActionLoading(true);
                                       setParaActionResult({ idx, action: action.id, text: "" });
                                       setTimeout(() => {
@@ -1892,7 +2222,7 @@ export function PolicyOutputPage({
                       );
                     })
                   ) : (
-                    <div className="whitespace-pre-line text-base leading-[1.95]">
+                    <div className="whitespace-pre-line text-base leading-[1.95] indent-[2em]">
                       {displayedText}<span className="inline-block w-0.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
                     </div>
                   )}
@@ -1951,6 +2281,61 @@ export function PolicyOutputPage({
                   </>
                 )}
                   </>
+                )}
+
+                {selectedClauseText && (
+                  <div className="sticky bottom-4 z-30 ml-auto mt-4 w-fit rounded-xl border border-primary/30 bg-background/95 p-2 shadow-lg backdrop-blur">
+                    <div className="mb-1 px-1 text-[10px] text-muted-foreground max-w-[340px] truncate">
+                      已选中：{selectedClauseText}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        className="h-8 px-3 text-xs"
+                        onClick={handleUseSelectionForCalculation}
+                      >
+                        资金测算
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                        disabled={selectionActionLoading !== null}
+                        onClick={() => applySelectionTextAction("polish")}
+                      >
+                        {selectionActionLoading === "polish" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "润色"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                        disabled={selectionActionLoading !== null}
+                        onClick={() => applySelectionTextAction("expand")}
+                      >
+                        {selectionActionLoading === "expand" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "扩写"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                        disabled={selectionActionLoading !== null}
+                        onClick={() => applySelectionTextAction("accompany")}
+                      >
+                        {selectionActionLoading === "accompany" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "续写"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => {
+                          setSelectedClauseText("");
+                          window.getSelection()?.removeAllRanges();
+                        }}
+                      >
+                        关闭
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
             </>

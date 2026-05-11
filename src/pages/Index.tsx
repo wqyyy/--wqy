@@ -23,8 +23,8 @@ const Index = () => {
           <Card className="h-[156px] rounded-2xl border border-border bg-card px-5 py-4 flex items-center">
             <div className="w-full flex items-center justify-between overflow-x-auto">
               {[
-                { label: "企业申报", icon: Building2, highlight: false, iconSoft: true },
-                { label: "申报受理与审核", icon: ClipboardList, highlight: true, iconSoft: true },
+                { label: "企业申报（智能预审）", icon: Building2, highlight: false, iconSoft: true },
+                { label: "项目审核", icon: ClipboardList, highlight: true, iconSoft: true },
                 { label: "企业智能评优", icon: Award, highlight: false, iconSoft: false },
                 { label: "确定扶持结果", icon: BadgeCheck, highlight: true, iconSoft: true },
                 { label: "项目公示", icon: Eye, highlight: false, iconSoft: true },
@@ -33,7 +33,7 @@ const Index = () => {
                 { label: "专报分析与评估", icon: FileText, highlight: true, iconSoft: false },
               ].map((step, i, arr) => (
                 <div key={step.label} className="flex items-center gap-1 shrink-0">
-                  <div className="flex flex-col items-center gap-1.5 min-w-[80px]">
+                  <div className="flex min-w-max max-w-[200px] flex-col items-center gap-1.5 px-1 text-center">
                     <div
                       className={`h-12 w-12 rounded-full flex items-center justify-center border shadow-sm ${
                         step.iconSoft
@@ -43,7 +43,9 @@ const Index = () => {
                     >
                       <step.icon className={`w-5 h-5 ${step.iconSoft ? "text-[#c41e3a]" : "text-white"}`} />
                     </div>
-                    <span className="whitespace-nowrap text-xs font-medium text-foreground">{step.label}</span>
+                    <span className="max-w-[200px] text-center text-xs font-medium leading-snug text-foreground">
+                      {step.label}
+                    </span>
                   </div>
                   {i < arr.length - 1 && (
                     <div className="flex items-center shrink-0 -mt-5">
@@ -60,13 +62,63 @@ const Index = () => {
           <div className="h-full">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
               {[
-                { label: "申报中", value: "5", unit: "项", icon: Clock, iconBg: "bg-rose-50", iconColor: "text-rose-500" },
-                { label: "申报已截止", value: "316", unit: "项", icon: Calendar, iconBg: "bg-amber-50", iconColor: "text-amber-500" },
-                { label: "已确认扶持结果", value: "5", unit: "项", icon: BadgeCheck, iconBg: "bg-blue-50", iconColor: "text-blue-500" },
-                { label: "已兑现", value: "310", unit: "项", icon: Wallet, iconBg: "bg-emerald-50", iconColor: "text-emerald-500" },
-                { label: "已兑现资金", value: "85.3", unit: "亿元", icon: DollarSign, iconBg: "bg-violet-50", iconColor: "text-violet-500" },
+                {
+                  label: "申报中",
+                  value: "5",
+                  unit: "项",
+                  icon: Clock,
+                  iconBg: "bg-rose-50",
+                  iconColor: "text-rose-500",
+                  externalUrl: "https://test-bjjkq.zqlian.com/gov/#/statistics/query",
+                },
+                {
+                  label: "申报已截止",
+                  value: "316",
+                  unit: "项",
+                  icon: Calendar,
+                  iconBg: "bg-amber-50",
+                  iconColor: "text-amber-500",
+                  externalUrl: "https://test-bjjkq.zqlian.com/gov/#/statistics/query",
+                },
+                {
+                  label: "已确认扶持结果",
+                  value: "5",
+                  unit: "项",
+                  icon: BadgeCheck,
+                  iconBg: "bg-blue-50",
+                  iconColor: "text-blue-500",
+                  externalUrl: "https://test-bjjkq.zqlian.com/gov/#/statistics/query",
+                },
+                {
+                  label: "已兑现",
+                  value: "310",
+                  unit: "项",
+                  icon: Wallet,
+                  iconBg: "bg-emerald-50",
+                  iconColor: "text-emerald-500",
+                  externalUrl: "https://test-bjjkq.zqlian.com/gov/#/statistics/query",
+                },
+                {
+                  label: "已兑现资金",
+                  value: "85.3",
+                  unit: "亿元",
+                  icon: DollarSign,
+                  iconBg: "bg-violet-50",
+                  iconColor: "text-violet-500",
+                  externalUrl: "https://test-bjjkq.zqlian.com/gov/#/appropriate/appropriation",
+                },
               ].map((stat) => (
-                <div key={stat.label} className="min-h-[150px] rounded-xl border border-border/80 bg-card px-4 py-4">
+                <div
+                  key={stat.label}
+                  className={`min-h-[150px] rounded-xl border border-border/80 bg-card px-4 py-4${
+                    stat.externalUrl ? " cursor-pointer transition-shadow hover:shadow-md" : ""
+                  }`}
+                  onClick={
+                    stat.externalUrl
+                      ? () => window.open(stat.externalUrl, "_blank", "noopener,noreferrer")
+                      : undefined
+                  }
+                >
                   <div className="mb-2 flex items-start justify-between gap-2">
                     <p className="text-xs font-medium text-muted-foreground">{stat.label}</p>
                     <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${stat.iconBg}`}>
@@ -214,7 +266,8 @@ const Index = () => {
               icon: ClipboardList,
               iconColor: "text-blue-600",
               iconBg: "bg-blue-50",
-              path: "/policy-project-review",
+              externalUrl:
+                "https://test-bjjkq.zqlian.com/gov/#/audit/progress/shenhe?platformDataType=base",
             },
             {
               title: "确定扶持结果",
@@ -222,7 +275,7 @@ const Index = () => {
               icon: BadgeCheck,
               iconColor: "text-emerald-600",
               iconBg: "bg-emerald-50",
-              path: "/support-result",
+              externalUrl: "https://test-bjjkq.zqlian.com/gov/#/audit/allocateList",
             },
             {
               title: "项目公示",
@@ -230,7 +283,7 @@ const Index = () => {
               icon: Eye,
               iconColor: "text-amber-600",
               iconBg: "bg-amber-50",
-              path: "/project-public-notice",
+              externalUrl: "https://test-bjjkq.zqlian.com/gov/#/audit/publicizeList",
             },
             {
               title: "资金拨付",
@@ -238,13 +291,19 @@ const Index = () => {
               icon: Wallet,
               iconColor: "text-violet-600",
               iconBg: "bg-violet-50",
-              path: "/fund-disbursement",
+              externalUrl: "https://test-bjjkq.zqlian.com/gov/#/appropriate/apply",
             },
           ].map((item) => (
             <Card
               key={item.title}
-              className={`p-5 ${item.path ? "cursor-pointer transition-shadow hover:shadow-md" : ""}`}
-              onClick={item.path ? () => navigate(item.path) : undefined}
+              className={`p-5 ${item.path || item.externalUrl ? "cursor-pointer transition-shadow hover:shadow-md" : ""}`}
+              onClick={
+                item.externalUrl
+                  ? () => window.open(item.externalUrl, "_blank", "noopener,noreferrer")
+                  : item.path
+                    ? () => navigate(item.path)
+                    : undefined
+              }
             >
               <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border/60 bg-card">
                 <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${item.iconBg}`}>

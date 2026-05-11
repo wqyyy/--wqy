@@ -28,6 +28,7 @@ import PolicyProjectReview from "./pages/PolicyProjectReview";
 import SupportResultPage from "./pages/SupportResultPage";
 import ProjectPublicNoticePage from "./pages/ProjectPublicNoticePage";
 import FundDisbursementPage from "./pages/FundDisbursementPage";
+import PolicyModelEstimation from "./pages/PolicyModelEstimation";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -64,6 +65,7 @@ const App = () => (
             <Route path="/support-result" element={<SupportResultPage />} />
             <Route path="/project-public-notice" element={<ProjectPublicNoticePage />} />
             <Route path="/fund-disbursement" element={<FundDisbursementPage />} />
+            <Route path="/policy-writing/model-estimation" element={<PolicyModelEstimation />} />
             <Route path="/my-documents" element={<MyDocuments />} />
             <Route path="/my-documents/:id" element={<MyDocumentDetail />} />
             <Route path="/reserve-library" element={<ReserveLibrary />} />

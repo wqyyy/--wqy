@@ -2,6 +2,12 @@ import type { PolicyItem } from "@/components/policy-drafting/drafting/PolicySea
 import type { ClauseComparison } from "@/components/policy-drafting/drafting/PolicyAnalysisStep";
 import type { OutlineSection, OutlineSubSection } from "@/components/policy-drafting/drafting/OutlineGenerationStep";
 import { deriveDataIndustryCorePoints, isDataIndustryPolicyDraft } from "@/lib/samplePolicyDocuments";
+import { isPolicyLlmConfigured } from "@/lib/llmClient";
+import {
+  llmGenerateContent as llmGeneratePolicyBody,
+  llmGenerateCoreElementsFromPolicies as llmGenCore,
+  llmGenerateOutline as llmGenOutline,
+} from "@/lib/policyDraftLlm";
 
 export type { OutlineSubSection };
 
@@ -20,118 +26,184 @@ const levelSources: Record<PolicyItem["level"], string> = {
   other: "先进地区参考",
 };
 
-function slug(input: string) {
-  return input
-    .replace(/[^\u4e00-\u9fa5a-zA-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase();
+type OfficialPolicyTemplate = Omit<PolicyItem, "selected"> & {
+  keywords: string[];
+};
+
+const officialPolicyCorpus: OfficialPolicyTemplate[] = [
+  {
+    id: "national-data-industry-2024",
+    title: "关于促进数据产业高质量发展的指导意见",
+    url: "https://www.gov.cn/zhengce/zhengceku/202412/content_6995430.htm",
+    level: "national",
+    source: "国家发展改革委、国家数据局等部门",
+    keywords: ["数据产业", "数据", "高质量发展", "数字经济", "数据要素"],
+  },
+  {
+    id: "national-enterprise-data-2024",
+    title: "国家数据局等部门关于促进企业数据资源开发利用的意见",
+    url: "https://www.gov.cn/zhengce/zhengceku/202412/content_6994570.htm",
+    level: "national",
+    source: "国家数据局、中央网信办等部门",
+    keywords: ["企业数据", "数据资源", "数据", "开发利用", "数据要素"],
+  },
+  {
+    id: "beijing-data-elements-2024",
+    title: "北京市大数据工作推进小组关于印发《北京市“数据要素×”实施方案（2024—2026年）》的通知",
+    url: "https://zwfwj.beijing.gov.cn/zwgk/2024zcwj/202409/t20240927_3908531.html",
+    level: "beijing",
+    source: "北京市大数据工作推进小组",
+    keywords: ["北京", "数据要素", "数据", "数字经济", "应用场景"],
+  },
+  {
+    id: "beijing-public-data-2025",
+    title: "中共北京市委办公厅 北京市人民政府办公厅关于加快北京市公共数据资源开发利用的实施意见",
+    url: "https://zwfwj.beijing.gov.cn/zwgk/2024zcwj/202508/t20250813_4172464.html",
+    level: "beijing",
+    source: "中共北京市委办公厅、北京市人民政府办公厅",
+    keywords: ["北京", "公共数据", "数据资源", "开发利用", "数据要素"],
+  },
+  {
+    id: "beijing-data-zone-2025",
+    title: "中共北京市委 北京市人民政府关于建设数据要素综合试验区 深化数据要素市场化配置改革的实施意见",
+    url: "https://zwfwj.beijing.gov.cn/zwgk/2024zcwj/202511/t20251110_4268006.html",
+    level: "beijing",
+    source: "中共北京市委、北京市人民政府",
+    keywords: ["北京", "数据要素", "市场化配置", "综合试验区", "数据"],
+  },
+  {
+    id: "shanghai-data-elements-2023",
+    title: "上海市人民政府办公厅关于印发《立足数字经济新赛道推动数据要素产业创新发展行动方案（2023-2025年）》的通知",
+    url: "https://www.shanghai.gov.cn/hqzxsj2/20240415/d43b052249d64c45a44ab8934fad3ee5.html",
+    level: "other",
+    source: "上海市人民政府办公厅",
+    keywords: ["上海", "数据要素", "数据产业", "数字经济", "创新发展"],
+  },
+  {
+    id: "shenzhen-data-rule-2023",
+    title: "深圳市发展和改革委员会关于印发《深圳市数据商和数据流通交易第三方服务机构管理暂行办法》的通知",
+    url: "http://fgw.sz.gov.cn/gkmlpt/content/10/10454/post_10454297.html",
+    level: "other",
+    source: "深圳市发展和改革委员会",
+    keywords: ["深圳", "数据商", "数据流通", "数据交易", "数据要素"],
+  },
+  {
+    id: "guangzhou-data-elements-2021",
+    title: "广州市人民政府关于印发广州市数据要素市场化配置改革行动方案的通知",
+    url: "https://www.gz.gov.cn/gkmlpt/content/7/7943/post_7943260.html",
+    level: "other",
+    source: "广州市人民政府",
+    keywords: ["广州", "数据要素", "市场化配置", "数据", "改革"],
+  },
+  {
+    id: "nanjing-data-elements-2024",
+    title: "南京市人民政府办公厅关于推进数据基础制度建设更好发挥数据要素作用的实施意见",
+    url: "https://www.nanjing.gov.cn/zt/sznjjsqx/zcyl/202502/t20250224_5081608.html",
+    level: "other",
+    source: "南京市人民政府办公厅",
+    keywords: ["南京", "数据基础制度", "数据要素", "数据", "公共数据"],
+  },
+];
+
+const extendedOfficialPolicyCorpus: OfficialPolicyTemplate[] = [
+  {
+    id: "national-public-data-2024",
+    title: "中共中央办公厅 国务院办公厅关于加快公共数据资源开发利用的意见",
+    url: "https://www.gov.cn/zhengce/202410/content_6981758.htm",
+    level: "national",
+    source: "中共中央办公厅、国务院办公厅",
+    keywords: ["公共数据", "数据资源", "开发利用", "数据要素", "数据"],
+  },
+  {
+    id: "national-digital-china-2023",
+    title: "中共中央 国务院印发《数字中国建设整体布局规划》",
+    url: "https://www.gov.cn/zhengce/2023-02/27/content_5743484.htm",
+    level: "national",
+    source: "中共中央、国务院",
+    keywords: ["数字中国", "数字经济", "数据资源", "数据要素", "数据"],
+  },
+  {
+    id: "beijing-digital-economy-2022",
+    title: "北京市数字经济促进条例",
+    url: "https://www.beijing.gov.cn/zhengce/dfxfg/202212/t20221201_2868696.html",
+    level: "beijing",
+    source: "北京市人民代表大会常务委员会",
+    keywords: ["北京", "数字经济", "数据", "数据要素", "产业"],
+  },
+  {
+    id: "beijing-data-regulation-2025",
+    title: "北京市政务服务和数据管理局关于印发《北京市公共数据开放管理办法》的通知",
+    url: "https://zwfwj.beijing.gov.cn/zwgk/2024zcwj/",
+    level: "beijing",
+    source: "北京市政务服务和数据管理局",
+    keywords: ["北京", "公共数据", "数据开放", "数据资源", "数据"],
+  },
+  {
+    id: "shanghai-big-data-2020",
+    title: "上海市人民政府关于印发《上海市大数据发展实施意见》的通知",
+    url: "https://www.shanghai.gov.cn/nw39327/20200821/0001-39327_50056.html",
+    level: "other",
+    source: "上海市人民政府",
+    keywords: ["上海", "大数据", "数据", "数字经济", "数据资源"],
+  },
+  {
+    id: "guangzhou-digital-economy-2023",
+    title: "广州市人民政府办公厅关于印发广州市数字经济高质量发展规划的通知",
+    url: "https://www.gz.gov.cn/gkmlpt/content/9/9651/post_9651624.html",
+    level: "other",
+    source: "广州市人民政府办公厅",
+    keywords: ["广州", "数字经济", "高质量发展", "数据", "产业"],
+  },
+  {
+    id: "nanjing-public-data-2024",
+    title: "南京市人民政府办公厅关于印发《南京市公共数据授权运营管理暂行办法》的通知",
+    url: "https://www.nanjing.gov.cn/zt/sznjjsqx/zcyl/202502/t20250224_5081596.html",
+    level: "other",
+    source: "南京市人民政府办公厅",
+    keywords: ["南京", "公共数据", "授权运营", "数据要素", "数据"],
+  },
+];
+
+function getPolicySearchTerms(policyTitle: string, coreElements?: string): string[] {
+  const text = `${policyTitle} ${coreElements ?? ""}`;
+  const candidates = ["数据产业", "数据要素", "数据资源", "公共数据", "企业数据", "数字经济", "人工智能", "高质量发展"];
+  const matched = candidates.filter((term) => text.includes(term));
+  return matched.length ? matched : [policyTitle.replace(/[《》“”"'，。、]/g, "").slice(0, 12)].filter(Boolean);
 }
 
-export type SearchPoliciesOptions = {
-  /** 为 true 时在结果中优先展示「我的素材库」中的参考条目（默认 true） */
-  prioritizeMyLibrary?: boolean;
-  /** 额外检索关键词（用于“检索更多”） */
-  query?: string;
-  /** 追加模式：新增结果默认不勾选 */
-  appendMode?: boolean;
-};
+function isPolicyHeadingLine(line: string, policyTitle: string): boolean {
+  const text = line.replace(/\[ref:\d+\]/g, "").trim();
+  if (!text) return false;
+  if (text === policyTitle.trim()) return true;
+  return /^(第[一二三四五六七八九十\d]+[章节条]|[一二三四五六七八九十]+、|[（(][一二三四五六七八九十\d]+[）)]|附则|总则|支持内容|申报条件|申报流程)/.test(text);
+}
+
+function formatPolicyContent(content: string, policyTitle: string): string {
+  return content
+    .split("\n")
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed || isPolicyHeadingLine(trimmed, policyTitle)) return trimmed;
+      return trimmed.startsWith("　　") ? trimmed : `　　${trimmed}`;
+    })
+    .join("\n");
+}
 
 export async function searchPolicies(
   policyTitle: string,
   coreElements?: string,
-  options?: SearchPoliciesOptions,
+  options?: { includeExtended?: boolean; selected?: boolean },
 ): Promise<{ policies: PolicyItem[]; total: number }> {
-  await delay(900);
-  const prioritizeMyLibrary = options?.prioritizeMyLibrary !== false;
-  const keyword = isDataIndustryPolicyDraft(policyTitle)
-    ? "数据产业"
-    : policyTitle.replace(/^关于|若干政策措施$|政策措施$/g, "").slice(0, 12) || "产业发展";
-  const query = options?.query?.trim();
-  const effectiveKeyword = query || keyword;
-  const defaultSelected = options?.appendMode ? false : true;
-  const policies: PolicyItem[] = [
-    {
-      id: "national-1",
-      title: `国家层面关于支持${effectiveKeyword}高质量发展的指导意见`,
-      url: `https://example.com/policies/${slug(effectiveKeyword)}-national-1`,
-      selected: defaultSelected,
-      level: "national",
-      source: levelSources.national,
-    },
-    {
-      id: "national-2",
-      title: `关于促进${effectiveKeyword}技术创新与成果转化的实施方案`,
-      url: `https://example.com/policies/${slug(effectiveKeyword)}-national-2`,
-      selected: defaultSelected,
-      level: "national",
-      source: "工业和信息化部",
-    },
-    {
-      id: "beijing-1",
-      title: `北京市关于加快${effectiveKeyword}产业布局的若干措施`,
-      url: `https://example.com/policies/${slug(effectiveKeyword)}-beijing-1`,
-      selected: defaultSelected,
-      level: "beijing",
-      source: levelSources.beijing,
-    },
-    {
-      id: "beijing-2",
-      title: `北京市支持${effectiveKeyword}企业创新发展的专项政策`,
-      url: `https://example.com/policies/${slug(effectiveKeyword)}-beijing-2`,
-      selected: defaultSelected,
-      level: "beijing",
-      source: "北京市经济和信息化局",
-    },
-    {
-      id: "other-1",
-      title: `先进地区${effectiveKeyword}产业扶持政策对比样本`,
-      url: `https://example.com/policies/${slug(effectiveKeyword)}-other-1`,
-      selected: defaultSelected,
-      level: "other",
-      source: levelSources.other,
-    },
-    {
-      id: "other-2",
-      title: `${effectiveKeyword}重点企业培育与招商支持政策`,
-      url: `https://example.com/policies/${slug(effectiveKeyword)}-other-2`,
-      selected: defaultSelected,
-      level: "other",
-      source: "示范园区政策库",
-    },
-  ];
-
-  if (coreElements?.trim()) {
-    policies.push({
-      id: "beijing-3",
-      title: `北京市围绕核心要素完善${effectiveKeyword}政策体系的实施意见`,
-      url: `https://example.com/policies/${slug(effectiveKeyword)}-beijing-3`,
-      selected: defaultSelected,
-      level: "beijing",
-      source: "北京市政策研究室",
-    });
-  }
-
-  if (prioritizeMyLibrary && !options?.appendMode) {
-    const myLibraryItems: PolicyItem[] = [
-      {
-        id: "mylib-1",
-        title: `【我的素材库】与您草稿相关的${effectiveKeyword}专项收藏`,
-        url: `https://example.com/my-library/${slug(effectiveKeyword)}-saved-1`,
-        selected: true,
-        level: "beijing",
-        source: "我的素材库",
-      },
-      {
-        id: "mylib-2",
-        title: `【我的素材库】近期收藏的${effectiveKeyword}配套细则`,
-        url: `https://example.com/my-library/${slug(effectiveKeyword)}-saved-2`,
-        selected: true,
-        level: "national",
-        source: "我的素材库",
-      },
-    ];
-    policies.unshift(...myLibraryItems);
-  }
+  await delay(700);
+  const terms = getPolicySearchTerms(policyTitle, coreElements);
+  const corpus = options?.includeExtended ? [...officialPolicyCorpus, ...extendedOfficialPolicyCorpus] : officialPolicyCorpus;
+  const matched = corpus.filter((policy) =>
+    policy.keywords.some((keyword) => terms.some((term) => keyword.includes(term) || term.includes(keyword))),
+  );
+  const policies = (matched.length ? matched : corpus).map(({ keywords, ...policy }) => ({
+    ...policy,
+    selected: options?.selected ?? true,
+  }));
 
   return { policies, total: policies.length };
 }
@@ -169,6 +241,14 @@ export async function generateCoreElementsFromPolicies(
   coreElements: string;
   items: { id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[];
 }> {
+  if (isPolicyLlmConfigured()) {
+    try {
+      return await llmGenCore(selectedPolicies, policyTitle);
+    } catch (e) {
+      console.warn("[policyDraftApi] 大模型生成核心要素失败，使用本地模板：", e);
+    }
+  }
+
   await delay(900);
   const refs = selectedPolicies.filter(p => p.selected);
 
@@ -294,6 +374,19 @@ export async function generateOutline(params: {
   analysisResult?: ClauseComparison[];
   coreItems?: { id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[];
 }): Promise<{ outline: OutlineSection[] }> {
+  if (isPolicyLlmConfigured()) {
+    try {
+      return await llmGenOutline({
+        policyTitle: params.policyTitle,
+        coreElements: params.coreElements,
+        selectedPolicies: params.selectedPolicies,
+        coreItems: params.coreItems,
+      });
+    } catch (e) {
+      console.warn("[policyDraftApi] 大模型生成大纲失败，使用本地模板：", e);
+    }
+  }
+
   await delay(1200);
 
   // If coreItems provided, use them to build subsections with reference clauses
@@ -376,8 +469,6 @@ export async function generateContent(params: {
   selectedPolicies: PolicyItem[];
   outline: OutlineSection[];
 }): Promise<{ content: string; citations: Citation[] }> {
-  await delay(1500);
-  const isData = isDataIndustryPolicyDraft(params.policyTitle);
   const references = params.selectedPolicies.filter((policy) => policy.selected).slice(0, 4);
   const citations: Citation[] = references.map((policy, index) => ({
     index: index + 1,
@@ -386,6 +477,17 @@ export async function generateContent(params: {
     source: policy.source,
   }));
 
+  if (isPolicyLlmConfigured()) {
+    try {
+      const { content } = await llmGeneratePolicyBody(params);
+      return { content: formatPolicyContent(content, params.policyTitle), citations };
+    } catch (e) {
+      console.warn("[policyDraftApi] 大模型生成正文失败，使用本地模板：", e);
+    }
+  }
+
+  await delay(1500);
+  const isData = isDataIndustryPolicyDraft(params.policyTitle);
   const buildFormalClause = (subTitle: string, points: string[], idx: number) => {
     const citation = citations[idx % Math.max(citations.length, 1)];
     const citeTag = citation ? `[ref:${citation.index}]` : "";
@@ -443,7 +545,7 @@ export async function generateContent(params: {
         "本政策由区级主管部门负责解释，自发布之日起施行。",
       ].join("\n");
 
-  return { content, citations };
+  return { content: formatPolicyContent(content, params.policyTitle), citations };
 }
 
 export async function generateCoreElements(policyTitle: string): Promise<{ coreElements: string }> {

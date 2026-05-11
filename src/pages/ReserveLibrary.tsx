@@ -14,6 +14,7 @@ type TabKey = "policy" | "clause" | "favorites";
 const policyReserveItems = [
   {
     title: "北京经济技术开发区管理委员会印发《北京经济技术开发区关于加快推进数据产业高质量发展的若干措施》的通知",
+    detailUrl: "https://www.beijing.gov.cn/zhengce/zhengcefagui/202510/t20251029_4243376.html",
     source: "人工添加",
     region: "北京市",
     department: "北京经济技术开发区管理委员会",
@@ -22,6 +23,7 @@ const policyReserveItems = [
   },
   {
     title: "北京经济技术开发区管理委员会印发《关于加快推动脑机接口技术和产业创新发展的若干措施》的通知",
+    detailUrl: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202602/t20260209_4503840.html",
     source: "人工添加",
     region: "朝阳区",
     department: "修改北京经济技术开发区管理委员会",
@@ -30,6 +32,7 @@ const policyReserveItems = [
   },
   {
     title: "北京经济技术开发区经济发展局关于开展2025年生产性服务业十二条政策相关事项（第二批）申报的通知",
+    detailUrl: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202508/t20250808_4169681.html",
     source: "收藏入库",
     region: "北京市经济技术开发区",
     department: "北京经济技术开发区经济发展局",
@@ -38,6 +41,7 @@ const policyReserveItems = [
   },
   {
     title: "北京经济技术开发区信息技术产业局关于开展人工智能“模型券”专项奖励申报的通知",
+    detailUrl: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202508/t20250808_4169672.html",
     source: "收藏入库",
     region: "北京市经济技术开发区",
     department: "北京经济技术开发区信息技术产业局",
@@ -188,7 +192,16 @@ export default function ReserveLibrary() {
               <div className="space-y-4">
                 {filteredPolicies.map((item) => (
                   <div key={item.title} className="rounded-2xl border border-border bg-background p-7">
-                    <h3 className="text-[18px] font-semibold leading-8 text-foreground">{item.title}</h3>
+                    <h3 className="text-[18px] font-semibold leading-8">
+                      <a
+                        href={item.detailUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-foreground transition-colors hover:text-primary hover:underline decoration-primary/40 underline-offset-4"
+                      >
+                        {item.title}
+                      </a>
+                    </h3>
                     <p className="mt-6 text-sm leading-7 text-muted-foreground">
                       来源：{item.source}　{item.region}　{item.department} {item.code ? `${item.code}　` : ""}发文时间：{item.date}
                     </p>

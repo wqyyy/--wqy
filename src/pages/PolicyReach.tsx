@@ -17,12 +17,14 @@ import {
   Tag,
   TrendingUp,
   Users,
+  Highlighter,
   X,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { DEPARTMENTS, POLICY_ITEMS, PUSHED_COMPANIES, type PolicyItem, type PushedCompany } from "@/data/policyReachData";
 import { PageHero } from "@/components/PageHero";
+import { cn } from "@/lib/utils";
 
 const TYPE_META: Record<string, { bg: string; text: string }> = {
   补贴: { bg: "bg-blue-100", text: "text-blue-700" },
@@ -45,11 +47,12 @@ const SIZE_COLOR: Record<PushedCompany["size"], string> = {
   微型: "text-muted-foreground",
 };
 
+/** light：与首页「政策兑现」流程 iconSoft（如企业申报）一致；accent：主色红强调 */
 const reachFlowSteps = [
-  { icon: Tag, title: "政策拆解与标注", tag: "做拆解" },
-  { icon: Users, title: "事项申报计划", tag: "做规划" },
-  { icon: Send, title: "事项发布与推送", tag: "做触达" },
-  { icon: TrendingUp, title: "触达效果检测", tag: "看反馈" },
+  { icon: Highlighter, title: "事项打标", tag: "做标注", variant: "accent" as const },
+  { icon: Building2, title: "企业匹配", tag: "做匹配", variant: "light" as const },
+  { icon: Send, title: "事项推送", tag: "做推送", variant: "light" as const },
+  { icon: TrendingUp, title: "触达效果检测", tag: "看反馈", variant: "accent" as const },
 ];
 
 const reachOverviewStats = [
@@ -292,7 +295,10 @@ function PolicyDetail({
     return companies.filter((company) => {
       const matchSearch =
         !search || company.name.includes(search) || company.industry.includes(search) || company.registrationNo.includes(search);
-      const matchStatus = statusFilter === "all" || company.status === statusFilter;
+      const matchStatus =
+        statusFilter === "all" ||
+        company.status === statusFilter ||
+        (statusFilter === "已申报" && company.status === "已触达");
       const matchSize = sizeFilter === "all" || company.size === sizeFilter;
       return matchSearch && matchStatus && matchSize;
     });
@@ -300,8 +306,7 @@ function PolicyDetail({
 
   const statusCounts = useMemo(
     () => ({
-      已触达: companies.filter((company) => company.status === "已触达").length,
-      已申报: companies.filter((company) => company.status === "已申报").length,
+      已申报: companies.filter((company) => company.status === "已申报" || company.status === "已触达").length,
       未响应: companies.filter((company) => company.status === "未响应").length,
     }),
     [companies],
@@ -511,16 +516,30 @@ export default function PolicyReach() {
             <Card className="h-[156px] rounded-2xl border border-border bg-card px-5 py-4 flex items-center">
               <div className="w-full flex items-center justify-between gap-2 overflow-x-auto">
                 {reachFlowSteps.map((step, i) => (
-                  <div key={step.title} className="flex min-w-[170px] flex-1 items-center">
+                  <div key={step.title} className="flex min-w-[200px] flex-1 items-center">
                     <div className="flex flex-1 flex-col items-center gap-1.5">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-md">
-                        <step.icon className="h-5 w-5" />
+                      <div
+                        className={cn(
+                          "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border transition-colors",
+                          step.variant === "accent"
+                            ? "border-primary bg-primary text-primary-foreground shadow-[0_8px_18px_rgba(230,0,50,0.24)]"
+                            : "border-[#e7b8c8] bg-[#fceef2] text-[#c41e3a] shadow-sm",
+                        )}
+                      >
+                        <step.icon
+                          className={cn(
+                            "h-5 w-5",
+                            step.variant === "light" ? "text-[#c41e3a]" : "text-primary-foreground",
+                          )}
+                        />
                       </div>
-                      <span className="whitespace-nowrap text-xs font-medium text-foreground">{step.title}</span>
+                      <span className="whitespace-nowrap text-xs font-medium text-foreground transition-colors">
+                        {step.title}
+                      </span>
                       <span className="text-[11px] text-muted-foreground">{step.tag}</span>
                     </div>
                     {i < reachFlowSteps.length - 1 && (
-                      <ChevronsRight className="h-6 w-6 shrink-0 text-primary/30" />
+                      <ChevronsRight className="h-6 w-6 shrink-0 text-primary/40" />
                     )}
                   </div>
                 ))}

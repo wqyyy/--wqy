@@ -218,12 +218,16 @@ export default function PolicyWriting() {
             </div>
             <div className="grid grid-cols-1 gap-3">
               {[
-                { icon: Wrench, title: "政策工具箱", desc: "常用政策编写工具集合" },
-                { icon: Calculator, title: "政策测算", desc: "资金与效果预测模型" },
-                { icon: Database, title: "政策储备库", desc: "历史政策文档归档管理" },
-                { icon: BookOpen, title: "条款储备库", desc: "可复用条款模板库" },
+                { icon: Wrench, title: "政策工具箱", desc: "常用政策编写工具集合", link: "" },
+                { icon: Calculator, title: "政策测算", desc: "资金与效果预测模型", link: "/policy-writing/model-estimation" },
+                { icon: Database, title: "政策储备库", desc: "历史政策文档归档管理", link: "" },
+                { icon: BookOpen, title: "条款储备库", desc: "可复用条款模板库", link: "" },
               ].map((item) => (
-                <div key={item.title} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors cursor-pointer group">
+                <div
+                  key={item.title}
+                  className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors cursor-pointer group"
+                  onClick={() => item.link && navigate(item.link)}
+                >
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
                     <item.icon className="w-5 h-5 text-primary" />
                   </div>
