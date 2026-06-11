@@ -1,0 +1,140 @@
+import { useState, useEffect } from "react";
+import { Loader2, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ReferencePolicyTag } from "./ReferencePolicyTag";
+import { cn } from "@/lib/utils";
+import type { PolicyItem } from "./PolicySearchStep";
+import { generateCoreElementsFromPolicies } from "@/lib/policyDraftApi";
+
+interface PolicyAnalysisStepProps {
+  selectedPolicies: PolicyItem[];
+  /** 与起草标题一致时用于选用数据产业等专项生成模板 */
+  policyTitle?: string;
+  /** 分析完成後回傳结果给父层（兼容旧逻辑） */
+  onAnalysisComplete?: (analysis: ClauseComparison[]) => void;
+  /** 生成的核心要素（换行分隔）发生变化时回调 */
+  onCoreElementsChange?: (coreElements: string) => void;
+  /** 生成的核心要素 items（包含引用 clause）变化回调 */
+  onCoreElementsItemsChange?: (items: { id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[]) => void;
+}
+
+export interface ClauseComparison {
+  id: string;
+  policyTitle: string;
+  source: string;
+  targetAudience: string;
+  supportMethod: string;
+  supportLevel: string;
+  highlights: { field: string; type: "high" | "medium" | "unique" }[];
+}
+
+
+export function PolicyAnalysisStep({ selectedPolicies, policyTitle = "", onAnalysisComplete, onCoreElementsChange, onCoreElementsItemsChange }: PolicyAnalysisStepProps) {
+  const [isGenerating, setIsGenerating] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [items, setItems] = useState<{ id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[]>([]);
+  const [newItemText, setNewItemText] = useState("");
+
+  useEffect(() => {
+    setIsGenerating(true);
+    setError(null);
+    generateCoreElementsFromPolicies(selectedPolicies, policyTitle)
+      .then(({ coreElements, items: result }) => {
+        setItems(result);
+        onCoreElementsChange?.(coreElements);
+        onCoreElementsItemsChange?.(result);
+      })
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setIsGenerating(false));
+  }, [selectedPolicies, policyTitle]);
+
+  const removeItem = (id: string) => {
+    const next = items.filter(i => i.id !== id);
+    setItems(next);
+    onCoreElementsChange?.(next.map(it => it.text).join("\n"));
+    onCoreElementsItemsChange?.(next);
+  };
+
+  const addItem = () => {
+    if (!newItemText.trim()) return;
+    const it = { id: `ce-${Date.now()}`, text: newItemText.trim(), refs: [] as { id: string; title: string; url?: string; clause?: string }[] };
+    const next = [...items, it];
+    setItems(next);
+    setNewItemText("");
+    onCoreElementsChange?.(next.map(it => it.text).join("\n"));
+    onCoreElementsItemsChange?.(next);
+  };
+
+  const updateItemText = (id: string, text: string) => {
+    const next = items.map((i) => (i.id === id ? { ...i, text } : i));
+    setItems(next);
+    onCoreElementsChange?.(next.map((it) => it.text).join("\n"));
+    onCoreElementsItemsChange?.(next);
+  };
+
+  if (isGenerating) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3">
+        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+        <p className="text-sm text-muted-foreground">正在根据已选参考政策抽取核心要素…</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-3 text-destructive">
+        <p className="text-sm">生成失败：{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h3 className="text-base font-semibold text-foreground">核心要素生成</h3>
+      </div>
+
+      <div className="space-y-3">
+        {items.map((it) => (
+          <div key={it.id} className="flex items-start justify-between gap-3 p-3 border border-border rounded-lg">
+            <div className="flex-1 min-w-0">
+              <textarea
+                value={it.text}
+                onChange={(e) => updateItemText(it.id, e.target.value)}
+                rows={3}
+                className={cn(
+                  "w-full min-h-[72px] resize-y rounded-md border border-input bg-background px-3 py-2 text-sm font-medium text-foreground",
+                  "ring-offset-background placeholder:text-muted-foreground",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                )}
+                aria-label="核心要素内容"
+              />
+              <div className="mt-2 flex flex-wrap gap-2">
+                {it.refs.map((r) => (
+                  <ReferencePolicyTag key={r.id} title={r.title} url={r.url} />
+                ))}
+                {it.refs.length === 0 && <span className="text-xs text-muted-foreground italic">未标注参考政策</span>}
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-2">
+              <button onClick={() => removeItem(it.id)} className="text-destructive hover:underline text-xs flex items-center gap-1">
+                <X className="h-3 w-3" /> 删除
+              </button>
+            </div>
+          </div>
+        ))}
+
+        <div className="flex items-center gap-2">
+          <input
+            placeholder="添加新的核心要素，例如：明确扶持对象和范围"
+            value={newItemText}
+            onChange={(e) => setNewItemText(e.target.value)}
+            className="flex-1 rounded border border-border px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary/30"
+          />
+          <Button onClick={addItem} className="h-9">添加</Button>
+        </div>
+      </div>
+    </div>
+  );
+}

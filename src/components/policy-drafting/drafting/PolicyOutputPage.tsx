@@ -1,0 +1,2874 @@
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { ArrowLeft, Download, Sparkles, FileText, MessageSquare, Search, Upload, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, Loader2, Pencil, Check, X, Plus, ChevronDown, ChevronRight, Copy, RefreshCw, Users, Banknote, BarChart3, TrendingUp, ExternalLink, PenLine, Expand, Calculator, BookmarkPlus, Paintbrush, BookOpen, ShieldCheck, FolderOpen, GripVertical } from "lucide-react";
+import { ClauseMaterialPanel } from "./ClauseMaterialPanel";
+import { reorderOutlineById, useOutlineChapterDrag } from "./outlineDrag";
+import { Button } from "@/components/ui/button";
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
+import type { PolicyItem } from "./PolicySearchStep";
+import type { OutlineSection, OutlineSubSection } from "./OutlineGenerationStep";
+import { generateContent, type Citation } from "@/lib/policyDraftApi";
+import { isPolicyLlmConfigured, policyLlmChat } from "@/lib/llmClient";
+
+interface PolicyOutputPageProps {
+  policyTitle: string;
+  coreElements?: string;
+  selectedPolicies?: PolicyItem[];
+  outline?: OutlineSection[];
+  onBack: () => void;
+  /** 快速起草模式：跳过 loading 骨架，直接打字机输出全文 */
+  typewriterMode?: boolean;
+  /** 从助手直接传入的完整政策内容，跳过生成直接进入编辑状态 */
+  directContent?: string;
+}
+
+const editorTools = [
+  { id: "outline", icon: Sparkles, label: "大纲编辑" },
+  { id: "clause", icon: FileText, label: "生成条款" },
+  { id: "material", icon: FolderOpen, label: "素材库" },
+  { id: "evaluate", icon: MessageSquare, label: "政策自评估" },
+  { id: "reference", icon: BookOpen, label: "参考来源" },
+  { id: "proofread", icon: ShieldCheck, label: "审稿核稿" },
+  { id: "calculate", icon: Calculator, label: "政策测算" },
+];
+
+const referenceLevelLabels: Record<PolicyItem["level"], string> = {
+  national: "国家级政策",
+  beijing: "北京市政策",
+  other: "其他省市政策",
+  material: "我的素材库",
+};
+
+type ProofreadIssueType = "sensitive" | "misused" | "collocation" | "grammar";
+type ProofreadIssueStatus = "pending" | "accepted" | "ignored";
+
+type ProofreadIssue = {
+  id: string;
+  type: ProofreadIssueType;
+  title: string;
+  original: string;
+  replacement: string;
+  reason: string;
+  status: ProofreadIssueStatus;
+  isExample?: boolean;
+};
+
+const proofreadTypeLabels: Record<ProofreadIssueType, string> = {
+  sensitive: "敏感词",
+  misused: "错用字词",
+  collocation: "固定搭配错误",
+  grammar: "语法错误",
+};
+
+const proofreadTypeVisuals: Record<ProofreadIssueType, {
+  accent: string;
+  iconBg: string;
+  iconText: string;
+  countText: string;
+  icon: string;
+}> = {
+  sensitive: {
+    accent: "border-l-red-400",
+    iconBg: "bg-red-500",
+    iconText: "text-white",
+    countText: "text-red-500",
+    icon: "!",
+  },
+  misused: {
+    accent: "border-l-orange-300",
+    iconBg: "bg-orange-300",
+    iconText: "text-white",
+    countText: "text-orange-400",
+    icon: "字",
+  },
+  collocation: {
+    accent: "border-l-teal-400",
+    iconBg: "bg-teal-500",
+    iconText: "text-white",
+    countText: "text-teal-500",
+    icon: "搭",
+  },
+  grammar: {
+    accent: "border-l-blue-400",
+    iconBg: "bg-blue-500",
+    iconText: "text-white",
+    countText: "text-blue-500",
+    icon: "A",
+  },
+};
+
+const sensitiveProofreadTerms = [
+  { term: "台独", reason: "涉政敏感词，政策文本中应避免出现政治风险表述。" },
+  { term: "港独", reason: "涉政敏感词，政策文本中应避免出现政治风险表述。" },
+  { term: "藏独", reason: "涉政敏感词，政策文本中应避免出现政治风险表述。" },
+  { term: "疆独", reason: "涉政敏感词，政策文本中应避免出现政治风险表述。" },
+  { term: "颠覆国家政权", reason: "涉政敏感表述，政策文本中不应出现违法政治表述。" },
+  { term: "色情", reason: "涉黄敏感词，政策文本中应避免出现低俗或违法内容。" },
+  { term: "卖淫", reason: "涉黄敏感词，政策文本中应避免出现违法内容。" },
+  { term: "裸聊", reason: "涉黄敏感词，政策文本中应避免出现低俗或违法内容。" },
+  { term: "暴力恐吓", reason: "涉暴敏感词，政策文本中应避免出现违法或不当内容。" },
+  { term: "血腥", reason: "涉暴敏感词，政策文本中应避免出现不当内容。" },
+  { term: "恐怖袭击", reason: "涉暴敏感词，政策文本中应避免出现违法或极端内容。" },
+  { term: "打架", reason: "涉暴敏感词，政策文本中应避免出现暴力或不当表述。" },
+  { term: "斗殴", reason: "涉暴敏感词，政策文本中应避免出现暴力或不当表述。" },
+];
+
+/** 本地错用字词规则（不依赖大模型，命中即报） */
+const localMisusedWordRules = [
+  { wrong: "家快", right: "加快", reason: "错用字词：「家快」应为「加快」，属常见输入笔误。" },
+];
+
+/** 本地语法/语序规则（不依赖大模型，命中即报） */
+const localGrammarRules = [
+  {
+    wrong: "制定本政草策稿",
+    right: "制定本政策草稿",
+    reason: "语法错误：「政草策」字序颠倒，规范表述为「政策草稿」。",
+  },
+  {
+    wrong: "政草策",
+    right: "政策草",
+    reason: "语法错误：「政草策」字序颠倒，应为「政策草」（如政策草稿、政策草案）。",
+  },
+];
+
+const fixedCollocationRules = [
+  { wrong: "联动的机制", right: "联动机制", reason: "自定义固定搭配规则：「联动的机制」应规范为「联动机制」。" },
+  { wrong: "协同的机制", right: "协同机制", reason: "自定义固定搭配规则：「协同的机制」应规范为「协同机制」。" },
+  { wrong: "工作专班的机制", right: "工作专班机制", reason: "自定义固定搭配规则：机制类固定搭配应去掉冗余助词。" },
+  { wrong: "给予支持资金", right: "给予资金支持", reason: "自定义固定搭配规则：「资金支持」为固定搭配。" },
+  { wrong: "加大支持。", right: "加大支持力度。", reason: "自定义固定搭配规则：「加大」通常与「力度」搭配。" },
+  { wrong: "健全完善", right: "健全", reason: "自定义固定搭配规则：「健全」「完善」语义重复，建议保留一项。" },
+  { wrong: "高质量的发展", right: "高质量发展", reason: "自定义固定搭配规则：「高质量发展」为固定政策表达。" },
+];
+
+/** 段落 AI 操作選單 */
+const PARA_ACTIONS = [
+  { id: "accompany", icon: PenLine,      label: "AI伴写",    desc: "基于上下文续写内容" },
+  { id: "expand",    icon: Expand,       label: "扩写",      desc: "丰富段落细节与论据" },
+  { id: "polish",    icon: Paintbrush,   label: "润色",      desc: "优化表达与措辞" },
+  { id: "calculate", icon: Calculator,   label: "资金测算",  desc: "测算资金规模与覆盖" },
+  { id: "reserve",   icon: BookmarkPlus, label: "加入条款储备库", desc: "收藏至条款储备库" },
+] as const;
+
+type CalculatorTab = "calculator" | "result" | "companies";
+type CalcFieldType = "numeric" | "tag";
+
+type ParsedCalcCondition = {
+  id: string;
+  label: string;
+  fieldType: CalcFieldType;
+  metric?: string;
+  operator?: ">" | ">=" | "<" | "<=";
+  value?: string;
+  unit?: string;
+  tags?: string[];
+};
+
+type CompanyRecord = {
+  id: number;
+  name: string;
+  creditCode: string;
+  capital: number;
+  address: string;
+  establishedAt: string;
+  industry: string;
+  category: string;
+};
+
+const CALCULATOR_COMPANIES: CompanyRecord[] = [
+  { id: 1, name: "北京盛通包装印刷有限公司", creditCode: "91110302582534431E", capital: 6000, address: "北京市北京经济技术开发区兴盛街11号", establishedAt: "2011-09-15", industry: "制造业", category: "有限责任公司（法人独资）" },
+  { id: 2, name: "北京久其政务软件股份有限公司", creditCode: "911103027839538276", capital: 33000, address: "北京市北京经济技术开发区西环中路6号", establishedAt: "2006-01-12", industry: "信息传输、软件和信息技术服务业", category: "其他股份有限公司(非上市)" },
+  { id: 3, name: "北京天润融通科技股份有限公司", creditCode: "91110108785512910D", capital: 5166, address: "北京市北京经济技术开发区荣华南路2号院1号楼2901", establishedAt: "2006-02-23", industry: "科学研究和技术服务业", category: "股份有限公司" },
+  { id: 4, name: "中冶赛迪电气技术有限公司", creditCode: "91110302669901310K", capital: 31000, address: "北京市北京经济技术开发区博兴一路10号", establishedAt: "2007-12-05", industry: "科学研究和技术服务业", category: "有限责任公司" },
+  { id: 5, name: "北京惠达通泰供应链管理有限责任公司", creditCode: "91110112MA01K8TU9X", capital: 3000, address: "北京市北京经济技术开发区（通州）景盛南二街29号2幢", establishedAt: "2019-05-21", industry: "租赁和商务服务业", category: "有限责任公司" },
+  { id: 6, name: "德迈特医学技术（北京）有限公司", creditCode: "9111011266560428X9", capital: 348.377, address: "北京市通州区中关村科技园区通州园金桥科技产业基地环科中路16号68号楼一层、二层A", establishedAt: "2007-08-27", industry: "科学研究和技术服务业", category: "有限责任公司" },
+  { id: 7, name: "北京首创大气环境科技股份有限公司", creditCode: "91110108746132464M", capital: 24640, address: "北京市北京经济技术开发区（通州）兴贸一街7号院4号楼3层302室", establishedAt: "2002-12-27", industry: "科学研究和技术服务业", category: "股份有限公司" },
+  { id: 8, name: "北京天助畅运医疗技术股份有限公司", creditCode: "91110302696331572A", capital: 6800, address: "北京市北京经济技术开发区荣华中路8号院", establishedAt: "2009-11-10", industry: "卫生和社会工作", category: "股份有限公司" },
+  { id: 9, name: "赛诺威盛科技（北京）股份有限公司", creditCode: "91110108784823011A", capital: 12500, address: "北京市北京经济技术开发区科创六街88号", establishedAt: "2005-05-18", industry: "制造业", category: "股份有限公司" },
+  { id: 10, name: "北京互时科技股份有限公司", creditCode: "91110108672844763N", capital: 8200, address: "北京市北京经济技术开发区荣京东街3号", establishedAt: "2008-03-06", industry: "信息传输、软件和信息技术服务业", category: "股份有限公司" },
+];
+
+const CALCULATOR_INDUSTRY_DATA = [
+  { name: "制造业", value: 42, color: "#3b82f6" },
+  { name: "信息传输、软件和信息技术服务业", value: 8, color: "#22c1c3" },
+  { name: "科学研究和技术服务业", value: 143, color: "#fb923c" },
+  { name: "租赁和商务服务业", value: 2, color: "#c084fc" },
+  { name: "文化、体育和娱乐业", value: 1, color: "#8b5cf6" },
+  { name: "建筑业", value: 2, color: "#65a30d" },
+  { name: "批发和零售业", value: 5, color: "#ca8a04" },
+  { name: "交通运输、仓储和邮政业", value: 1, color: "#f472b6" },
+];
+
+const CALCULATOR_CATEGORY_DATA = [
+  { name: "有限责任公司（法人独资）", value: 39 },
+  { name: "其他股份有限公司(非上市)", value: 18 },
+  { name: "有限责任公司", value: 39 },
+  { name: "股份有限公司", value: 26 },
+  { name: "股份合作制", value: 7 },
+  { name: "集体所有制", value: 6 },
+  { name: "有限责任公司（台港澳与境内合资）", value: 3 },
+  { name: "有限责任公司（中外合资）", value: 2 },
+  { name: "有限责任公司（外商投资）", value: 2 },
+  { name: "其他", value: 1 },
+];
+
+function PolicyCalculatorWorkspace({ initialClauseContent }: { initialClauseContent?: string }) {
+  const [activeTab, setActiveTab] = useState<CalculatorTab>("calculator");
+  const [clauseContent, setClauseContent] = useState("年度研发费用增长超过年度目标值的商业航天大中型重点企业、专精特新“小巨人”企业，按照高出部分的20%给予支持，每年最高为300万元");
+  const [supportMode, setSupportMode] = useState<"fixed" | "ratio">("ratio");
+  const [capitalValue, setCapitalValue] = useState("年度目标值");
+  const [ratioValue, setRatioValue] = useState("20.00");
+  const [maxAmount, setMaxAmount] = useState("300.00");
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [resultReady, setResultReady] = useState(false);
+  const [estimateConditions, setEstimateConditions] = useState<string[]>([]);
+  const [calcConditions, setCalcConditions] = useState<ParsedCalcCondition[]>([]);
+  const [modelThinking, setModelThinking] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (initialClauseContent && initialClauseContent.trim()) {
+      setClauseContent(initialClauseContent.trim());
+    }
+  }, [initialClauseContent]);
+
+  const companyCount = 204;
+  const totalSupport = 26706.12;
+  const displayedCompanies = CALCULATOR_COMPANIES;
+
+  const startCalculation = () => {
+    setIsCalculating(true);
+    setResultReady(false);
+    setModelThinking([]);
+    setTimeout(() => {
+      setCalcConditions([
+        {
+          id: "calc-industry",
+          label: "行业领域",
+          fieldType: "tag",
+          tags: ["商业航天"],
+        },
+        {
+          id: "calc-qualification",
+          label: "企业资质类-资质称号",
+          fieldType: "tag",
+          tags: ["大中型重点企业", "专精特新“小巨人”企业"],
+        },
+      ]);
+      setEstimateConditions(["年度研发费用增长超过年度目标值"]);
+      setModelThinking([
+        "识别条款限定对象：行业领域为商业航天，企业类型为大中型重点企业或专精特新“小巨人”企业。",
+        "识别可估算口径：年度研发费用增长需超过年度目标值，但企业年度目标值属于外部变量，需通过历史研发费用、年度目标台账或申报数据估算。",
+        "识别扶持方式：按高出年度目标值部分的20%给予支持，并设置单家企业每年最高300万元上限。",
+        "据此先筛选符合行业和资质标签的企业，再按研发费用增长超额部分进行模型估算并汇总资金需求。",
+      ]);
+      setIsCalculating(false);
+      setResultReady(true);
+    }, 1000);
+  };
+
+  const handleSmartParse = () => {
+    const nextEstimateConditions: string[] = [];
+    const nextCalcConditions: ParsedCalcCondition[] = [];
+    const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
+
+    const metricConfigs = [
+      { keyword: "实缴资本", metric: "实缴资本", unit: "万元" },
+      { keyword: "注册资本", metric: "注册资本", unit: "万元" },
+      { keyword: "营收", metric: "营业收入", unit: "万元" },
+      { keyword: "营业收入", metric: "营业收入", unit: "万元" },
+      { keyword: "研发投入", metric: "研发投入", unit: "万元" },
+    ] as const;
+
+    metricConfigs.forEach((cfg) => {
+      const idx = clauseContent.indexOf(cfg.keyword);
+      if (idx === -1) return;
+      const segment = clauseContent.slice(Math.max(0, idx), Math.min(clauseContent.length, idx + 18));
+      const valueMatch = segment.match(/(\d+(?:\.\d+)?)/);
+      const op =
+        segment.includes("大于等于") || segment.includes("不低于") || segment.includes("不少于")
+          ? ">="
+          : segment.includes("小于等于") || segment.includes("不高于") || segment.includes("不超过")
+          ? "<="
+          : segment.includes("大于")
+          ? ">"
+          : segment.includes("小于")
+          ? "<"
+          : undefined;
+      if (!valueMatch || !op) {
+        nextEstimateConditions.push(`${cfg.metric}条件表述不完整，需按公开数据与历史数据估算。`);
+        return;
+      }
+      nextCalcConditions.push({
+        id: makeId("calc"),
+        label: cfg.metric,
+        fieldType: "numeric",
+        metric: cfg.metric,
+        operator: op,
+        value: valueMatch[1],
+        unit: cfg.unit,
+      });
+    });
+
+    const qualificationTags: string[] = [];
+    if (/小巨人/.test(clauseContent)) {
+      qualificationTags.push("专精特新“小巨人”企业");
+    } else if (/专精特新/.test(clauseContent)) {
+      qualificationTags.push("专精特新");
+    }
+    if (/大中型重点企业/.test(clauseContent)) qualificationTags.push("大中型重点企业");
+    if (/高新/.test(clauseContent)) qualificationTags.push("高新技术企业");
+    if (/瞪羚/.test(clauseContent)) qualificationTags.push("瞪羚企业");
+    if (qualificationTags.length > 0) {
+      nextCalcConditions.push({
+        id: makeId("calc"),
+        label: "企业资质类-资质称号",
+        fieldType: "tag",
+        tags: qualificationTags,
+      });
+    }
+
+    if (/医药健康|自动驾驶|具身智能|工业制造/.test(clauseContent)) {
+      nextEstimateConditions.push("属于医药健康、自动驾驶、具身智能、工业制造四大领域之一");
+    }
+    if (/商业航天/.test(clauseContent)) {
+      nextCalcConditions.push({
+        id: makeId("calc"),
+        label: "行业领域",
+        fieldType: "tag",
+        tags: ["商业航天"],
+      });
+    }
+    if (/年度研发费用增长超过年度目标值|研发费用增长超过年度目标值/.test(clauseContent)) {
+      nextEstimateConditions.push("年度研发费用增长超过年度目标值");
+    }
+    if (/语料库|行业数据库|数据集/.test(clauseContent)) {
+      nextEstimateConditions.push("建设并开放人工智能语料库或行业数据库");
+    }
+    if (nextEstimateConditions.length === 0) {
+      nextEstimateConditions.push("条款含标签库外条件，需基于公开数据与历史兑现数据估算");
+    }
+    if (nextCalcConditions.length === 0) {
+      nextCalcConditions.push({
+        id: makeId("calc"),
+        label: "当前未识别到可判定测算条件",
+        fieldType: "tag",
+        tags: ["请手动添加可测算条件"],
+      });
+    }
+    setCalcConditions(nextCalcConditions);
+    setEstimateConditions(nextEstimateConditions);
+  };
+
+  const renderTabButton = (tab: CalculatorTab, label: string) => (
+    <button
+      type="button"
+      onClick={() => setActiveTab(tab)}
+      className={`border-b-2 px-6 py-4 text-[15px] font-semibold transition-colors ${
+        activeTab === tab ? "border-primary text-primary" : "border-transparent text-foreground/80 hover:text-primary"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="flex h-full flex-col rounded-xl border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-5">
+        <div className="flex items-center">
+          {renderTabButton("calculator", "政策测算")}
+          {renderTabButton("result", "测算结果")}
+          {renderTabButton("companies", "企业名单")}
+        </div>
+        <Button variant="outline" size="sm" className="gap-1.5 rounded-xl">
+          <PenLine className="h-3.5 w-3.5" />
+          意见反馈
+        </Button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-5">
+        {activeTab === "calculator" && (
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_1fr]">
+            <div className="rounded-2xl border border-border">
+              <div className="border-b border-border px-5 py-5">
+                <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
+                  <span className="h-8 w-1 rounded-full bg-primary" />
+                  条款内容
+                </h3>
+                <div className="mt-5">
+                  <textarea
+                    value={clauseContent}
+                    onChange={(e) => setClauseContent(e.target.value)}
+                    className="min-h-[88px] w-full resize-none rounded-2xl border border-border bg-background px-5 py-4 text-[14px] leading-7 text-foreground outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                  <div className="mt-2 text-right text-sm text-muted-foreground">{clauseContent.length} / 500</div>
+                </div>
+                <Button onClick={handleSmartParse} className="mt-4 rounded-xl bg-primary px-6 hover:bg-primary/90">智能解析</Button>
+              </div>
+
+              <div className="px-5 py-5">
+                <div className="mb-6 flex items-center justify-between">
+                  <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
+                    <span className="h-8 w-1 rounded-full bg-primary" />
+                    测算条件
+                  </h3>
+                  <div className="flex items-center gap-6 text-primary">
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 text-[15px] font-medium"
+                      onClick={() =>
+                        setCalcConditions((prev) => [
+                          ...prev,
+                          {
+                            id: `calc-manual-${Date.now()}`,
+                            label: "新增测算条件",
+                            fieldType: "numeric",
+                            metric: "实缴资本",
+                            operator: ">",
+                            value: "0",
+                            unit: "万元",
+                          },
+                        ])
+                      }
+                    >
+                      <Plus className="h-4 w-4" />
+                      添加条件
+                    </button>
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 text-[15px] font-medium"
+                      onClick={() => setCalcConditions([])}
+                    >
+                      <X className="h-4 w-4" />
+                      清空条件
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-8">
+                  {calcConditions.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                      暂无可测算条件，请点击底部「模型估算」后展示模型解析出的标签。
+                    </p>
+                  ) : (
+                    calcConditions.map((condition) => (
+                      <div key={condition.id}>
+                        <p className="mb-3 text-[15px] font-medium text-foreground">{condition.label}</p>
+                        {condition.fieldType === "numeric" ? (
+                          <div className="flex flex-wrap items-center gap-3">
+                            <input
+                              value={condition.metric || "指标"}
+                              readOnly
+                              className="h-12 w-[180px] rounded-xl border border-border bg-muted/20 px-4 text-[15px] text-muted-foreground"
+                            />
+                            <button type="button" className="flex h-12 w-16 items-center justify-center rounded-xl border border-border bg-background text-[24px] text-foreground">
+                              {condition.operator || ">"}
+                            </button>
+                            <input
+                              value={condition.value || ""}
+                              onChange={(e) =>
+                                setCalcConditions((prev) =>
+                                  prev.map((item) =>
+                                    item.id === condition.id ? { ...item, value: e.target.value } : item,
+                                  ),
+                                )
+                              }
+                              className="h-12 w-[140px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                            <span className="text-[18px] text-foreground">{condition.unit || "万元"}</span>
+                            <button
+                              type="button"
+                              className="rounded-full border border-border p-1 text-muted-foreground"
+                              onClick={() => setCalcConditions((prev) => prev.filter((item) => item.id !== condition.id))}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap items-center gap-3">
+                            {(condition.tags || []).map((tag, tagIdx) => (
+                              <span key={`${condition.id}-${tagIdx}`} className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2 text-[15px] text-foreground">
+                                {tag}
+                              </span>
+                            ))}
+                            <button
+                              type="button"
+                              className="rounded-full border border-border p-1 text-muted-foreground"
+                              onClick={() => setCalcConditions((prev) => prev.filter((item) => item.id !== condition.id))}
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+
+                  <div>
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-[15px] font-medium text-foreground">估算条件</p>
+                      <button
+                        type="button"
+                        onClick={() => setEstimateConditions([])}
+                        className="text-sm font-medium text-primary"
+                      >
+                        清空估算条件
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {estimateConditions.length === 0 ? (
+                        <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
+                          暂无估算条件，请点击底部「模型估算」后展示模型解析结果。
+                        </p>
+                      ) : (
+                        estimateConditions.map((condition, index) => (
+                          <div key={`${condition}-${index}`} className="flex items-center gap-2">
+                            <input
+                              value={condition}
+                              onChange={(e) =>
+                                setEstimateConditions((prev) =>
+                                  prev.map((item, i) => (i === index ? e.target.value : item)),
+                                )
+                              }
+                              className="h-12 flex-1 rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-primary/20"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setEstimateConditions((prev) => prev.filter((_, i) => i !== index))
+                              }
+                              className="rounded-full border border-border p-1 text-muted-foreground"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex flex-wrap items-center gap-4 text-[15px] text-foreground">
+                      <span className="font-medium">扶持方式:</span>
+                      <label className="flex items-center gap-2">
+                        <input type="radio" checked={supportMode === "fixed"} onChange={() => setSupportMode("fixed")} />
+                        固定金额
+                      </label>
+                      <label className="flex items-center gap-2">
+                        <input type="radio" checked={supportMode === "ratio"} onChange={() => setSupportMode("ratio")} />
+                        固定比例
+                      </label>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap items-center gap-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-[15px] font-medium text-foreground">依据指标:</span>
+                        <select className="h-12 w-[180px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none">
+                          <option>年度研发费用增长</option>
+                          <option>实缴资本</option>
+                          <option>营业收入</option>
+                          <option>研发投入</option>
+                        </select>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-[15px] font-medium text-foreground">支持比例:</span>
+                        <input value={ratioValue} onChange={(e) => setRatioValue(e.target.value)} className="h-12 w-[120px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-primary/20" />
+                        <span className="text-[18px] text-foreground">%</span>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 flex flex-wrap items-center gap-3">
+                      <span className="text-[15px] font-medium text-foreground">最高:</span>
+                      <input value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} className="h-12 w-[140px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-primary/20" />
+                      <select className="h-12 w-[120px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none">
+                        <option>万元</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <Button onClick={startCalculation} className="mt-8 rounded-xl bg-primary px-8 py-6 text-[16px] hover:bg-primary/90" disabled={isCalculating}>
+                  {isCalculating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />模型估算中...</> : "模型估算"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div className="rounded-2xl border border-border p-5">
+                <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
+                  <span className="h-8 w-1 rounded-full bg-primary" />
+                  测算结果
+                </h3>
+                {!resultReady ? (
+                  <div className="mt-5 rounded-2xl border border-dashed border-border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
+                    点击左侧「模型估算」后，将在此展示模型思考过程与估算结果。
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-5 rounded-2xl bg-primary/5 p-5">
+                      <p className="text-[16px] font-semibold text-foreground">模型估算思考过程</p>
+                      <ol className="mt-3 space-y-2 text-sm leading-7 text-muted-foreground">
+                        {modelThinking.map((step, index) => (
+                          <li key={`${step}-${index}`} className="flex gap-2">
+                            <span className="font-semibold text-primary">{index + 1}.</span>
+                            <span>{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                    <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div className="rounded-2xl bg-blue-50 p-5">
+                        <p className="text-[16px] font-semibold text-foreground">获扶持企业</p>
+                        <p className="mt-3 text-5xl font-bold text-slate-900">{companyCount}<span className="ml-2 text-2xl font-medium">家</span></p>
+                      </div>
+                      <div className="rounded-2xl bg-blue-50 p-5">
+                        <p className="text-[16px] font-semibold text-foreground">总扶持金额</p>
+                        <p className="mt-3 text-5xl font-bold text-slate-900">{totalSupport.toFixed(2)}<span className="ml-2 text-2xl font-medium">万元</span></p>
+                      </div>
+                    </div>
+                    <div className="mt-6 border-t border-border pt-5">
+                      <div className="mb-3 flex items-center justify-between">
+                        <p className="text-[15px] font-semibold text-foreground">以下为符合条件的部分企业名称（最多显示100家企业）</p>
+                        <button type="button" onClick={() => setActiveTab("companies")} className="text-[15px] font-medium text-primary">
+                          查看更多企业信息 &gt;
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-x-10 gap-y-3 text-[15px] leading-7 text-foreground md:grid-cols-2">
+                        {displayedCompanies.slice(0, 12).map((company) => (
+                          <div key={company.id} className="flex gap-3">
+                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground" />
+                            <span>{company.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "result" && (
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+              <div className="rounded-2xl border border-border bg-card p-6">
+                <div className="rounded-2xl bg-blue-50 px-8 py-10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[18px] font-semibold text-foreground">获扶持企业</p>
+                      <p className="mt-4 text-6xl font-bold text-slate-900">{companyCount}<span className="ml-2 text-2xl font-medium">家</span></p>
+                    </div>
+                    <button type="button" onClick={() => setActiveTab("companies")} className="text-[16px] font-medium text-primary">查看企业 &raquo;</button>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-border bg-card p-6">
+                <div className="rounded-2xl bg-blue-50 px-8 py-10">
+                  <p className="text-[18px] font-semibold text-foreground">总扶持金额</p>
+                  <p className="mt-4 text-6xl font-bold text-slate-900">{totalSupport.toFixed(2)}<span className="ml-2 text-2xl font-medium">万元</span></p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+              <div className="rounded-2xl border border-border bg-card">
+                <div className="border-b border-border px-6 py-5">
+                  <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
+                    <span className="h-8 w-1 rounded-full bg-primary" />
+                    测算企业行业分布
+                  </h3>
+                </div>
+                <div className="grid min-h-[420px] grid-cols-1 items-center gap-4 px-6 py-6 md:grid-cols-[1fr_1.1fr]">
+                  <div className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={CALCULATOR_INDUSTRY_DATA} dataKey="value" nameKey="name" innerRadius={70} outerRadius={105} paddingAngle={2}>
+                          {CALCULATOR_INDUSTRY_DATA.map((entry) => (
+                            <Cell key={entry.name} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: number) => `${value} 家`} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="space-y-3">
+                    {CALCULATOR_INDUSTRY_DATA.map((item) => {
+                      const percentage = ((item.value / companyCount) * 100).toFixed(2);
+                      return (
+                        <div key={item.name} className="flex items-center gap-3 text-[14px] text-foreground">
+                          <span className="h-3.5 w-3.5 shrink-0 rounded-sm" style={{ backgroundColor: item.color }} />
+                          <span>{item.name} {percentage}% ({item.value})</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-card">
+                <div className="border-b border-border px-6 py-5">
+                  <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
+                    <span className="h-8 w-1 rounded-full bg-primary" />
+                    测算企业性质分布
+                  </h3>
+                </div>
+                <div className="h-[420px] px-4 py-6">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsBarChart data={CALCULATOR_CATEGORY_DATA} margin={{ top: 10, right: 20, left: 0, bottom: 90 }}>
+                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                      <XAxis dataKey="name" angle={-90} textAnchor="end" interval={0} height={120} tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} />
+                      <Tooltip formatter={(value: number) => `${value} 家`} />
+                      <Bar dataKey="value" fill="#73a4f6" radius={[4, 4, 0, 0]} />
+                    </RechartsBarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "companies" && (
+          <div className="rounded-2xl border border-border bg-card">
+            <div className="border-b border-border px-6 py-5">
+              <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
+                <span className="h-8 w-1 rounded-full bg-primary" />
+                已为您找到<span className="text-primary">{companyCount}</span>家符合条件的企业
+              </h3>
+            </div>
+            <div className="overflow-x-auto px-6 py-5">
+              <table className="min-w-full border-separate border-spacing-0">
+                <thead>
+                  <tr className="bg-muted/30 text-left text-[15px] font-semibold text-foreground">
+                    {["序号", "企业名称", "统一社会信用代码", "注册资本(万元)", "地址", "成立日期", "所属行业"].map((head) => (
+                      <th key={head} className="border-b border-border px-4 py-4">{head}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayedCompanies.map((company) => (
+                    <tr key={company.id} className="text-[15px] text-foreground">
+                      <td className="border-b border-border px-4 py-5">{company.id}</td>
+                      <td className="border-b border-border px-4 py-5 font-medium">{company.name}</td>
+                      <td className="border-b border-border px-4 py-5">{company.creditCode}</td>
+                      <td className="border-b border-border px-4 py-5">{company.capital}</td>
+                      <td className="border-b border-border px-4 py-5">{company.address}</td>
+                      <td className="border-b border-border px-4 py-5">{company.establishedAt}</td>
+                      <td className="border-b border-border px-4 py-5">{company.industry}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PolicyReferenceSourcesPanel({
+  citations = [],
+  selectedPolicies = [],
+}: {
+  citations: Citation[];
+  selectedPolicies: PolicyItem[];
+}) {
+  const [refsExpanded, setRefsExpanded] = useState(false);
+  const selectedRefs = selectedPolicies.filter((p) => p.selected);
+  const bodyCitations: Citation[] =
+    citations.length > 0
+      ? citations
+      : selectedRefs.slice(0, 4).map((policy, index) => ({
+          index: index + 1,
+          title: policy.title,
+          url: policy.url,
+          source: policy.source,
+        }));
+
+  const groupedRefs = (["national", "beijing", "other", "material"] as const).map((level) => ({
+    level,
+    label: referenceLevelLabels[level],
+    items: selectedRefs.filter((p) => p.level === level),
+  })).filter((g) => g.items.length > 0);
+
+  return (
+    <div className="flex flex-1 flex-col min-h-0">
+      <div className="shrink-0 border-b border-border px-4 py-3">
+        <div className="flex items-center gap-2">
+          <BookOpen className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold text-foreground">参考来源</h3>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          政策正文中的 [ref:N] 角标与起草阶段纳入的参考政策
+        </p>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-5">
+        {bodyCitations.length > 0 && (
+          <section>
+            <p className="mb-2 text-xs font-medium text-foreground">
+              正文引用（{bodyCitations.length}）
+            </p>
+            <div className="space-y-2">
+              {bodyCitations.map((cite) => (
+                <div
+                  key={cite.index}
+                  className="relative rounded-lg border border-border bg-muted/20 px-3 py-2.5 pr-3"
+                >
+                  <div className="flex items-start gap-2">
+                    <span className="inline-flex h-5 min-w-[1.25rem] shrink-0 items-center justify-center rounded border border-primary/25 bg-primary/10 px-1 text-[10px] font-bold text-primary">
+                      {cite.index}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium leading-snug text-foreground line-clamp-3">
+                        {cite.title}
+                      </p>
+                      {cite.source && (
+                        <p className="mt-1 truncate text-[11px] text-muted-foreground">{cite.source}</p>
+                      )}
+                      {cite.url && cite.url !== "#" && (
+                        <a
+                          href={cite.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-1.5 inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline"
+                        >
+                          查看原文
+                          <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {groupedRefs.length > 0 && (
+          <section>
+            <button
+              type="button"
+              onClick={() => setRefsExpanded((v) => !v)}
+              className="mb-2 flex w-full items-center gap-1.5 text-xs font-medium text-foreground hover:text-primary transition-colors"
+            >
+              {refsExpanded ? (
+                <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              )}
+              检索参考（{selectedRefs.length}）
+            </button>
+            {refsExpanded && (
+              <div className="space-y-3">
+                {groupedRefs.map((group) => (
+                  <div key={group.level}>
+                    <p className="mb-1.5 text-[11px] text-muted-foreground">{group.label}</p>
+                    <div className="space-y-1.5">
+                      {group.items.map((policy) => (
+                        <div
+                          key={policy.id}
+                          className="relative rounded-lg border border-border/80 bg-background px-3 py-2.5 pb-7"
+                        >
+                          {policy.url && policy.url !== "#" ? (
+                            <a
+                              href={policy.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium leading-snug text-primary hover:underline line-clamp-2"
+                            >
+                              {policy.title}
+                            </a>
+                          ) : (
+                            <p className="text-xs font-medium leading-snug text-foreground line-clamp-2">
+                              {policy.title}
+                            </p>
+                          )}
+                          {policy.source && (
+                            <p className="mt-1 truncate text-[11px] text-muted-foreground">{policy.source}</p>
+                          )}
+                          {policy.level === "material" && (
+                            <span className="absolute bottom-2 right-2 rounded border border-primary/20 bg-primary/[0.06] px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                              我的素材
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {bodyCitations.length === 0 && selectedRefs.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+            <BookOpen className="mb-2 h-8 w-8 opacity-40" />
+            <p className="text-xs">暂无参考来源</p>
+            <p className="mt-1 text-[11px]">请在前序「政策检索」步骤勾选参考政策</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const splitReviewSentences = (content: string) =>
+  (content.match(/[^。！？；\n]+[。！？；]?/g) ?? [])
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 6);
+
+const compactReviewText = (text: string, maxLength = 86) => {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean.length > maxLength ? `${clean.slice(0, maxLength)}...` : clean;
+};
+
+const isLikelyReviewHeading = (sentence: string) =>
+  /^(第[一二三四五六七八九十\d]+[章节条]|[一二三四五六七八九十]+、|附则|总则|支持方向|实施机制)/.test(sentence.trim());
+
+const extractJsonArray = (text: string) => {
+  const clean = text.replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+  const start = clean.indexOf("[");
+  const end = clean.lastIndexOf("]");
+  if (start < 0 || end < start) return [];
+  try {
+    const parsed = JSON.parse(clean.slice(start, end + 1));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const buildModelProofreadIssues = async (content: string): Promise<Omit<ProofreadIssue, "id" | "status">[]> => {
+  if (!isPolicyLlmConfigured()) return [];
+
+  const response = await policyLlmChat({
+    temperature: 0.1,
+    max_tokens: 1600,
+    system:
+      "你是中文政策公文审稿专家。只检查错用字词和语法错误，不检查敏感词和固定搭配。只返回 JSON 数组，不要解释。",
+    user: `请检查以下政策文本中的真实错用字词和语法错误。要求：
+1. 只输出正文中实际存在的问题，不能编造示例。
+2. original 必须是原文中连续出现的精确片段。
+3. type 只能是 "misused" 或 "grammar"。
+4. replacement 是建议修改后的片段。
+5. reason 简短说明原因。
+6. 如果没有问题，返回 []。
+7. 重点关注：相邻字笔误（如「家快」应为「加快」）、政策公文语序颠倒（如「政草策」应为「政策草」）、动宾搭配不当。
+
+返回格式：
+[
+  {"type":"misused","original":"原文片段","replacement":"修改片段","reason":"原因"},
+  {"type":"grammar","original":"原文片段","replacement":"修改片段","reason":"原因"}
+]
+
+政策文本：
+${content.slice(0, 5000)}`,
+  });
+
+  return extractJsonArray(response)
+    .map((item) => ({
+      type: item?.type as ProofreadIssueType,
+      title: item?.type === "grammar" ? "语法错误" : "错用字词",
+      original: typeof item?.original === "string" ? item.original.trim() : "",
+      replacement: typeof item?.replacement === "string" ? item.replacement.trim() : "",
+      reason: typeof item?.reason === "string" ? item.reason.trim() : "模型识别到该处表达存在问题，建议按修改片段调整。",
+    }))
+    .filter((issue) =>
+      (issue.type === "misused" || issue.type === "grammar") &&
+      issue.original &&
+      issue.replacement &&
+      issue.original !== issue.replacement &&
+      content.includes(issue.original)
+    );
+};
+
+const buildPolicyReviewIssues = async (content: string): Promise<ProofreadIssue[]> => {
+  const sentences = splitReviewSentences(content);
+  const issues: ProofreadIssue[] = [];
+  const usedOriginals = new Set<string>();
+
+  const addIssue = (issue: Omit<ProofreadIssue, "id" | "status">) => {
+    const original = issue.original.trim();
+    const replacement = issue.replacement.trim();
+    if (!original || !replacement || original === replacement || usedOriginals.has(original)) return;
+    usedOriginals.add(original);
+    issues.push({
+      ...issue,
+      original,
+      replacement,
+      id: `${issue.type}-${issues.length + 1}`,
+      status: "pending",
+    });
+  };
+
+  sensitiveProofreadTerms.forEach(({ term, reason }) => {
+    if (!content.includes(term)) return;
+    addIssue({
+      type: "sensitive",
+      title: "敏感词",
+      original: term,
+      replacement: "请删除或替换为合规表述",
+      reason,
+    });
+  });
+
+  fixedCollocationRules.forEach(({ wrong, right, reason }) => {
+    if (!content.includes(wrong)) return;
+    addIssue({
+      type: "collocation",
+      title: "固定搭配",
+      original: wrong,
+      replacement: right,
+      reason,
+    });
+  });
+
+  localMisusedWordRules.forEach(({ wrong, right, reason }) => {
+    if (!content.includes(wrong)) return;
+    addIssue({
+      type: "misused",
+      title: "错用字词",
+      original: wrong,
+      replacement: right,
+      reason,
+    });
+  });
+
+  localGrammarRules
+    .slice()
+    .sort((a, b) => b.wrong.length - a.wrong.length)
+    .forEach(({ wrong, right, reason }) => {
+      if (!content.includes(wrong)) return;
+      const coveredByLongerRule = issues.some(
+        (existing) =>
+          existing.type === "grammar" &&
+          existing.original.length > wrong.length &&
+          existing.original.includes(wrong),
+      );
+      if (coveredByLongerRule) return;
+      addIssue({
+        type: "grammar",
+        title: "语法错误",
+        original: wrong,
+        replacement: right,
+        reason,
+      });
+    });
+
+  try {
+    const modelIssues = await buildModelProofreadIssues(content);
+    modelIssues.forEach(addIssue);
+  } catch (e) {
+    console.warn("[PolicyProofreadPanel] 模型校验失败，仅展示规则命中结果：", e);
+  }
+
+  if (!isPolicyLlmConfigured()) {
+    sentences.forEach((sentence) => {
+      if (isLikelyReviewHeading(sentence)) return;
+      if (/的的|，，|。。|、，/.test(sentence)) {
+        addIssue({
+          type: "grammar",
+          title: "语法错误",
+          original: sentence,
+          replacement: sentence.replace(/的的/g, "的").replace(/，，/g, "，").replace(/。。/g, "。").replace(/、，/g, "，"),
+          reason: "模型未配置时的本地基础语法校验：发现重复字词或连续标点。",
+        });
+      }
+    });
+  }
+
+  return issues;
+};
+
+type ProofreadAnalysisPhase = "analyzing" | "done";
+
+function PolicyProofreadPanel({
+  content,
+  onAccept,
+}: {
+  content: string;
+  onAccept: (issue: ProofreadIssue) => void;
+}) {
+  const [analysisPhase, setAnalysisPhase] = useState<ProofreadAnalysisPhase>("analyzing");
+  const [issues, setIssues] = useState<ProofreadIssue[]>([]);
+
+  const runFullAnalysis = (delayMs = 650) => {
+    setAnalysisPhase("analyzing");
+    return window.setTimeout(() => {
+      buildPolicyReviewIssues(content).then((nextIssues) => {
+        setIssues(nextIssues);
+        setAnalysisPhase("done");
+      });
+    }, delayMs);
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    setAnalysisPhase("analyzing");
+    const timer = window.setTimeout(() => {
+      buildPolicyReviewIssues(content).then((nextIssues) => {
+        if (cancelled) return;
+        setIssues(nextIssues);
+        setAnalysisPhase("done");
+      });
+    }, 850);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  // 面板打开时自动全文分析；采纳回写正文后保留当前审稿状态。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const updateIssueStatus = (id: string, status: ProofreadIssueStatus) => {
+    setIssues((prev) => prev.map((issue) => (issue.id === id ? { ...issue, status } : issue)));
+  };
+
+  const handleRerunFullAnalysis = () => {
+    runFullAnalysis(650);
+  };
+
+  const handleAccept = (issue: ProofreadIssue) => {
+    onAccept(issue);
+    updateIssueStatus(issue.id, "accepted");
+  };
+
+  return (
+    <div className="flex flex-1 flex-col min-h-0">
+      <div className="shrink-0 border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
+            <h3 className="text-sm font-semibold text-foreground">审稿核稿</h3>
+          </div>
+          {analysisPhase === "analyzing" ? (
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              分析中
+            </span>
+          ) : (
+            <span className="shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
+              分析完成
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          对政策全文进行分析，识别敏感词、错用字词、固定搭配和语法错误
+        </p>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
+        {analysisPhase === "analyzing" ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Loader2 className="mb-3 h-8 w-8 animate-spin text-primary" />
+            <p className="text-sm font-medium text-foreground">分析中</p>
+            <p className="mt-1 text-xs text-muted-foreground">正在校验政策表述、搭配和语法风险...</p>
+          </div>
+        ) : (
+          <>
+            <section className="rounded-2xl border-2 border-slate-100 bg-white px-4 py-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-[18px] font-bold text-slate-700">审稿核稿结果</h4>
+                <button
+                  type="button"
+                  onClick={handleRerunFullAnalysis}
+                  className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md bg-blue-500 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-blue-600"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  全文分析
+                </button>
+              </div>
+              <div className="mt-5 flex items-center justify-between">
+                <p className="text-[15px] font-bold text-slate-700">审核统计</p>
+                <p className="text-xs text-slate-400">共发现 {issues.length} 处问题</p>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {(Object.keys(proofreadTypeLabels) as ProofreadIssueType[]).map((type) => {
+                  const count = issues.filter((issue) => issue.type === type).length;
+                  const visual = proofreadTypeVisuals[type];
+                  return (
+                    <div
+                      key={type}
+                      className={`flex min-h-[86px] items-center gap-3 rounded-2xl border-l-4 ${visual.accent} bg-white px-3 py-3 shadow-[0_10px_28px_rgba(15,23,42,0.08)]`}
+                    >
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${visual.iconBg} ${visual.iconText} text-lg font-bold`}>
+                        {visual.icon}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[13px] font-bold leading-tight text-slate-700">{proofreadTypeLabels[type]}</p>
+                        <p className={`mt-1 text-2xl font-bold leading-none ${visual.countText}`}>{count}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border-2 border-slate-100 bg-white px-4 py-4 shadow-sm">
+              <p className="mb-4 text-xs text-slate-400">点击条目可定位并高亮</p>
+
+              {issues.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-slate-400">
+                  <ShieldCheck className="mb-2 h-8 w-8 opacity-40" />
+                  <p className="text-xs">暂未发现明显问题</p>
+                  <p className="mt-1 text-[11px]">当前正文已完成基础审稿核验</p>
+                </div>
+              ) : (
+              <div className="space-y-4">
+                {issues.map((issue) => {
+                  const isActionable = issue.status === "pending" && !issue.isExample;
+                  return (
+                    <div
+                      key={issue.id}
+                      className={`rounded-2xl border border-slate-100 bg-white px-4 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition-opacity ${
+                        issue.status === "pending" ? "" : "opacity-70"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-base font-bold text-slate-700">{proofreadTypeLabels[issue.type]}</p>
+                          {issue.isExample && <p className="mt-0.5 text-[11px] text-slate-400">示例</p>}
+                        </div>
+                        {issue.status !== "pending" && !issue.isExample && (
+                          <span className="rounded-full bg-slate-100 px-2 py-1 text-[11px] text-slate-500">
+                            {issue.status === "accepted" ? "已采纳" : "已忽略"}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                        <div className="min-h-[74px] rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                          <p className="text-xs font-bold text-slate-400">原词</p>
+                          <p className="mt-2 text-[13px] font-medium leading-relaxed text-slate-800">
+                            {compactReviewText(issue.original, 34)}
+                          </p>
+                        </div>
+                        <span className="flex h-9 w-9 items-center justify-center rounded-full border border-blue-200 bg-blue-50 text-xl font-bold text-blue-500">
+                          -&gt;
+                        </span>
+                        <div className="min-h-[74px] rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                          <p className="text-xs font-bold text-orange-400">建议</p>
+                          <p className="mt-2 text-[13px] font-medium leading-relaxed text-slate-800">
+                            {compactReviewText(issue.replacement, 34)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-end gap-2">
+                        {isActionable ? (
+                          <>
+                            <button
+                              className="rounded-md bg-blue-500 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-blue-600"
+                              onClick={() => handleAccept(issue)}
+                            >
+                              采纳
+                            </button>
+                            <button
+                              className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                              onClick={() => updateIssueStatus(issue.id, "ignored")}
+                            >
+                              忽略
+                            </button>
+                          </>
+                        ) : (
+                          <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-400">
+                            {issue.isExample ? "示例" : issue.status === "accepted" ? "已采纳" : "已忽略"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              )}
+            </section>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── 政策工具選項 ─────────────────────────────────────────
+const POLICY_TOOLS = [
+  { value: "subsidy", label: "资金补贴类" },
+  { value: "tax", label: "税收减免类" },
+  { value: "talent", label: "人才引进类" },
+  { value: "land", label: "用地保障类" },
+  { value: "credit", label: "金融信贷类" },
+  { value: "award", label: "奖励扶持类" },
+  { value: "platform", label: "平台建设类" },
+  { value: "procurement", label: "政府采购类" },
+];
+
+const REFERENCE_CLAUSES: Record<string, string[]> = {
+  subsidy: [
+    "对研发投入给予不超过实际发生额30%的补贴，单个企业年度最高500万元",
+    "对符合条件的企业一次性给予20万元落地奖励",
+    "对购置先进设备按设备价款的15%给予补贴，单次最高100万元",
+  ],
+  tax: [
+    "对符合条件的高新技术企业按15%的税率征收企业所得税",
+    "企业研发费用允许加计扣除100%，形成无形资产的按175%摊销",
+    "对技术转让所得500万元以下部分免征企业所得税",
+  ],
+  talent: [
+    "对引进的顶尖人才给予最高500万元安家补贴及配套科研经费",
+    "对高层次人才提供人才公寓保障，租金按市场价70%收取",
+    "对博士及以上学历人才给予每月3000元生活补贴，期限3年",
+  ],
+  land: [
+    "对重点产业项目优先保障建设用地指标，享受土地出让金优惠",
+    "对符合条件的企业允许弹性年期出让，最短5年",
+    "支持企业利用自有用地建设研发楼宇，容积率适当提高",
+  ],
+  credit: [
+    "对成长型科技企业给予最高500万元无抵押信用贷款",
+    "对贷款利率超过同期LPR部分给予贴息补贴，每年最高100万元",
+    "为区内企业建立融资信用档案，提供绿色通道融资服务",
+  ],
+  award: [
+    "对新认定的国家级专精特新'小巨人'企业给予100万元奖励",
+    "对获得国家科技进步奖的企业，按奖励金额1:1配套奖励",
+    "对产品销售额首次突破1亿元的企业给予50万元奖励",
+  ],
+  platform: [
+    "对新建国家级重点实验室给予最高2000万元建设补贴",
+    "对企业建设的公共技术服务平台给予运营补贴，每年最高200万元",
+    "支持企业牵头组建产业联盟，给予秘书处运营经费支持",
+  ],
+  procurement: [
+    "政府采购创新产品优先采购区内企业产品，份额不低于30%",
+    "对区内企业参与政府采购项目给予5%价格评审优惠",
+    "建立政府首购和订购机制，对新产品推广应用给予支持",
+  ],
+};
+
+// ─── 生成條款面板 ─────────────────────────────────────────
+function ClauseGeneratorPanel({ policyTitle }: { policyTitle: string }) {
+  const [objective, setObjective] = useState("");
+  const [tool, setTool] = useState("");
+  const [generatedClause, setGeneratedClause] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [refClauses, setRefClauses] = useState<string[]>([]);
+  const [showRef, setShowRef] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleShowRef = () => {
+    setRefClauses(REFERENCE_CLAUSES[tool] || []);
+    setShowRef(true);
+  };
+
+  const handleGenerate = () => {
+    if (!tool) return;
+    setIsGenerating(true);
+    setGeneratedClause("");
+    const toolLabel = POLICY_TOOLS.find(t => t.value === tool)?.label || "";
+    const base = REFERENCE_CLAUSES[tool]?.[0] || "";
+    const result = `【${toolLabel}】\n\n${objective ? `基于政策目标"${objective}"，结合${policyTitle}的实际情况，` : ""}${base}。\n\n申报企业须满足以下条件：\n（一）在本区注册并正常经营一年以上；\n（二）企业信用状况良好；\n（三）提交完整的申请材料并通过专家评审。`;
+    let i = 0;
+    const interval = setInterval(() => {
+      if (i < result.length) {
+        setGeneratedClause(result.slice(0, i + 1));
+        i++;
+      } else {
+        clearInterval(interval);
+        setIsGenerating(false);
+      }
+    }, 18);
+  };
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(generatedClause).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  return (
+    <div className="p-4 space-y-0 flex flex-col h-full">
+      <h3 className="text-sm font-semibold text-foreground mb-4">生成条款</h3>
+
+      {/* 政策目標 */}
+      <div className="mb-4">
+        <div className="flex items-center gap-1.5 mb-2">
+          <div className="w-0.5 h-3.5 bg-primary rounded-full" />
+          <p className="text-xs font-medium text-foreground">政策目标</p>
+        </div>
+        <input
+          type="text"
+          value={objective}
+          onChange={(e) => setObjective(e.target.value)}
+          placeholder="请输入政策目标"
+          className="w-full h-9 px-3 text-xs rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30"
+        />
+      </div>
+
+      {/* 政策工具 */}
+      <div className="mb-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-0.5 h-3.5 bg-primary rounded-full" />
+            <p className="text-xs font-medium text-foreground">政策工具</p>
+          </div>
+          <button
+            onClick={handleShowRef}
+            disabled={!tool}
+            className="text-xs px-2.5 py-1 rounded-md border border-primary text-primary hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            参考条款
+          </button>
+        </div>
+        <div className="relative">
+          <select
+            value={tool}
+            onChange={(e) => { setTool(e.target.value); setShowRef(false); setRefClauses([]); }}
+            className="w-full h-9 px-3 pr-8 text-xs rounded-lg border border-border bg-background text-foreground appearance-none focus:outline-none focus:ring-1 focus:ring-primary/30 cursor-pointer"
+          >
+            <option value="">请选择政策工具</option>
+            {POLICY_TOOLS.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        </div>
+
+        {/* 參考條款彈出 */}
+        <AnimatePresence>
+          {showRef && refClauses.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15 }}
+              className="mt-2 rounded-lg border border-primary/20 bg-primary/3 p-2 space-y-1.5"
+            >
+              <p className="text-[11px] font-medium text-primary mb-1.5">参考条款示例</p>
+              {refClauses.map((clause, i) => (
+                <div
+                  key={i}
+                  onClick={() => { setGeneratedClause(clause); setShowRef(false); }}
+                  className="text-[11px] text-muted-foreground leading-relaxed px-2 py-1.5 rounded-md hover:bg-primary/8 hover:text-foreground cursor-pointer transition-colors border border-transparent hover:border-primary/15"
+                >
+                  {i + 1}. {clause}
+                </div>
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* 生成條款區域 */}
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-0.5 h-3.5 bg-primary rounded-full" />
+            <p className="text-xs font-medium text-foreground">生成条款</p>
+          </div>
+          <button
+            onClick={handleGenerate}
+            disabled={!tool || isGenerating}
+            className="text-xs px-3 py-1 rounded-md bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity font-medium flex items-center gap-1"
+          >
+            {isGenerating && <Loader2 className="h-3 w-3 animate-spin" />}
+            生成条款
+          </button>
+        </div>
+        <div className="flex-1 relative">
+          <textarea
+            value={generatedClause}
+            onChange={(e) => setGeneratedClause(e.target.value)}
+            placeholder="点击「生成条款」自动生成，或直接在此输入条款内容"
+            className="w-full h-full min-h-[160px] resize-none px-3 py-2.5 text-xs rounded-lg border border-border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/30 leading-relaxed"
+          />
+          {generatedClause && !isGenerating && (
+            <button
+              onClick={handleCopy}
+              className="absolute bottom-2.5 right-2.5 flex items-center gap-1 text-[11px] px-2 py-1 rounded bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {copied ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3" />}
+              {copied ? "已复制" : "复制"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── 自評估建議面板 ───────────────────────────────────────
+
+type EvalLevel = "clear" | "vague" | "missing";
+
+interface ClauseEval {
+  id: string;
+  /** 條款摘要（前30字） */
+  clause: string;
+  /** 受衆對象 */
+  audience: { level: EvalLevel; note: string };
+  /** 扶持方式 */
+  method: { level: EvalLevel; note: string };
+  /** 扶持力度 */
+  intensity: { level: EvalLevel; note: string };
+  /** 整體可落地性分數（0-100） */
+  score: number;
+}
+
+const EVAL_LABEL: Record<EvalLevel, string> = { clear: "明確", vague: "模糊", missing: "缺失" };
+const EVAL_COLOR: Record<EvalLevel, string> = {
+  clear: "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800",
+  vague: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800",
+  missing: "bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800",
+};
+const EVAL_DOT: Record<EvalLevel, string> = {
+  clear: "bg-emerald-500",
+  vague: "bg-amber-500",
+  missing: "bg-red-500",
+};
+
+/** 從政策全文中提取條款並模擬評估 */
+function evaluateClauses(content: string, policyTitle: string): ClauseEval[] {
+  const mockClauses = [
+    {
+      clause: `对符合条件的${policyTitle.includes("科技") ? "科技" : ""}企业给予资金补贴`,
+      audience: { level: "vague" as EvalLevel, note: "\"符合条件的企业\"范围未明确，建议细化行业、规模、注册地等准入标准" },
+      method: { level: "clear" as EvalLevel, note: "资金补贴方式明确" },
+      intensity: { level: "missing" as EvalLevel, note: "补贴金额、比例及上限均未说明，无法量化预期收益" },
+      score: 42,
+    },
+    {
+      clause: "对引进高层次人才给予生活补贴及安家费",
+      audience: { level: "vague" as EvalLevel, note: "\"高层次人才\"定义模糊，建议对接国家人才目录或设定学历/职称门槛" },
+      method: { level: "clear" as EvalLevel, note: "生活补贴与安家费均为常见扶持方式，执行路径清晰" },
+      intensity: { level: "vague" as EvalLevel, note: "补贴金额区间未提及，建议明确各档次对应额度" },
+      score: 58,
+    },
+    {
+      clause: "对新认定的高新技术企业给予一次性奖励",
+      audience: { level: "clear" as EvalLevel, note: "受众为新认定高企，认定标准清晰，边界明确" },
+      method: { level: "clear" as EvalLevel, note: "一次性奖励操作简单，兑现路径明确" },
+      intensity: { level: "missing" as EvalLevel, note: "奖励金额未注明，建议参照同类城市设定50-100万元区间" },
+      score: 65,
+    },
+    {
+      clause: "优先保障重点产业项目用地指标，享受土地出让优惠",
+      audience: { level: "vague" as EvalLevel, note: "\"重点产业项目\"需配套产业目录，否则审批自由裁量空间过大" },
+      method: { level: "clear" as EvalLevel, note: "用地保障与价格优惠的扶持逻辑清晰" },
+      intensity: { level: "vague" as EvalLevel, note: "\"优惠\"程度不明，建议明确折扣比例或地价上限" },
+      score: 55,
+    },
+    {
+      clause: "对符合条件的贷款给予利率贴息补贴",
+      audience: { level: "clear" as EvalLevel, note: "结合申贷企业范围限定，受众较为清晰" },
+      method: { level: "clear" as EvalLevel, note: "贴息补贴操作成熟，银行配合度高" },
+      intensity: { level: "clear" as EvalLevel, note: "贴息比例、年度上限均有说明，可落地性强" },
+      score: 88,
+    },
+  ];
+
+  // 若有真實正文，根據行數截取替換 clause 文字
+  if (content.length > 100) {
+    const lines = content.split("\n").filter(l => l.trim().length > 10);
+    mockClauses.forEach((mc, i) => {
+      if (lines[i * 3]) mc.clause = lines[i * 3].slice(0, 36).trim() + (lines[i * 3].length > 36 ? "..." : "");
+    });
+  }
+  return mockClauses;
+}
+
+function ScoreBadge({ score }: { score: number }) {
+  const color = score >= 80 ? "text-emerald-600 dark:text-emerald-400" : score >= 60 ? "text-amber-600 dark:text-amber-400" : "text-red-600 dark:text-red-400";
+  const bg = score >= 80 ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800" : score >= 60 ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800" : "bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800";
+  return (
+    <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full border text-xs font-bold ${color} ${bg}`}>
+      {score}分
+    </span>
+  );
+}
+
+function DimTag({ level, label }: { level: EvalLevel; label: string }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-medium ${EVAL_COLOR[level]}`}>
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${EVAL_DOT[level]}`} />
+      {label}：{EVAL_LABEL[level]}
+    </span>
+  );
+}
+
+function EvaluationPanel({ content, policyTitle }: { content: string; policyTitle: string }) {
+  const [status, setStatus] = useState<"idle" | "evaluating" | "done">("idle");
+  const [progress, setProgress] = useState(0);
+  const [results, setResults] = useState<ClauseEval[]>([]);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [stepIdx, setStepIdx] = useState(0);
+
+  const STEPS = [
+    "解析政策条款结构...",
+    "评估受众对象清晰度...",
+    "分析扶持方式可行性...",
+    "衡量扶持力度明确性...",
+    "生成可落地性报告...",
+  ];
+
+  const handleStart = () => {
+    setStatus("evaluating");
+    setProgress(0);
+    setStepIdx(0);
+    setResults([]);
+
+    let p = 0;
+    let s = 0;
+    const timer = setInterval(() => {
+      p += Math.random() * 10 + 6;
+      if (p >= 100) {
+        p = 100;
+        clearInterval(timer);
+        const evals = evaluateClauses(content, policyTitle);
+        setResults(evals);
+        setProgress(100);
+        setStatus("done");
+      } else {
+        setProgress(p);
+        const ns = Math.min(Math.floor(p / 20), STEPS.length - 1);
+        if (ns > s) s = ns;
+        setStepIdx(s);
+      }
+    }, 300);
+  };
+
+  const handleReset = () => {
+    setStatus("idle");
+    setProgress(0);
+    setResults([]);
+    setExpanded({});
+  };
+
+  const toggleExpand = (id: string) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const avgScore = results.length ? Math.round(results.reduce((s, r) => s + r.score, 0) / results.length) : 0;
+  const clearCount = results.filter(r => r.audience.level === "clear" && r.method.level === "clear" && r.intensity.level === "clear").length;
+
+  return (
+    <div className="p-4 flex flex-col h-full">
+      <div className="flex items-center justify-between mb-4 shrink-0">
+        <h3 className="text-sm font-semibold text-foreground">政策自评估</h3>
+        {status === "done" && (
+          <button onClick={handleReset} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+            <RefreshCw className="h-3 w-3" />重新评估
+          </button>
+        )}
+      </div>
+
+      {/* 待機 */}
+      {status === "idle" && (
+        <div className="flex flex-col gap-4 pt-2">
+          <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/40 border border-border">
+            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <TrendingUp className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-foreground">条款可落地性评估</p>
+              <p className="text-[11px] text-muted-foreground">从受众对象、扶持方式、扶持力度<br />三维度衡量条款描写是否明确</p>
+            </div>
+          </div>
+          <button
+            onClick={handleStart}
+            disabled={!content}
+            className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+          >
+            开始自评估
+          </button>
+        </div>
+      )}
+
+      {/* 評估中 */}
+      {status === "evaluating" && (
+        <div className="flex flex-col items-center justify-start gap-5 pt-4 flex-1">
+          <div className="relative w-16 h-16">
+            <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="4" className="text-muted/30" />
+              <circle
+                cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="4"
+                className="text-primary transition-all duration-300"
+                strokeDasharray={`${2 * Math.PI * 28}`}
+                strokeDashoffset={`${2 * Math.PI * 28 * (1 - progress / 100)}`}
+                strokeLinecap="round"
+              />
+            </svg>
+            <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-foreground">
+              {Math.round(progress)}%
+            </span>
+          </div>
+          <div className="w-full space-y-1.5">
+            {STEPS.map((step, i) => (
+              <div key={i} className={`flex items-center gap-2 text-[11px] transition-colors ${i <= stepIdx ? "text-foreground" : "text-muted-foreground/50"}`}>
+                {i < stepIdx
+                  ? <Check className="h-3 w-3 text-primary shrink-0" />
+                  : i === stepIdx
+                    ? <Loader2 className="h-3 w-3 text-primary animate-spin shrink-0" />
+                    : <div className="h-3 w-3 rounded-full border border-muted-foreground/30 shrink-0" />}
+                {step}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 評估完成 */}
+      {status === "done" && (
+        <div className="flex flex-col gap-3 flex-1 min-h-0">
+          {/* 總覽卡 */}
+          <div className="rounded-lg border border-border bg-muted/30 p-3 flex items-center gap-4 shrink-0">
+            <div className="text-center">
+              <p className="text-[10px] text-muted-foreground mb-0.5">综合评分</p>
+              <ScoreBadge score={avgScore} />
+            </div>
+            <div className="w-px h-8 bg-border" />
+            <div className="flex-1 grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-base font-bold text-foreground">{results.length}</p>
+                <p className="text-[10px] text-muted-foreground">总条款</p>
+              </div>
+              <div>
+                <p className="text-base font-bold text-emerald-600 dark:text-emerald-400">{clearCount}</p>
+                <p className="text-[10px] text-muted-foreground">完全明确</p>
+              </div>
+              <div>
+                <p className="text-base font-bold text-amber-600 dark:text-amber-400">{results.length - clearCount}</p>
+                <p className="text-[10px] text-muted-foreground">待完善</p>
+              </div>
+            </div>
+          </div>
+
+          {/* 圖例 */}
+          <div className="flex items-center gap-3 flex-wrap shrink-0">
+            {(["clear", "vague", "missing"] as EvalLevel[]).map(lv => (
+              <div key={lv} className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                <span className={`w-2 h-2 rounded-full ${EVAL_DOT[lv]}`} />
+                {EVAL_LABEL[lv]}
+              </div>
+            ))}
+          </div>
+
+          {/* 條款卡片列表 */}
+          <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+            {results.map((r) => (
+              <div key={r.id} className="rounded-lg border border-border bg-card overflow-hidden">
+                {/* 卡片頭部 */}
+                <div
+                  className="flex items-start gap-2 px-3 py-2.5 cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => toggleExpand(r.id)}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-foreground font-medium leading-snug line-clamp-2">{r.clause}</p>
+                    {/* 三維標籤 */}
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      <DimTag level={r.audience.level} label="受众" />
+                      <DimTag level={r.method.level} label="方式" />
+                      <DimTag level={r.intensity.level} label="力度" />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <ScoreBadge score={r.score} />
+                    <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${expanded[r.id] ? "rotate-180" : ""}`} />
+                  </div>
+                </div>
+
+                {/* 展開詳情 */}
+                <AnimatePresence>
+                  {expanded[r.id] && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="border-t border-border px-3 py-2.5 space-y-2">
+                        {[
+                          { icon: Users, label: "受众对象", data: r.audience },
+                          { icon: Banknote, label: "扶持方式", data: r.method },
+                          { icon: BarChart3, label: "扶持力度", data: r.intensity },
+                        ].map(({ icon: Icon, label, data }) => (
+                          <div key={label} className="flex gap-2">
+                            <div className={`flex items-center gap-1 shrink-0 text-[10px] font-medium w-16 ${
+                              data.level === "clear" ? "text-emerald-600 dark:text-emerald-400" :
+                              data.level === "vague" ? "text-amber-600 dark:text-amber-400" :
+                              "text-red-600 dark:text-red-400"
+                            }`}>
+                              <Icon className="h-3 w-3 shrink-0" />
+                              {label}
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-snug flex-1">{data.note}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 大綱 Fallback（後端未返回時的預設結構）────────────────
+const FALLBACK_OUTLINE: OutlineSection[] = [
+  {
+    id: "ch1", title: "一、总则",
+    subSections: [
+      { id: "ch1-1", title: "1.1 制定目的", keyPoints: ["明确政策出台背景", "阐述政策目标"], referencePolicies: [] },
+      { id: "ch1-2", title: "1.2 适用范围", keyPoints: ["界定适用对象", "明确地域范围"], referencePolicies: [] },
+    ],
+  },
+  {
+    id: "ch2", title: "二、支持内容",
+    subSections: [
+      { id: "ch2-1", title: "2.1 支持方式", keyPoints: ["列举具体扶持工具", "说明资金来源"], referencePolicies: [] },
+      { id: "ch2-2", title: "2.2 支持标准", keyPoints: ["量化支持力度", "分档设定标准"], referencePolicies: [] },
+    ],
+  },
+  {
+    id: "ch3", title: "三、申报条件",
+    subSections: [
+      { id: "ch3-1", title: "3.1 申报主体资格", keyPoints: ["注册地要求", "经营年限及规模门槛"], referencePolicies: [] },
+      { id: "ch3-2", title: "3.2 申报材料", keyPoints: ["基本材料清单", "核查及佐证材料"], referencePolicies: [] },
+    ],
+  },
+  {
+    id: "ch4", title: "四、申报流程",
+    subSections: [
+      { id: "ch4-1", title: "4.1 受理与审核", keyPoints: ["申报时间窗口", "审核流程与时限"], referencePolicies: [] },
+      { id: "ch4-2", title: "4.2 资金拨付", keyPoints: ["拨付方式", "绩效跟踪要求"], referencePolicies: [] },
+    ],
+  },
+  {
+    id: "ch5", title: "五、附则",
+    subSections: [
+      { id: "ch5-1", title: "5.1 解释权与生效日期", keyPoints: ["主管部门", "生效日期"], referencePolicies: [] },
+    ],
+  },
+];
+
+// ─── 行內編輯器（大綱面板用）────────────────────────────────
+function OutlineInlineEditor({
+  value, onSave, className = "",
+}: { value: string; onSave: (v: string) => void; className?: string }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { if (editing) ref.current?.focus(); }, [editing]);
+  const commit = () => { onSave(draft.trim() || value); setEditing(false); };
+  const cancel = () => { setDraft(value); setEditing(false); };
+  if (!editing) {
+    return (
+      <span
+        className={`group/oe flex items-center gap-1 cursor-pointer ${className}`}
+        onClick={() => { setDraft(value); setEditing(true); }}
+      >
+        <span className="flex-1">{value}</span>
+        <Pencil className="h-2.5 w-2.5 text-muted-foreground opacity-0 group-hover/oe:opacity-100 shrink-0 transition-opacity" />
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1 w-full">
+      <input
+        ref={ref} value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") cancel(); }}
+        className={`flex-1 min-w-0 bg-primary/5 border border-primary/30 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-primary/30 ${className}`}
+      />
+      <button onClick={commit} className="text-primary shrink-0"><Check className="h-3 w-3" /></button>
+      <button onClick={cancel} className="text-muted-foreground shrink-0"><X className="h-3 w-3" /></button>
+    </span>
+  );
+}
+
+export function PolicyOutputPage({
+  policyTitle,
+  coreElements = "",
+  selectedPolicies = [],
+  outline: outlineProp = [],
+  onBack,
+  typewriterMode = false,
+  directContent,
+}: PolicyOutputPageProps) {
+  const navigate = useNavigate();
+  const [displayedText, setDisplayedText] = useState("");
+  const [isComplete, setIsComplete] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activePanel, setActivePanel] = useState<string | null>(null);
+  const fullContentRef = useRef("");
+
+  /** 正文引用列表 */
+  const [citations, setCitations] = useState<Citation[]>([]);
+
+  /** 段落互動 */
+  const [activeParagraph, setActiveParagraph] = useState<number | null>(null);
+  const [paraMenuIdx, setParaMenuIdx] = useState<number | null>(null);
+  const [paraActionResult, setParaActionResult] = useState<{ idx: number; action: string; text: string } | null>(null);
+  const [paraActionLoading, setParaActionLoading] = useState(false);
+  const [selectedClauseText, setSelectedClauseText] = useState("");
+  const [calculatorClausePrefill, setCalculatorClausePrefill] = useState("");
+  const [selectionActionLoading, setSelectionActionLoading] = useState<string | null>(null);
+  const editorBodyRef = useRef<HTMLDivElement | null>(null);
+
+  /** 可編輯大綱 state — outlineProp 為空時使用模組層級的 FALLBACK_OUTLINE */
+  const [editableOutline, setEditableOutline] = useState<OutlineSection[]>(() =>
+    outlineProp.length > 0 ? outlineProp : FALLBACK_OUTLINE
+  );
+  const [expandedChapters, setExpandedChapters] = useState<Record<string, boolean>>(() => {
+    const src = outlineProp.length > 0 ? outlineProp : FALLBACK_OUTLINE;
+    const init: Record<string, boolean> = {};
+    src.forEach((s) => { init[s.id] = true; });
+    return init;
+  });
+  const [isOutlineRegenerating, setIsOutlineRegenerating] = useState(false);
+
+  useEffect(() => {
+    if (outlineProp.length > 0) {
+      setEditableOutline(outlineProp);
+      const init: Record<string, boolean> = {};
+      outlineProp.forEach((s) => { init[s.id] = true; });
+      setExpandedChapters(init);
+    }
+  }, [outlineProp.length]);
+
+  /** 重新生成提綱（模擬） */
+  const handleRegenerateOutline = () => {
+    setIsOutlineRegenerating(true);
+    setTimeout(() => {
+      const base = outlineProp.length > 0 ? outlineProp : FALLBACK_OUTLINE;
+      setEditableOutline(base.map(s => ({
+        ...s,
+        subSections: s.subSections.map(sub => ({
+          ...sub,
+          keyPoints: [...sub.keyPoints, "（重新生成补充要点）"],
+        })),
+      })));
+      setIsOutlineRegenerating(false);
+    }, 1800);
+  };
+
+  /** 節：刪除參考文檔 */
+  const removeRefFromSub = (sId: string, subId: string, ri: number) => {
+    const sub = editableOutline.find(s => s.id === sId)?.subSections.find(s => s.id === subId);
+    if (sub) patchSub(sId, subId, { referencePolicies: sub.referencePolicies.filter((_, i) => i !== ri) });
+  };
+
+  // ── 大綱編輯操作 ──
+  const patchChapter = (sId: string, patch: Partial<OutlineSection>) =>
+    setEditableOutline(prev => prev.map(s => (s.id === sId ? { ...s, ...patch } : s)));
+
+  const updateChapterTitle = (sId: string, v: string) => patchChapter(sId, { title: v });
+
+  const chapterKeyPoints = (sId: string) => editableOutline.find(s => s.id === sId)?.keyPoints ?? [];
+
+  const updateChapterKeyPoint = (sId: string, pi: number, v: string) => {
+    const pts = chapterKeyPoints(sId);
+    patchChapter(sId, { keyPoints: pts.map((k, i) => (i === pi ? v : k)) });
+  };
+
+  const addChapterKeyPoint = (sId: string) => {
+    patchChapter(sId, { keyPoints: [...chapterKeyPoints(sId), "新要点"] });
+  };
+
+  const removeChapterKeyPoint = (sId: string, pi: number) => {
+    patchChapter(sId, { keyPoints: chapterKeyPoints(sId).filter((_, i) => i !== pi) });
+  };
+
+  const patchSub = (sId: string, subId: string, patch: Partial<OutlineSubSection>) =>
+    setEditableOutline(prev => prev.map(s =>
+      s.id === sId ? { ...s, subSections: s.subSections.map(sub => sub.id === subId ? { ...sub, ...patch } : sub) } : s
+    ));
+
+  const updateSubTitle = (sId: string, subId: string, v: string) => patchSub(sId, subId, { title: v });
+
+  const updateKeyPoint = (sId: string, subId: string, pi: number, v: string) => {
+    const sub = editableOutline.find(s => s.id === sId)?.subSections.find(s => s.id === subId);
+    if (sub) patchSub(sId, subId, { keyPoints: sub.keyPoints.map((k, i) => i === pi ? v : k) });
+  };
+
+  const addKeyPoint = (sId: string, subId: string) => {
+    const sub = editableOutline.find(s => s.id === sId)?.subSections.find(s => s.id === subId);
+    if (sub) patchSub(sId, subId, { keyPoints: [...sub.keyPoints, "新要点"] });
+  };
+
+  const removeKeyPoint = (sId: string, subId: string, pi: number) => {
+    const sub = editableOutline.find(s => s.id === sId)?.subSections.find(s => s.id === subId);
+    if (sub) patchSub(sId, subId, { keyPoints: sub.keyPoints.filter((_, i) => i !== pi) });
+  };
+
+  const addSubSection = (sId: string) =>
+    setEditableOutline(prev =>
+      prev.map(s => {
+        if (s.id !== sId) return s;
+        return {
+          ...s,
+          keyPoints: s.subSections.length === 0 ? [] : (s.keyPoints ?? []),
+          subSections: [
+            ...s.subSections,
+            { id: `${sId}-${Date.now()}`, title: "新节标题", keyPoints: ["新要点"], referencePolicies: [] },
+          ],
+        };
+      }),
+    );
+
+  const removeChapter = (sId: string) => {
+    if (editableOutline.length <= 1) return;
+    setEditableOutline(prev => prev.filter(s => s.id !== sId));
+    setExpandedChapters(prev => {
+      const next = { ...prev };
+      delete next[sId];
+      return next;
+    });
+  };
+
+  const moveChapter = (draggedId: string, targetId: string) => {
+    setEditableOutline((prev) => reorderOutlineById(prev, draggedId, targetId));
+  };
+
+  const { bindDropZone, bindDragHandle, dropHighlight } = useOutlineChapterDrag(moveChapter);
+
+  const removeSubSection = (sId: string, subId: string) => {
+    const section = editableOutline.find(s => s.id === sId);
+    if (!section) return;
+    setEditableOutline(prev =>
+      prev.map(s =>
+        s.id === sId ? { ...s, subSections: s.subSections.filter(sub => sub.id !== subId) } : s,
+      ),
+    );
+  };
+
+  // directContent：从助手直接传入，跳过生成
+  useEffect(() => {
+    if (directContent) {
+      fullContentRef.current = directContent;
+      setDisplayedText(directContent);
+      setIsComplete(true);
+      setIsLoading(false);
+    }
+  // 仅在 directContent 首次挂载时执行
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (directContent) return;
+    setIsLoading(true);
+    setError(null);
+    generateContent({ policyTitle, coreElements, selectedPolicies, outline: outlineProp })
+      .then(({ content, citations: cites }) => {
+        if (cites?.length) setCitations(cites);
+        fullContentRef.current = content;
+        setIsLoading(false);
+
+        /**
+         * typewriterMode：快速起草入口，跳过等待直接逐字输出；
+         * 正常模式：12ms/字；快速模式：6ms/字（更快体验打字机效果）
+         */
+        const charDelay = typewriterMode ? 6 : 12;
+        let index = 0;
+        const interval = setInterval(() => {
+          if (index < content.length) {
+            setDisplayedText(content.slice(0, index + 1));
+            index++;
+          } else {
+            setIsComplete(true);
+            clearInterval(interval);
+          }
+        }, charDelay);
+        return () => clearInterval(interval);
+      })
+      .catch((err: Error) => {
+        setError(err.message);
+        setIsLoading(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * 將文章文字按問題詞語分割並包裹高亮 span
+   * 敏感詞 → 紅色底，不當用詞 → 橙色底
+   */
+  /** 將純文字 token 轉為 React 節點，同時處理 [ref:N] 角標 */
+  const renderToken = (token: string, keyPrefix: string) => {
+    const citationMap = Object.fromEntries(citations.map(c => [`[ref:${c.index}]`, c]));
+    const refPattern = citations.length > 0
+      ? new RegExp(`(\\[ref:\\d+\\])`, "g")
+      : null;
+
+    if (!refPattern) return <span key={keyPrefix}>{token}</span>;
+
+    const subParts = token.split(refPattern);
+    return (
+      <span key={keyPrefix}>
+        {subParts.map((sub, si) => {
+          const cite = citationMap[sub];
+          if (!cite) return <span key={si}>{sub}</span>;
+          return (
+            <span key={si} className="relative inline-block group/cite">
+              <a
+                href={cite.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center min-w-[1.1em] h-[1.1em] text-[10px] font-bold leading-none align-super bg-primary/15 hover:bg-primary/30 text-primary rounded border border-primary/30 px-0.5 mx-0.5 cursor-pointer transition-colors no-underline"
+                title={`${cite.title}${cite.source ? ` — ${cite.source}` : ""}`}
+              >
+                {cite.index}
+              </a>
+              {/* Tooltip */}
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 pointer-events-none opacity-0 group-hover/cite:opacity-100 transition-opacity duration-150 whitespace-nowrap">
+                <span className="flex flex-col items-start gap-0.5 bg-popover text-popover-foreground border border-border rounded-lg shadow-lg px-3 py-2.5 text-[11px] w-[380px] whitespace-normal">
+                  <span className="font-semibold text-foreground">{cite.title}</span>
+                  {cite.source && <span className="text-muted-foreground">{cite.source}</span>}
+                  <span className="text-primary text-[10px]">点击跳转政策原文 →</span>
+                </span>
+                <span className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-1 overflow-hidden">
+                  <span className="block w-2 h-2 bg-popover border-r border-b border-border rotate-45 -translate-y-1.5 translate-x-0" />
+                </span>
+              </span>
+            </span>
+          );
+        })}
+      </span>
+    );
+  };
+
+  /** 渲染正文：處理引用角標 [ref:N] */
+  const renderHighlightedText = (text: string) => renderToken(text, "all");
+
+  const isPolicyHeadingLine = (line: string) => {
+    const text = line.replace(/\[ref:\d+\]/g, "").trim();
+    if (!text) return false;
+    if (text === policyTitle.trim()) return true;
+    return /^(第[一二三四五六七八九十\d]+[章节条]|[一二三四五六七八九十]+、|[（(][一二三四五六七八九十\d]+[）)]|附则|总则|支持内容|申报条件|申报流程)/.test(text);
+  };
+
+  const renderPolicyLines = (text: string, keyPrefix: string) =>
+    text.split("\n").map((line, lineIndex) => {
+      const trimmedLine = line.trim();
+      if (!trimmedLine) return <div key={`${keyPrefix}-${lineIndex}`} className="h-2" />;
+      const isHeading = isPolicyHeadingLine(trimmedLine);
+      return (
+        <p
+          key={`${keyPrefix}-${lineIndex}`}
+          className={isHeading ? "font-semibold text-foreground" : ""}
+          style={isHeading ? undefined : { textIndent: "2em" }}
+        >
+          {renderHighlightedText(trimmedLine)}
+        </p>
+      );
+    });
+
+  const handleToolClick = (id: string) => {
+    setActivePanel((prev) => (prev === id ? null : id));
+  };
+
+  const handleUseSelectionForCalculation = () => {
+    if (!selectedClauseText.trim()) return;
+    setCalculatorClausePrefill(selectedClauseText.trim());
+    setActivePanel("calculate");
+  };
+
+  const handleAcceptProofreadIssue = (issue: ProofreadIssue) => {
+    const current = fullContentRef.current || displayedText;
+    const next = current.includes(issue.original)
+      ? current.replace(issue.original, issue.replacement)
+      : current.replace(compactReviewText(issue.original), issue.replacement);
+    fullContentRef.current = next;
+    setDisplayedText(next);
+  };
+
+  const handleInsertClauseMaterial = (clauseText: string) => {
+    const trimmed = clauseText.trim();
+    if (!trimmed) return;
+    const current = (fullContentRef.current || displayedText).trim();
+    const next = current ? `${current}\n\n${trimmed}` : trimmed;
+    fullContentRef.current = next;
+    setDisplayedText(next);
+  };
+
+  const updateEditableTextBlock = (blockIndex: number, nextBlock: string) => {
+    const blocks = (fullContentRef.current || displayedText).split(/\n{2,}/);
+    const normalizedBlock = nextBlock
+      .replace(/\u00a0/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    if (!normalizedBlock || blocks[blockIndex]?.trim() === normalizedBlock) return;
+    const nextBlocks = [...blocks];
+    nextBlocks[blockIndex] = normalizedBlock;
+    const nextContent = nextBlocks.join("\n\n");
+    fullContentRef.current = nextContent;
+    setDisplayedText(nextContent);
+  };
+
+  const applySelectionTextAction = (action: "polish" | "expand" | "accompany") => {
+    const selected = selectedClauseText.trim();
+    if (!selected) return;
+    setSelectionActionLoading(action);
+    setTimeout(() => {
+      const content = fullContentRef.current || displayedText;
+      let replaced = selected;
+      if (action === "polish") {
+        replaced = `经润色：${selected.replace(/，/g, "，并").replace(/。?$/, "。")}`;
+      } else if (action === "expand") {
+        replaced = `${selected} 同时，进一步细化适用对象、申报流程和绩效评估标准，明确审核口径与责任分工，提升条款可执行性。`;
+      } else if (action === "accompany") {
+        replaced = `${selected} 建议补充：符合条件的企业应在本区持续经营并按要求提交佐证材料，主管部门按程序组织审核兑现。`;
+      }
+
+      const next = content.includes(selected) ? content.replace(selected, replaced) : content;
+      fullContentRef.current = next;
+      setDisplayedText(next);
+      setSelectionActionLoading(null);
+      setSelectedClauseText("");
+      window.getSelection()?.removeAllRanges();
+    }, 700);
+  };
+
+  return (
+    <div className="flex flex-col -mx-6 -my-6 md:-mx-8 md:-my-8 px-6 py-0 md:px-8" style={{ height: "100vh" }}>
+      {/* 快速起草模式：打字机输出进度提示条 */}
+      {typewriterMode && !isComplete && !isLoading && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-2.5 mb-3 px-4 py-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 shrink-0"
+        >
+          <div className="flex gap-0.5">
+            {[0, 1, 2].map(i => (
+              <motion.div
+                key={i}
+                className="h-1.5 w-1.5 rounded-full bg-amber-500"
+                animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1, 0.8] }}
+                transition={{ duration: 1, repeat: Infinity, delay: i * 0.15 }}
+              />
+            ))}
+          </div>
+          <span className="text-xs font-medium">AI 正在输出政策全文，请稍候…</span>
+        </motion.div>
+      )}
+
+      {/* Top bar */}
+      <div className="flex items-center justify-between mb-4 shrink-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h2 className="text-base font-semibold text-foreground">政策文件编辑</h2>
+        </div>
+        <div className="flex gap-2">
+          {isComplete && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex gap-2"
+            >
+              <Button
+                size="sm"
+                className="text-xs gap-1.5 gov-gradient text-primary-foreground hover:opacity-90"
+                onClick={() =>
+                  navigate("/policy-writing/pre-evaluation", {
+                    state: {
+                      startEvaluation: true,
+                      policyTitle,
+                      policyContent: displayedText || fullContentRef.current,
+                    },
+                  })
+                }
+              >
+                去评估
+              </Button>
+              <Button variant="outline" size="sm" className="text-xs gap-1.5">
+                <Download className="h-3.5 w-3.5" />
+              </Button>
+            </motion.div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-4 flex-1 min-h-0">
+        {/* Left tool sidebar */}
+        <div className="w-[132px] shrink-0">
+          <div className="rounded-[26px] border border-border bg-card/95 px-3 py-4 shadow-sm">
+            <div className="flex flex-col gap-2">
+              {editorTools.map((tool) => (
+                <button
+                  key={tool.id}
+                  onClick={() => handleToolClick(tool.id)}
+                  className={`group w-full rounded-2xl px-2 py-2.5 transition-colors ${
+                    activePanel === tool.id ? "bg-muted/70" : "hover:bg-muted/45"
+                  }`}
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted">
+                      <tool.icon
+                        className={`h-7 w-7 transition-colors ${
+                          activePanel === tool.id
+                            ? "text-primary"
+                            : "text-slate-500 group-hover:text-slate-600"
+                        }`}
+                      />
+                    </div>
+                    <span
+                      className={`text-xs leading-none tracking-tight whitespace-nowrap transition-colors ${
+                        activePanel === tool.id
+                          ? "text-primary"
+                          : "text-slate-600 group-hover:text-slate-700"
+                      }`}
+                    >
+                      {tool.label}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Main content area */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex-1 bg-card rounded-xl border border-border min-w-0 flex flex-col min-h-0"
+        >
+          {activePanel === "calculate" ? (
+            <PolicyCalculatorWorkspace initialClauseContent={calculatorClausePrefill} />
+          ) : (
+            <>
+              {/* Editor toolbar */}
+              <div className="flex items-center gap-0.5 px-4 py-2 border-b border-border flex-wrap shrink-0">
+                <div className="flex items-center gap-0.5">
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors" title="撤销"><Undo2 className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors" title="重做"><Redo2 className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                </div>
+                <div className="w-px h-4 bg-border mx-1.5" />
+                <select className="h-7 px-2 text-xs rounded border border-border bg-background text-foreground appearance-none cursor-pointer">
+                  <option>正文</option>
+                  <option>标题一</option>
+                  <option>标题二</option>
+                  <option>标题三</option>
+                </select>
+                <select className="h-7 px-2 text-xs rounded border border-border bg-background text-foreground appearance-none cursor-pointer ml-1">
+                  <option>14px</option>
+                  <option>12px</option>
+                  <option>16px</option>
+                  <option>18px</option>
+                  <option>20px</option>
+                </select>
+                <div className="w-px h-4 bg-border mx-1.5" />
+                <div className="flex items-center gap-0.5">
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors" title="加粗"><Bold className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors" title="斜体"><Italic className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors" title="下划线"><Underline className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors" title="删除线"><Strikethrough className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                </div>
+                <div className="w-px h-4 bg-border mx-1.5" />
+                <div className="flex items-center gap-0.5">
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors bg-muted" title="左对齐"><AlignLeft className="h-3.5 w-3.5 text-foreground" /></button>
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors" title="居中"><AlignCenter className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors" title="右对齐"><AlignRight className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                </div>
+                <div className="w-px h-4 bg-border mx-1.5" />
+                <div className="flex items-center gap-0.5">
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors" title="无序列表"><List className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                  <button className="p-1.5 rounded hover:bg-muted transition-colors" title="有序列表"><ListOrdered className="h-3.5 w-3.5 text-muted-foreground" /></button>
+                </div>
+              </div>
+
+              <div
+                ref={editorBodyRef}
+                className="px-12 py-8 overflow-y-auto flex-1"
+                onClick={(e) => {
+                  if ((e.target as HTMLElement).closest("[data-para-menu]")) return;
+                  setParaMenuIdx(null);
+                }}
+                onMouseUp={() => {
+                  const selection = window.getSelection();
+                  if (!selection || selection.rangeCount === 0) return;
+                  const selectedText = selection.toString().trim();
+                  if (!selectedText) return;
+                  const range = selection.getRangeAt(0);
+                  const container = editorBodyRef.current;
+                  if (!container) return;
+                  const withinEditor = container.contains(range.commonAncestorContainer);
+                  if (!withinEditor) return;
+                  setSelectedClauseText(selectedText);
+                }}
+              >
+                <p className="font-semibold text-lg mb-6 text-foreground text-center">{policyTitle}</p>
+                {isLoading ? (
+                  <div className="flex flex-col items-center justify-center py-24 gap-3">
+                    <Loader2 className="h-8 w-8 text-primary animate-spin" />
+                    <p className="text-sm text-muted-foreground">正在根据检索与大纲生成政策全文...</p>
+                  </div>
+                ) : error ? (
+                  <div className="flex flex-col items-center justify-center py-24 gap-3 text-destructive">
+                    <p className="text-sm">正文生成失败：{error}</p>
+                  </div>
+                ) : (
+                  <>
+                {/* 段落按块渲染：避免逐行碎片化展示，完成后支持 hover 交互 */}
+                <div className="text-base text-foreground leading-[1.95] space-y-3 pr-4">
+                  {isComplete ? (
+                    displayedText.split(/\n{2,}/).map((block, idx) => {
+                      const trimmed = block.trim();
+                      if (!trimmed) return <div key={idx} className="h-2" />;
+                      const isActive = activeParagraph === idx;
+                      const isMenuOpen = paraMenuIdx === idx;
+                      return (
+                        <div
+                          key={idx}
+                          className="group relative flex items-start gap-2"
+                          onMouseEnter={() => setActiveParagraph(idx)}
+                          onMouseLeave={() => { if (paraMenuIdx !== idx) setActiveParagraph(null); }}
+                        >
+                          {/* 左側 AI 圖標 */}
+                          <button
+                            className={`shrink-0 mt-0.5 w-5 h-5 rounded flex items-center justify-center transition-all ${
+                              isMenuOpen
+                                ? "opacity-100 bg-primary text-white shadow"
+                                : "opacity-0 group-hover:opacity-100 bg-primary/10 text-primary hover:bg-primary hover:text-white"
+                            }`}
+                            title="AI 操作"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setParaMenuIdx(isMenuOpen ? null : idx);
+                              setActiveParagraph(idx);
+                              setParaActionResult(null);
+                            }}
+                          >
+                            <Sparkles className="h-3 w-3" />
+                          </button>
+
+                          {/* 段落文字 */}
+                          <div
+                            contentEditable
+                            suppressContentEditableWarning
+                            role="textbox"
+                            aria-multiline="true"
+                            tabIndex={0}
+                            className={`flex-1 rounded px-1 -mx-1 transition-colors outline-none focus:bg-primary/5 focus:ring-1 focus:ring-primary/20 ${
+                              isActive || isMenuOpen ? "bg-primary/5" : ""
+                            }`}
+                            onBlur={(e) => updateEditableTextBlock(idx, e.currentTarget.innerText)}
+                            onFocus={() => setActiveParagraph(idx)}
+                          >
+                            <div className="space-y-2">{renderPolicyLines(trimmed, `block-${idx}`)}</div>
+                          </div>
+
+                          {/* 操作選單 */}
+                          {isMenuOpen && (
+                            <div
+                              data-para-menu
+                              className="absolute left-6 top-6 z-50 bg-card border border-border rounded-xl shadow-lg p-2 w-56"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <p className="text-[10px] text-muted-foreground px-2 pb-1.5 font-medium">AI 段落操作</p>
+                              {PARA_ACTIONS.map((action) => {
+                                const Icon = action.icon;
+                                const isLoading = paraActionLoading && paraActionResult?.action === action.id && paraActionResult.idx === idx;
+                                return (
+                                  <button
+                                    key={action.id}
+                                    className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-muted transition-colors text-left"
+                                    onClick={() => {
+                                      if (action.id === "calculate") {
+                                        setCalculatorClausePrefill(trimmed);
+                                        setActivePanel("calculate");
+                                        setParaMenuIdx(null);
+                                        setParaActionLoading(false);
+                                        return;
+                                      }
+                                      setParaActionLoading(true);
+                                      setParaActionResult({ idx, action: action.id, text: "" });
+                                      setTimeout(() => {
+                                        const resultMap: Record<string, string> = {
+                                          accompany: "（AI伴写）本条款可进一步明确适用范围，建议补充：符合条件的企业须在本市注册登记满一年，且近三年无重大违规记录...",
+                                          expand: "（扩写）为确保政策精准落地，本条款在执行过程中应注意以下几点：一是明确申报主体资格；二是规范资金拨付流程；三是建立绩效评估机制...",
+                                          polish: "（润色）本条款经优化后表述更为规范：依据相关法律法规，对符合条件的市场主体给予相应支持，具体标准由主管部门另行制定。",
+                                          calculate: "（资金测算）预计覆盖企业：约 1,200 家；年度资金需求：约 3,600 万元；人均补贴：约 3 万元/企业。",
+                                          reserve: "✓ 已成功加入条款储备库",
+                                        };
+                                        setParaActionResult({ idx, action: action.id, text: resultMap[action.id] ?? "操作完成" });
+                                        setParaActionLoading(false);
+                                      }, 1200);
+                                    }}
+                                  >
+                                    {isLoading
+                                      ? <Loader2 className="h-3.5 w-3.5 text-primary animate-spin shrink-0" />
+                                      : <Icon className="h-3.5 w-3.5 text-primary shrink-0" />}
+                                    <div>
+                                      <p className="text-xs font-medium text-foreground">{action.label}</p>
+                                      <p className="text-[10px] text-muted-foreground">{action.desc}</p>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                              {/* 操作結果展示 */}
+                              {paraActionResult && paraActionResult.idx === idx && paraActionResult.text && !paraActionLoading && (
+                                <div className="mt-2 mx-1 p-2 bg-primary/5 rounded-lg border border-primary/20">
+                                  <p className="text-[11px] text-foreground leading-relaxed">{paraActionResult.text}</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="whitespace-pre-line text-base leading-[1.95] indent-[2em]">
+                      {displayedText}<span className="inline-block w-0.5 h-4 bg-primary animate-pulse ml-0.5 align-text-bottom" />
+                    </div>
+                  )}
+                </div>
+
+                {isComplete && (
+                  <>
+                    {/* 參考文獻列表 */}
+                    {citations.length > 0 && (
+                      <div className="mt-8 pt-5 border-t border-border/60">
+                        <p className="text-xs font-semibold text-foreground mb-2.5">参考文献</p>
+                        <ol className="space-y-1.5 list-none">
+                          {citations.map((cite) => (
+                            <li key={cite.index} className="flex items-start gap-2 text-xs text-muted-foreground">
+                              <span className="inline-flex items-center justify-center min-w-[1.3em] h-[1.3em] text-[10px] font-bold bg-primary/10 text-primary rounded border border-primary/20 shrink-0 mt-0.5">
+                                {cite.index}
+                              </span>
+                              <span className="leading-relaxed">
+                                {cite.title}
+                                {cite.source && <span className="text-muted-foreground/70 ml-1">[{cite.source}]</span>}
+                                {cite.url && (
+                                  <a
+                                    href={cite.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-0.5 ml-1.5 text-primary hover:underline"
+                                  >
+                                    查看原文
+                                    <ExternalLink className="h-2.5 w-2.5" />
+                                  </a>
+                                )}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
+                  </>
+                )}
+                  </>
+                )}
+
+                {selectedClauseText && (
+                  <div className="sticky bottom-4 z-30 ml-auto mt-4 w-fit rounded-xl border border-primary/30 bg-background/95 p-2 shadow-lg backdrop-blur">
+                    <div className="mb-1 px-1 text-[10px] text-muted-foreground max-w-[340px] truncate">
+                      已选中：{selectedClauseText}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        className="h-8 px-3 text-xs"
+                        onClick={handleUseSelectionForCalculation}
+                      >
+                        资金测算
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                        disabled={selectionActionLoading !== null}
+                        onClick={() => applySelectionTextAction("polish")}
+                      >
+                        {selectionActionLoading === "polish" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "润色"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                        disabled={selectionActionLoading !== null}
+                        onClick={() => applySelectionTextAction("expand")}
+                      >
+                        {selectionActionLoading === "expand" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "扩写"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-3 text-xs"
+                        disabled={selectionActionLoading !== null}
+                        onClick={() => applySelectionTextAction("accompany")}
+                      >
+                        {selectionActionLoading === "accompany" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "续写"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 px-2 text-xs"
+                        onClick={() => {
+                          setSelectedClauseText("");
+                          window.getSelection()?.removeAllRanges();
+                        }}
+                      >
+                        关闭
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </motion.div>
+
+        {/* Right side panel */}
+        <AnimatePresence>
+          {activePanel && activePanel !== "calculate" && (
+            <motion.div
+              initial={{ opacity: 0, width: 0 }}
+              animate={{ opacity: 1, width: 360 }}
+              exit={{ opacity: 0, width: 0 }}
+              transition={{ duration: 0.25 }}
+              className="shrink-0 overflow-hidden min-h-0"
+            >
+              <div className="w-[360px] bg-card rounded-xl border border-border h-full flex flex-col min-h-0">
+                {activePanel === "outline" && (
+                  <div className="flex-1 flex flex-col min-h-0">
+                    {/* 頭部：固定不滾動 */}
+                    <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
+                      <div>
+                        <h3 className="text-sm font-semibold text-foreground">大纲编辑</h3>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground">拖动章节可调整顺序</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleRegenerateOutline}
+                          disabled={isOutlineRegenerating}
+                          className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+                        >
+                          {isOutlineRegenerating
+                            ? <><Loader2 className="h-3 w-3 animate-spin" />生成中…</>
+                            : <><RefreshCw className="h-3 w-3" />重新生成</>}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 可滾動的大綱內容 */}
+                    <div className="flex-1 overflow-y-auto min-h-0 px-4 pb-4">
+                      <div className="text-xs space-y-2">
+                        {editableOutline.map((section) => (
+                          <div
+                            key={section.id}
+                            className={`rounded-lg border border-border overflow-hidden ${dropHighlight(section.id)}`}
+                            {...bindDropZone(section.id)}
+                          >
+                            {/* 一級章標題 */}
+                            <div className="flex items-center justify-between gap-2 px-2.5 py-2 bg-muted/40 hover:bg-muted/60 transition-colors">
+                              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                                {editableOutline.length > 1 && (
+                                  <button
+                                    type="button"
+                                    aria-label="拖动排序"
+                                    className="shrink-0 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing touch-none"
+                                    {...bindDragHandle(section.id)}
+                                  >
+                                    <GripVertical className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedChapters(prev => ({ ...prev, [section.id]: !prev[section.id] }))}
+                                  className="text-muted-foreground hover:text-foreground shrink-0"
+                                >
+                                  {expandedChapters[section.id]
+                                    ? <ChevronDown className="h-3 w-3" />
+                                    : <ChevronRight className="h-3 w-3" />}
+                                </button>
+                                <OutlineInlineEditor
+                                  value={section.title}
+                                  onSave={(v) => updateChapterTitle(section.id, v)}
+                                  className="font-semibold text-foreground text-xs"
+                                />
+                              </div>
+                              {editableOutline.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => removeChapter(section.id)}
+                                  className="shrink-0 text-[11px] text-destructive hover:underline flex items-center gap-0.5"
+                                >
+                                  <X className="h-3 w-3" />
+                                  删除
+                                </button>
+                              )}
+                            </div>
+
+                            {expandedChapters[section.id] && (
+                              <>
+                                {(section.subSections?.length ?? 0) === 0 && (
+                                  <div className="border-b border-border/50 bg-muted/10 px-3 py-2 space-y-1.5">
+                                    <p className="text-[11px] font-medium text-muted-foreground">核心要点</p>
+                                    {(section.keyPoints ?? []).length > 0 && (
+                                      <ul className="space-y-0.5 pl-2">
+                                        {(section.keyPoints ?? []).map((pt, pi) => (
+                                          <li key={pi} className="flex items-center gap-1 group/ckp">
+                                            <span className="text-primary shrink-0 text-[10px]">•</span>
+                                            <OutlineInlineEditor
+                                              value={pt}
+                                              onSave={(v) => updateChapterKeyPoint(section.id, pi, v)}
+                                              className="text-muted-foreground text-[11px] flex-1"
+                                            />
+                                            <button
+                                              type="button"
+                                              onClick={() => removeChapterKeyPoint(section.id, pi)}
+                                              className="opacity-0 group-hover/ckp:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+                                            >
+                                              <X className="h-2.5 w-2.5" />
+                                            </button>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => addChapterKeyPoint(section.id)}
+                                      className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-primary transition-colors pl-2"
+                                    >
+                                      <Plus className="h-3 w-3" />添加要点
+                                    </button>
+                                  </div>
+                                )}
+
+                                {/* 二級節 */}
+                                {(section.subSections?.length ?? 0) > 0 && (
+                                <div className="divide-y divide-border/50">
+                                {section.subSections.map((sub) => (
+                                    <div key={sub.id} className="px-3 py-2 space-y-1.5">
+                                      {/* 節標題 */}
+                                      <div className="flex items-start justify-between gap-2">
+                                        <OutlineInlineEditor
+                                          value={sub.title}
+                                          onSave={(v) => updateSubTitle(section.id, sub.id, v)}
+                                          className="font-medium text-foreground text-[11px] flex-1 min-w-0"
+                                        />
+                                        {(section.subSections?.length ?? 0) >= 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => removeSubSection(section.id, sub.id)}
+                                            className="shrink-0 text-[11px] text-destructive hover:underline flex items-center gap-0.5"
+                                          >
+                                            <X className="h-3 w-3" />
+                                            删除
+                                          </button>
+                                        )}
+                                      </div>
+                                      {/* 要點列表 */}
+                                      <ul className="space-y-0.5 pl-2">
+                                        {sub.keyPoints?.map((pt, pi) => (
+                                          <li key={pi} className="flex items-center gap-1 group/kp">
+                                            <span className="text-primary shrink-0 text-[10px]">•</span>
+                                            <OutlineInlineEditor
+                                              value={pt}
+                                              onSave={(v) => updateKeyPoint(section.id, sub.id, pi, v)}
+                                              className="text-muted-foreground text-[11px] flex-1"
+                                            />
+                                            <button
+                                              onClick={() => removeKeyPoint(section.id, sub.id, pi)}
+                                              className="opacity-0 group-hover/kp:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
+                                            >
+                                              <X className="h-2.5 w-2.5" />
+                                            </button>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                      <button
+                                        onClick={() => addKeyPoint(section.id, sub.id)}
+                                        className="flex items-center gap-0.5 text-[11px] text-muted-foreground hover:text-primary transition-colors pl-2"
+                                      >
+                                        <Plus className="h-3 w-3" />添加要点
+                                      </button>
+
+                                      {/* 參考文檔標籤列表（ref 是物件，顯示 title 欄位） */}
+                                      {(sub.referencePolicies?.length ?? 0) > 0 && (
+                                        <div className="flex flex-wrap gap-1 pl-2 pt-0.5">
+                                          {sub.referencePolicies.map((ref, ri) => {
+                                            const label = typeof ref === "string" ? ref : ref.title;
+                                            return (
+                                              <span key={ri} className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary border border-primary/20 rounded px-1.5 py-0.5">
+                                                <FileText className="h-2.5 w-2.5 shrink-0" />
+                                                {label}
+                                                <button
+                                                  onClick={() => removeRefFromSub(section.id, sub.id, ri)}
+                                                  className="hover:text-destructive transition-colors ml-0.5"
+                                                >
+                                                  <X className="h-2.5 w-2.5" />
+                                                </button>
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                ))}
+                                </div>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => addSubSection(section.id)}
+                                  className="flex items-center gap-1 w-full px-3 py-1.5 text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors border-t border-dashed border-border"
+                                >
+                                  <Plus className="h-3 w-3" />添加节
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {activePanel === "clause" && (
+                  <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+                    <ClauseGeneratorPanel policyTitle={policyTitle} />
+                  </div>
+                )}
+                {activePanel === "evaluate" && (
+                  <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
+                    <EvaluationPanel content={displayedText} policyTitle={policyTitle} />
+                  </div>
+                )}
+                {activePanel === "reference" && (
+                  <PolicyReferenceSourcesPanel citations={citations} selectedPolicies={selectedPolicies} />
+                )}
+                {activePanel === "proofread" && (
+                  <PolicyProofreadPanel
+                    content={displayedText || fullContentRef.current}
+                    onAccept={handleAcceptProofreadIssue}
+                  />
+                )}
+                {activePanel === "material" && (
+                  <ClauseMaterialPanel onInsert={handleInsertClauseMaterial} />
+                )}
+                {activePanel !== "mindmap" && activePanel !== "outline" && activePanel !== "reference" && activePanel !== "proofread" && activePanel !== "material" && activePanel !== "clause" && activePanel !== "evaluate" && (
+                  <div className="p-4 flex flex-col items-center justify-center h-full min-h-[300px] text-muted-foreground">
+                    <p className="text-sm">功能开发中...</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}

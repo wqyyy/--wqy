@@ -1,0 +1,38 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.vercel
+
+# 本地参考文档，不纳入版本库
+/*.docx
+
+# Bun（本项目使用 npm / package-lock.json）
+bun.lock
+bun.lockb
+
+# Vite 预构建缓存
+.vite/
+
+# Lovable 生成计划（非现行文档）
+.lovable/
