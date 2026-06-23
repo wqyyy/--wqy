@@ -3,7 +3,7 @@ import type { PolicyItem } from "@/components/policy-drafting/drafting/PolicySea
 /**
  * 可选聚合接口 `import.meta.env.VITE_GOV_POLICY_SEARCH_API`：
  * - URL 中可使用 `{q}` 或 `{keyword}`，会替换为检索词的 encodeURIComponent 结果。
- * - 响应 JSON 支持 `{ "items" | "results" | "data" | "list": [ { "title", "url", "level"?: "national"|"beijing"|"other", "source"?: string } ] }`。
+ * - 响应 JSON 支持 `{ "items" | "results" | "data" | "list": [ { "title", "url", "level"?: "yizhuang"|"national"|"beijing"|"other", "source"?: string } ] }`。
  * 需服务端配置 CORS 允许本前端域名，或由同源网关转发。
  */
 
@@ -30,6 +30,22 @@ export function buildOfficialPortalPolicies(
   const { defaultSelected: sel } = options;
 
   return [
+    {
+      id: `portal-yizhuang-kfqgw-${enc.slice(0, 40)}`,
+      title: `北京经济技术开发区 · 政策文件库（请结合「${kw}」在站内检索）`,
+      url: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/",
+      level: "yizhuang",
+      source: "北京经济技术开发区管理委员会",
+      selected: sel,
+    },
+    {
+      id: `portal-yizhuang-so-${enc.slice(0, 40)}`,
+      title: `首都之窗 · 经开区政策文件（请搜索「${kw}」）`,
+      url: `https://www.beijing.gov.cn/so/s?tab=all&siteCode=1100000000&uc=0&qt=${encodeURIComponent(`北京经济技术开发区 ${kw}`)}`,
+      level: "yizhuang",
+      source: "北京市人民政府 · 经开区专栏",
+      selected: sel,
+    },
     {
       id: `portal-gov-cn-doclib-${enc.slice(0, 40)}`,
       title: `国务院政策文件库 · 按「${kw}」检索`,
@@ -112,7 +128,12 @@ function normalizeRemoteList(data: unknown): PolicyItem[] {
     if (!title || !url || !/^https?:\/\//i.test(url)) continue;
     const levelRaw = row.level;
     const level: PolicyItem["level"] =
-      levelRaw === "national" || levelRaw === "beijing" || levelRaw === "other" ? levelRaw : "national";
+      levelRaw === "yizhuang" ||
+      levelRaw === "national" ||
+      levelRaw === "beijing" ||
+      levelRaw === "other"
+        ? levelRaw
+        : "national";
     out.push({
       id: `remote-${i}-${String(url).slice(-24)}`,
       title,
@@ -175,7 +196,7 @@ export function buildMyLibraryPlaceholders(
       title:
         "北京经济技术开发区关于印发《北京经济技术开发区关于加快推进数据产业高质量发展的若干措施》的通知（政策全文）",
       url: "https://www.beijing.gov.cn/zhengce/zhengcefagui/202510/t20251029_4243376.html",
-      level: "beijing",
+      level: "yizhuang",
       source: "我的素材库 · 经开区管委会（首都之窗）",
       selected: defaultSelected,
     },
@@ -184,7 +205,7 @@ export function buildMyLibraryPlaceholders(
       title:
         "北京经济技术开发区关于印发《北京经济技术开发区关于加快打造「北京亦庄·汽车智造创新城」的若干措施》的通知（政策全文）",
       url: "https://www.beijing.gov.cn/zhengce/zhengcefagui/202512/t20251216_4344616.html",
-      level: "beijing",
+      level: "yizhuang",
       source: "我的素材库 · 经开区管委会（首都之窗）",
       selected: defaultSelected,
     },
@@ -192,7 +213,7 @@ export function buildMyLibraryPlaceholders(
       id: "mylib-bda-incubator-2025",
       title: "北京经济技术开发区关于印发《亦庄新城科技企业孵化器认定管理办法》的通知（政策全文）",
       url: "https://www.beijing.gov.cn/zhengce/zhengcefagui/202507/t20250725_4158429.html",
-      level: "beijing",
+      level: "yizhuang",
       source: "我的素材库 · 经开区管委会（首都之窗）",
       selected: defaultSelected,
     },
@@ -200,7 +221,7 @@ export function buildMyLibraryPlaceholders(
       id: "mylib-bda-industrial-land-2025",
       title: "北京经济技术开发区关于印发《亦庄新城工业用地提质增效实施意见（试行）》的通知（经开区官网）",
       url: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202511/t20251110_4267716.html",
-      level: "beijing",
+      level: "yizhuang",
       source: "我的素材库 · 北京经济技术开发区管委会官网",
       selected: defaultSelected,
     },

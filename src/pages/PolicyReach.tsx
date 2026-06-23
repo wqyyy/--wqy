@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { DEPARTMENTS, POLICY_ITEMS, PUSHED_COMPANIES, type PolicyItem, type PushedCompany } from "@/data/policyReachData";
+import { DEPARTMENTS, POLICY_ITEMS, PUSHED_COMPANIES, type PolicyItem, type PolicyItemStatus, type PushedCompany } from "@/data/policyReachData";
 import { PageHero } from "@/components/PageHero";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +32,12 @@ const TYPE_META: Record<string, { bg: string; text: string }> = {
   减免: { bg: "bg-emerald-100", text: "text-emerald-700" },
   服务: { bg: "bg-purple-100", text: "text-purple-700" },
   融资: { bg: "bg-rose-100", text: "text-rose-700" },
+};
+
+const ITEM_STATUS_META: Record<PolicyItemStatus, { className: string; icon?: ElementType }> = {
+  申报中: { className: "border border-blue-200 bg-blue-50 text-blue-600", icon: Clock },
+  即将截止: { className: "border border-red-200 bg-red-50 text-red-600", icon: Clock },
+  已结束: { className: "bg-muted text-muted-foreground" },
 };
 
 const STATUS_META: Record<PushedCompany["status"], { icon: ElementType; color: string; bg: string }> = {
@@ -56,10 +62,10 @@ const reachFlowSteps = [
 ];
 
 const reachOverviewStats = [
-  { label: "触达政策数量", value: "128", unit: "项", note: "本月新增 12 项", icon: Tag, color: "text-primary", bg: "bg-primary/10" },
-  { label: "覆盖企业数量", value: "3,286", unit: "家", note: "较上周提升 8.6%", icon: Building2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
-  { label: "触达次数", value: "9,842", unit: "次", note: "短信、站内信、专员触达", icon: Send, color: "text-blue-600", bg: "bg-blue-500/10" },
-  { label: "申报转化率", value: "34.7", unit: "%", note: "近 30 天平均转化率", icon: TrendingUp, color: "text-amber-600", bg: "bg-amber-500/10" },
+  { label: "可推送事项数量", value: "156", unit: "项", note: "已完成企业匹配，可进入推送", icon: Highlighter, color: "text-primary", bg: "bg-primary/10" },
+  { label: "可推送企业数量", value: "3,286", unit: "家", note: "已完成企业匹配，可进入推送", icon: Tag, color: "text-primary", bg: "bg-primary/10" },
+  { label: "已推送企业数量", value: "3,286", unit: "家", note: "较上周提升 8.6%", icon: Building2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
+  { label: "已推送次数", value: "9,842", unit: "次", note: "短信、站内信、专员触达", icon: Send, color: "text-blue-600", bg: "bg-blue-500/10" },
 ];
 
 function PolicyList({ onSelect, initialSearch }: { onSelect: (item: PolicyItem) => void; initialSearch?: string }) {
@@ -90,13 +96,6 @@ function PolicyList({ onSelect, initialSearch }: { onSelect: (item: PolicyItem) 
     setStartFilter("");
     setEndFilter("");
   };
-
-  const isDeadlineSoon = (endDate: string) => {
-    const diff = (new Date(endDate).getTime() - Date.now()) / 86400000;
-    return diff >= 0 && diff <= 14;
-  };
-
-  const isExpired = (endDate: string) => new Date(endDate) < new Date();
 
   return (
     <div className="space-y-4">
@@ -211,9 +210,14 @@ function PolicyList({ onSelect, initialSearch }: { onSelect: (item: PolicyItem) 
             <p className="text-sm">暂无匹配事项</p>
           </Card>
         ) : (
-          filtered.map((item, index) => {
-            const expired = isExpired(item.endDate);
-            const soon = isDeadlineSoon(item.endDate);
+          filtered.map((item) => {
+            const itemStatus = item.status;
+            const statusMeta = ITEM_STATUS_META[itemStatus];
+            const StatusIcon = statusMeta.icon;
+            const pendingPushCount = Math.max(item.estimatedPushCount - item.totalPushed, 0);
+            const completionRate = item.estimatedPushCount > 0
+              ? Math.round((item.totalPushed / item.estimatedPushCount) * 100)
+              : 0;
 
             return (
               <div key={item.id}>
@@ -221,16 +225,15 @@ function PolicyList({ onSelect, initialSearch }: { onSelect: (item: PolicyItem) 
                   className="cursor-pointer p-5 transition-all hover:-translate-y-px hover:border-primary/30 hover:shadow-md"
                   onClick={() => onSelect(item)}
                 >
-                  <div className="flex items-start gap-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
                     <div className="min-w-0 flex-1 space-y-2.5">
                       <div className="flex flex-wrap items-start gap-2">
-                        {soon && !expired && (
-                          <span className="flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">
-                            <Clock className="h-3 w-3" />
-                            即将截止
-                          </span>
-                        )}
-                        {expired && <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">已结束</span>}
+                        <span
+                          className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium ${statusMeta.className}`}
+                        >
+                          {StatusIcon && <StatusIcon className="h-3 w-3" />}
+                          {itemStatus}
+                        </span>
                         <h3 className="text-sm font-semibold text-foreground transition-colors hover:text-primary">{item.title}</h3>
                       </div>
                       <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">{item.summary}</p>
@@ -245,11 +248,56 @@ function PolicyList({ onSelect, initialSearch }: { onSelect: (item: PolicyItem) 
                         </span>
                       </div>
                     </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-xl font-bold text-primary">{item.totalPushed}</p>
-                      <p className="text-[10px] text-muted-foreground">已推送企业</p>
-                      <ChevronRight className="ml-auto mt-2 h-4 w-4 text-muted-foreground" />
+
+                    {item.enterpriseTags && item.enterpriseTags.length > 0 && (
+                      <div className="shrink-0 lg:w-[280px]">
+                        <div className="flex flex-wrap gap-1.5">
+                          {item.enterpriseTags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="inline-flex max-w-full items-center rounded-md border border-primary/15 bg-primary/[0.04] px-2 py-1 text-[11px] leading-snug text-foreground"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="shrink-0 lg:w-[360px]">
+                      <div className="grid grid-cols-3 divide-x divide-border">
+                        {[
+                          { label: "预计推送", value: item.estimatedPushCount, color: "text-foreground" },
+                          { label: "已推送", value: item.totalPushed, color: "text-primary" },
+                          { label: "待推送", value: pendingPushCount, color: "text-amber-600" },
+                        ].map((stat, index) => (
+                          <div key={stat.label} className={cn("px-3", index === 0 && "pl-0", index === 2 && "pr-0")}>
+                            <p className="text-[10px] text-muted-foreground">{stat.label}</p>
+                            <p className={cn("mt-1 text-lg font-bold", stat.color)}>
+                              {stat.value}
+                              <span className="ml-0.5 text-[11px] font-medium text-muted-foreground">家</span>
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3">
+                        <div className="mb-1.5 flex items-center justify-between text-[11px]">
+                          <span className="flex items-center gap-1 text-muted-foreground">
+                            <Users className="h-3 w-3" />
+                            推送完成度
+                          </span>
+                          <span className="font-semibold text-foreground">{completionRate}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-primary"
+                            style={{ width: `${Math.min(completionRate, 100)}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
+
+                    <ChevronRight className="hidden h-4 w-4 shrink-0 text-muted-foreground lg:block" />
                   </div>
                 </Card>
               </div>

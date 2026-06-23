@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Download, FileText, CheckCircle, AlertTriangle, XCircle, Loader2 } from "lucide-react";
-import { GovRedHeaderBlock } from "@/components/report/GovRedHeaderBlock";
 import type { AssessmentPolicy } from "./AssessmentStep1";
 import type { Clause } from "./AssessmentStep2";
 import type { Step3Result } from "./AssessmentStep3";
@@ -83,10 +82,8 @@ export function AssessmentStep7({ policy, clauses, step3, step4, step5, step6 }:
         <p className="text-sm text-muted-foreground">汇总所有评估结果，生成可供下载的前评估报告意见书</p>
       </div>
 
-      {/* 報告預覽卡（红头公文版式） */}
+      {/* 報告預覽卡 */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
-        <GovRedHeaderBlock documentTitle={`关于《${policy.title}》的前评估意见`} />
-
         <div className="flex items-start justify-between gap-4 border-b border-border bg-muted/10 px-6 py-4">
           <div className="min-w-0">
             <p className="text-xs font-medium text-muted-foreground">政策前评估报告意见书</p>

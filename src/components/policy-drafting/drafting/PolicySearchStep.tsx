@@ -12,27 +12,42 @@ export interface PolicyItem {
   title: string;
   url: string;
   selected: boolean;
-  level: "national" | "beijing" | "other" | "material";
+  level: "yizhuang" | "beijing" | "national" | "other" | "material";
   source?: string;
 }
 
 interface PolicySearchStepProps {
   policyTitle: string;
+  /** 第 1 步确定的政策方向，智能检索框与之保持一致 */
+  policyDirection: string;
+  /** 父级正在根据政策方向生成完整标题 */
+  titleGenerating?: boolean;
   coreElements: string;
   onPoliciesSelected: (policies: PolicyItem[]) => void;
   policies: PolicyItem[];
+  /** 编辑政策标题（回显并可编辑） */
+  onPolicyTitleChange?: (value: string) => void;
 }
 
 const levelLabels: Record<string, string> = {
-  national: "国家级政策",
+  yizhuang: "经开区政策",
   beijing: "北京市政策",
+  national: "国家级政策",
   other: "其他省市政策",
 };
 
 const defaultPolicySearchTitle = "北京经济技术开发区关于加快推进数据产业高质量发展的若干措施";
 
-export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected, policies: externalPolicies }: PolicySearchStepProps) {
-  const [searchQuery, setSearchQuery] = useState(defaultPolicySearchTitle);
+export function PolicySearchStep({
+  policyTitle,
+  policyDirection,
+  titleGenerating = false,
+  coreElements,
+  onPoliciesSelected,
+  policies: externalPolicies,
+  onPolicyTitleChange,
+}: PolicySearchStepProps) {
+  const [searchQuery, setSearchQuery] = useState(policyDirection);
   const [isSearching, setIsSearching] = useState(externalPolicies.length === 0);
   const [isSearchingMore, setIsSearchingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,29 +80,34 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
   );
 
   useEffect(() => {
+    if (policyDirection) setSearchQuery(policyDirection);
+  }, [policyDirection]);
+
+  useEffect(() => {
     if (externalPolicies.length > 0) return;
+    if (!policyDirection || titleGenerating) return;
     setIsSearching(true);
     setError(null);
-    searchPolicies(defaultPolicySearchTitle, coreElements)
+    searchPolicies(policyDirection, coreElements)
       .then(({ policies: result }) => {
-        const material = refreshMaterialPolicies(defaultPolicySearchTitle, true);
+        const material = refreshMaterialPolicies(policyDirection, true);
         setPolicies(result);
         emitSelected(result, material);
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setIsSearching(false));
-  }, [policyTitle, coreElements, emitSelected, refreshMaterialPolicies]);
+  }, [policyDirection, titleGenerating, coreElements, emitSelected, refreshMaterialPolicies, externalPolicies.length]);
 
   const handleSearchQueryChange = (value: string) => {
     setSearchQuery(value);
     if (isSearching) return;
-    const material = refreshMaterialPolicies(value.trim() || policyTitle || defaultPolicySearchTitle);
+    const material = refreshMaterialPolicies(value.trim() || policyDirection || defaultPolicySearchTitle);
     emitSelected(policies, material);
   };
 
   useEffect(() => {
     const syncMaterial = () => {
-      const material = refreshMaterialPolicies(searchQuery.trim() || policyTitle || defaultPolicySearchTitle);
+      const material = refreshMaterialPolicies(searchQuery.trim() || policyDirection || defaultPolicySearchTitle);
       emitSelected(policies, material);
     };
     window.addEventListener(policyFavoritesChangedEvent, syncMaterial);
@@ -154,7 +174,7 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
     if (!keyword) return;
     setIsSearchingMore(true);
     try {
-      const { policies: more } = await searchPolicies(`${defaultPolicySearchTitle} ${keyword}`, coreElements, {
+      const { policies: more } = await searchPolicies(keyword, coreElements, {
         includeExtended: true,
         selected: false,
       });
@@ -176,7 +196,12 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
 
   const filteredPolicies = policies;
 
-  const levels: Array<"national" | "beijing" | "other"> = ["national", "beijing", "other"];
+  const levels: Array<"yizhuang" | "beijing" | "national" | "other"> = [
+    "yizhuang",
+    "beijing",
+    "national",
+    "other",
+  ];
 
   const allPolicies = [...policies, ...materialPolicies];
   const selectedCount = allPolicies.filter((p) => p.selected).length;
@@ -187,6 +212,28 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
 
   return (
     <div className="space-y-5">
+      {/* 政策标题（回显并可编辑） */}
+      <div className="space-y-1.5">
+        <label htmlFor="search-policy-title" className="text-xs font-medium text-muted-foreground">
+          政策标题
+        </label>
+        {titleGenerating ? (
+          <div className="flex h-10 items-center gap-2 rounded-md border border-input bg-muted/30 px-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+            AI 正在润色扩写政策标题…
+          </div>
+        ) : (
+          <Input
+            id="search-policy-title"
+            value={policyTitle}
+            onChange={(e) => onPolicyTitleChange?.(e.target.value)}
+            placeholder="请输入政策标题"
+            readOnly={!onPolicyTitleChange}
+            className="h-10 text-sm font-medium"
+          />
+        )}
+      </div>
+
       <div>
         <h3 className="text-base font-semibold text-foreground">智能政策检索</h3>
       </div>
@@ -217,7 +264,12 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
         </button>
       </div>
 
-      {isSearching ? (
+      {titleGenerating ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          <p className="text-sm text-muted-foreground">AI 正在润色扩写政策标题…</p>
+        </div>
+      ) : isSearching ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <Loader2 className="h-8 w-8 text-primary animate-spin" />
           <p className="text-sm text-muted-foreground">正在根据政策标题智能检索相关政策...</p>
@@ -230,9 +282,9 @@ export function PolicySearchStep({ policyTitle, coreElements, onPoliciesSelected
             onClick={() => {
               setError(null);
               setIsSearching(true);
-              searchPolicies(policyTitle, coreElements)
+              searchPolicies(policyDirection, coreElements)
                 .then(({ policies: result }) => {
-                  const material = refreshMaterialPolicies(searchQuery.trim() || policyTitle, true);
+                  const material = refreshMaterialPolicies(searchQuery.trim() || policyDirection, true);
                   setPolicies(result);
                   emitSelected(result, material);
                 })

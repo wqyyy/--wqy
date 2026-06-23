@@ -7,12 +7,34 @@ import type { Step3Result } from "./AssessmentStep3";
 import type { Step4Result } from "./AssessmentStep4";
 import type { Step5Result } from "./AssessmentStep5";
 import type { Step6Result } from "./AssessmentStep6";
-import { buildGovReportPreviewHtml } from "@/lib/govReportHeaderHtml";
+import { escapeHtml } from "@/lib/govReportHeaderHtml";
 
 interface Props {
   policy: AssessmentPolicy;
   onBack: () => void;
   directOpenFinal?: boolean;
+  onStageChange?: (stage: number, finished: boolean) => void;
+}
+
+function buildPlainReportPreviewHtml(options: {
+  bodyText: string;
+  windowTitle?: string;
+}): string {
+  const body = escapeHtml(options.bodyText);
+  const title = escapeHtml(options.windowTitle ?? "报告预览");
+
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>${title}</title>
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;padding:32px 28px 48px;line-height:1.85;color:#111827;background:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",SimSun,serif;}
+  .page{max-width:960px;margin:0 auto;}
+  .body{white-space:pre-wrap;font-size:15px;color:#374151;text-align:left;}
+</style></head><body>
+  <div class="page">
+    <div class="body">${body}</div>
+  </div>
+</body></html>`;
 }
 
 function extractSectionBody(text: string, heading: string, nextHeadings: string[]): string {
@@ -130,7 +152,16 @@ const STAGES = [
   },
 ];
 
-export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }: Props) {
+/** 各维度只读总结（仅页面展示，不进入预览/导出） */
+const STAGE_SUMMARIES = [
+  "本维度已完成政策核心条款识别与类型归类，政策文本整体覆盖扶持条件、竞争促进和营商环境优化等内容，具备开展后续一致性、落地性和合规性评估的基础。",
+  "本维度重点检视政策条款与上位政策、同类政策及既有扶持规则之间的衔接关系。整体看，政策方向与科技创新、产业发展和营商环境优化要求基本一致，但部分条款仍需进一步明确与市区两级政策的适用边界。",
+  "本维度重点评估政策对象、支持方式、资金测算和执行流程是否清晰可操作。整体看，政策具备一定落地基础，但仍建议围绕申报条件、资金安排、材料清单和审核口径进一步细化。",
+  "本维度重点从公平竞争、资金管理、行政规范和程序合规等方面进行审查。总体看，政策不存在明显方向性合规障碍，但部分奖励补贴和执行机制条款需补充依据、流程和约束条件。",
+  "本维度主要补充流程衔接、文本表达、政策解读和后续管理方面的完善建议。建议在正式出台前同步做好解读材料、兑现指引和动态评估安排，降低执行偏差。",
+];
+
+export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, onStageChange }: Props) {
   const [clauses, setClauses] = useState<Clause[]>([]);
   const [step3, setStep3] = useState<Step3Result | null>(null);
   const [step4, setStep4] = useState<Step4Result | null>(null);
@@ -407,8 +438,10 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
     ? STAGES[stage].label
     : "已完成";
 
-  const flowSteps = STAGES;
-  const flowCurrent = Math.min(stage + 1, STAGES.length);
+  useEffect(() => {
+    onStageChange?.(stage, finished);
+  }, [stage, finished, onStageChange]);
+
   const finalReportText = generateReportText({
     policy,
     clauses: clauses.length > 0 ? clauses : mockExtractClauses(policy.title),
@@ -422,41 +455,6 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto">
       <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
-        <div className="rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-foreground">前评估流程</h3>
-            <span className="text-xs font-medium text-muted-foreground">{`第 ${flowCurrent} / ${STAGES.length} 步`}</span>
-          </div>
-          <div className="flex items-center justify-center">
-            {flowSteps.map((s, i) => {
-              const Icon = s.icon;
-              const isCurrent = flowCurrent === s.id + 1;
-              const isPending = flowCurrent < s.id + 1;
-              return (
-                <div key={s.id} className="flex items-center">
-                  <div className="flex flex-col items-center gap-2">
-                    <div
-                      className={`h-12 w-12 rounded-full border flex items-center justify-center shrink-0
-                      ${isCurrent ? "bg-primary text-primary-foreground border-primary shadow-[0_8px_18px_rgba(230,0,50,0.24)]" : ""}
-                      ${isPending ? "bg-white text-[#d8b9c6] border-[#e7ced8]" : ""}
-                      ${!isCurrent && !isPending ? "bg-primary/10 text-primary border-primary/30" : ""}
-                    `}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </div>
-                    <span className={`text-xs font-medium whitespace-nowrap ${isPending ? "text-muted-foreground" : "text-foreground"}`}>
-                      {s.label}
-                    </span>
-                  </div>
-                  {i < flowSteps.length - 1 && (
-                    <div className="px-6 md:px-8 text-[#d8b9c6] text-base leading-none select-none -mt-5">{">>"}</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-1.5">
@@ -476,9 +474,8 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
               {finished && (
                 <button
                   onClick={() => {
-                    const html = buildGovReportPreviewHtml({
+                    const html = buildPlainReportPreviewHtml({
                       windowTitle: "前评估报告预览",
-                      documentTitle: `关于《${policy.title}》的前评估意见`,
                       bodyText: mergedFinalReportText,
                     });
                     const w = window.open("", "_blank");
@@ -581,6 +578,12 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false }
                     />
                     {!hasResult && !active && !done && (
                       <p className="mt-2 text-xs text-muted-foreground">等待执行该维度分析…</p>
+                    )}
+                    {done && hasResult && STAGE_SUMMARIES[i] && (
+                      <div className="mt-3 rounded-lg border border-primary/15 bg-primary/[0.04] px-3 py-2.5">
+                        <p className="mb-1 text-xs font-medium text-primary">总结</p>
+                        <p className="text-xs leading-6 text-muted-foreground">{STAGE_SUMMARIES[i]}</p>
+                      </div>
                     )}
                   </div>
                 </div>

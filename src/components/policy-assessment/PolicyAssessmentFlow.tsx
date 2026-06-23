@@ -4,6 +4,8 @@ import { ArrowLeft, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AssessmentStep1, type AssessmentPolicy } from "@/components/policy-assessment/AssessmentStep1";
 import PolicyAssessmentAuto from "@/components/policy-assessment/PolicyAssessmentAuto";
+import { PreAssessmentFlowStepper } from "@/components/policy-assessment/PreAssessmentFlowStepper";
+import { assessmentStageToFlowStep } from "@/components/policy-assessment/preAssessmentFlowSteps";
 
 interface Props {
   onBack: () => void;
@@ -44,25 +46,45 @@ export function PolicyAssessmentFlow({
     }
     return null;
   });
+  const [assessmentStage, setAssessmentStage] = useState(0);
+  const [assessmentFinished, setAssessmentFinished] = useState(directOpenFinal);
+  const [assessmentStarted, setAssessmentStarted] = useState(directOpenFinal || startEvaluation);
+
+  const currentFlowStep = !selectedPolicy || !assessmentStarted
+    ? 1
+    : assessmentStageToFlowStep(assessmentStage, assessmentFinished);
+
+  const handlePolicySelect = (policy: AssessmentPolicy | null) => {
+    setSelectedPolicy(policy);
+    setAssessmentStarted(false);
+    if (!policy) {
+      setAssessmentStage(0);
+      setAssessmentFinished(false);
+    }
+  };
+
+  const handleStartAssessment = () => {
+    if (!selectedPolicy) return;
+    setAssessmentStage(0);
+    setAssessmentFinished(false);
+    setAssessmentStarted(true);
+  };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* 顶部标题栏 */}
-      <div className="mb-5 flex shrink-0 items-center justify-between gap-4">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={
-              selectedPolicy
-                ? () => (directOpenFinal || startEvaluation ? onBack() : setSelectedPolicy(null))
-                : onBack
-            }
-            className="flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <h2 className="text-base font-semibold text-foreground">返回政策制定</h2>
-        </div>
+    <div className="flex h-full flex-col space-y-5">
+      <div className="flex shrink-0 items-center justify-between gap-4">
+        <button
+          type="button"
+          onClick={
+            selectedPolicy
+              ? () => (directOpenFinal || startEvaluation ? onBack() : handlePolicySelect(null))
+              : onBack
+          }
+          className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          返回政策制定
+        </button>
         <Button
           type="button"
           variant="outline"
@@ -75,22 +97,29 @@ export function PolicyAssessmentFlow({
         </Button>
       </div>
 
-      {/* 主内容白卡片 */}
-      <div className="flex-1 min-h-0 overflow-hidden bg-card rounded-xl border border-border">
-        {!selectedPolicy ? (
-          /* 政策选择区 */
+      <PreAssessmentFlowStepper currentStep={currentFlowStep} />
+
+      <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
+        {!selectedPolicy || !assessmentStarted ? (
           <div className="h-full overflow-y-auto">
-            <div className="max-w-2xl mx-auto px-8 py-8">
-              <AssessmentStep1 selected={selectedPolicy} onSelect={setSelectedPolicy} />
+            <div className="mx-auto max-w-5xl px-6 py-8 md:px-8">
+              <AssessmentStep1
+                selected={selectedPolicy}
+                onSelect={handlePolicySelect}
+                onStartAssessment={handleStartAssessment}
+              />
             </div>
           </div>
         ) : (
-          /* 自动评估区：左右分割布局完全在卡片内 */
-          <div className="h-full flex overflow-hidden">
+          <div className="flex h-full overflow-hidden">
             <PolicyAssessmentAuto
               policy={selectedPolicy}
-              onBack={() => (directOpenFinal || startEvaluation ? onBack() : setSelectedPolicy(null))}
+              onBack={() => (directOpenFinal || startEvaluation ? onBack() : handlePolicySelect(null))}
               directOpenFinal={directOpenFinal}
+              onStageChange={(stage, finished) => {
+                setAssessmentStage(stage);
+                setAssessmentFinished(finished);
+              }}
             />
           </div>
         )}

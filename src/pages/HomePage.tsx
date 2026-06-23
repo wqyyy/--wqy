@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, ArrowRight, FileText, Megaphone, BadgeCheck, BarChart3 } from "lucide-react";
+import { Inbox, Mic, Paperclip, Send, X, Search, ArrowUpRight } from "lucide-react";
 import {
   buildDraftWakeMessage,
   dismissDraftWake,
@@ -9,75 +9,17 @@ import {
 } from "@/lib/policyDraftWake";
 import {
   ASSISTANT_HOME_GREETING,
-  ASSISTANT_TASK_REMINDER_TITLE,
   ASSISTANT_TASK_CONTINUE_LABEL,
   ASSISTANT_TASK_DISMISS_LABEL,
 } from "@/lib/assistantCopy";
-import assistantAvatarImg from "@/assets/ai-assistant-avatar.png";
+import digitalHumanImg from "@/assets/digital-human-upper.png";
 
-/** 快捷问题气泡配置 */
+/** 「可以这样问」快捷问题（沿用此前文案） */
 const QUICK_QUESTIONS = [
-  {
-    id: "draft",
-    label: "帮我写一篇数据产业高质量发展的政策",
-    type: "draft" as const,
-  },
-  {
-    id: "talent",
-    label: "帮我找一些人才引进相关的政策",
-    type: "search" as const,
-  },
-  {
-    id: "compare",
-    label: "对比北京和深圳对于规上企业分别有什么奖励",
-    type: "find" as const,
-  },
-  {
-    id: "redeem",
-    label: "我想看一下经开区最新的兑现数据",
-    type: "search" as const,
-  },
-];
-
-/** 首页统计数据 */
-const POLICY_STATS = [
-  { label: "政策文件总量", value: "30万篇" },
-  { label: "政策起草成果", value: "10篇" },
-  { label: "政策发布数量", value: "600篇" },
-  { label: "兑现事项", value: "700项" },
-  { label: "政策评价报告", value: "20篇" },
-];
-
-/** 快速入口（路径与侧栏主导航一致） */
-const QUICK_ASSISTANTS = [
-  {
-    key: "drafting",
-    title: "政策制定",
-    desc: "快速进入政策起草与预评估",
-    path: "/policy-writing",
-    Icon: FileText,
-  },
-  {
-    key: "reach",
-    title: "政策触达",
-    desc: "查看触达成效与目标企业覆盖",
-    path: "/policy-reach",
-    Icon: Megaphone,
-  },
-  {
-    key: "redeem",
-    title: "政策兑现",
-    desc: "跟踪兑现数据与执行进度",
-    path: "/dashboard",
-    Icon: BadgeCheck,
-  },
-  {
-    key: "evaluation",
-    title: "政策评价",
-    desc: "生成评价报告与指标分析",
-    path: "/policy-evaluation",
-    Icon: BarChart3,
-  },
+  { id: "draft", label: "帮我写一篇数据产业高质量发展的政策" },
+  { id: "talent", label: "帮我找一些人才引进相关的政策" },
+  { id: "compare", label: "对比北京和深圳对于规上企业分别有什么奖励" },
+  { id: "redeem", label: "我想看一下经开区最新的兑现数据" },
 ];
 
 /** 无真实未完成草稿时，用于页面展示的模拟任务（便于预览样式与交互） */
@@ -85,8 +27,9 @@ const MOCK_DRAFT_TITLE = "关于促进数据产业高质量发展的若干政策
 
 export default function HomePage() {
   const [inputValue, setInputValue] = useState("");
+  const [showGreeting, setShowGreeting] = useState(true);
   const [draftWake, setDraftWake] = useState<PendingDraftWake | null>(() => getPendingDraftWake());
-  /** 用户点击「忽略」后隐藏模拟条，刷新页面会再次出现 */
+  /** 用户点击「忽略」后隐藏模拟任务，刷新页面会再次出现 */
   const [mockWakeDismissed, setMockWakeDismissed] = useState(false);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -119,84 +62,94 @@ export default function HomePage() {
     }
   };
 
-  const showTaskReminder = Boolean(draftWake || (!mockWakeDismissed && !getPendingDraftWake()));
+  const hasTask = Boolean(draftWake || (!mockWakeDismissed && !getPendingDraftWake()));
 
   return (
     <div className="relative min-h-full w-full overflow-x-hidden">
-      {/* 亦庄背景图 */}
-      <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{
-          backgroundImage: `url('https://images.unsplash.com/photo-1486325212027-8081e485255e?w=1920&q=90')`,
-        }}
-      />
-
-      {/* 深色渐变遮罩 - 营造政务科技感 */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0a1628]/85 via-[#0d1f3c]/80 to-[#1a0a0a]/75" />
-
-      {/* 顶部光晕装饰 */}
-      <div className="absolute left-1/2 top-0 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-[#d21639]/10 blur-[120px] pointer-events-none" />
-      <div className="absolute right-0 top-1/4 h-[300px] w-[400px] rounded-full bg-[#1a4a8a]/20 blur-[100px] pointer-events-none" />
+      {/* 红白 Soft UI 背景：柔和渐变 + 流动光带 */}
+      <div className="absolute inset-0 overflow-hidden bg-[#fafafa]">
+        <div className="absolute inset-0 bg-gradient-to-br from-white via-[#fff8f9] to-[#fdecef]" />
+        <div className="absolute left-1/2 top-0 h-[85%] w-[130%] -translate-x-1/2 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.98)_0%,rgba(255,240,243,0.55)_45%,transparent_78%)]" />
+        <div className="pointer-events-none absolute -right-[8%] top-[2%] h-[48%] w-[58%] rotate-[18deg] rounded-[42%] bg-gradient-to-bl from-[#d21639]/14 via-[#f5b8c4]/22 to-transparent blur-3xl" />
+        <div className="pointer-events-none absolute -left-[12%] top-[18%] h-[52%] w-[62%] -rotate-[8deg] rounded-[46%] bg-gradient-to-tr from-[#d21639]/10 via-[#ffe3e9]/35 to-transparent blur-3xl" />
+        <div className="pointer-events-none absolute bottom-[-8%] left-[5%] h-[42%] w-[90%] rounded-[50%] bg-gradient-to-t from-[#d21639]/8 via-[#fff1f4]/45 to-transparent blur-2xl" />
+        <div className="pointer-events-none absolute right-[8%] top-[42%] h-[28%] w-[38%] rotate-[-14deg] rounded-[40%] bg-gradient-to-l from-[#ffc9d4]/30 to-transparent blur-2xl" />
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full opacity-60"
+          viewBox="0 0 1440 900"
+          preserveAspectRatio="xMidYMid slice"
+          aria-hidden
+        >
+          <defs>
+            <linearGradient id="homeWaveA" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#d21639" stopOpacity="0.12" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="homeWaveB" x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#f4a3b3" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M-80 520 C 220 380, 420 680, 720 520 S 1180 360, 1520 480"
+            fill="none"
+            stroke="url(#homeWaveA)"
+            strokeWidth="140"
+            strokeLinecap="round"
+          />
+          <path
+            d="M-40 680 C 280 560, 520 820, 820 660 S 1240 500, 1500 620"
+            fill="none"
+            stroke="url(#homeWaveB)"
+            strokeWidth="110"
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
 
       {/* 主内容区 */}
-      <div className="relative z-10 flex min-h-full flex-col items-center justify-center px-6 py-10">
-        {/* 顶部标志 */}
-        <div className="mb-8 flex flex-col items-center gap-3 animate-[fadeInDown_0.8s_ease_both]">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold tracking-tight text-white drop-shadow-lg">
-              惠企政策大脑
-            </h1>
-          </div>
-        </div>
-
-        {/* 副标题 */}
-        <p className="mb-10 text-center text-lg text-white/70 animate-[fadeIn_1s_0.3s_ease_both_backwards]">
-          智能搜索政策 · AI起草文件 · 全面政策评估
-        </p>
-
-        {/* 统计数据 */}
-        <div className="mb-8 w-full max-w-5xl animate-[fadeInUp_1s_0.7s_ease_both_backwards]">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {POLICY_STATS.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-center backdrop-blur-sm"
-              >
-                <p className="text-xs text-white/60">{item.label}</p>
-                <p className="mt-1 text-lg font-semibold text-white">{item.value}</p>
+      <div className="relative z-10 mx-auto flex min-h-full w-full max-w-6xl flex-col justify-center px-6 py-10">
+        {/* 顶部：数字人上半身 + 问候气泡（左）  待办事项（右） */}
+        <div className="flex items-end justify-between gap-4">
+          {/* 数字人上半身 + 气泡 */}
+          <div className="flex items-start gap-3">
+            <img
+              src={digitalHumanImg}
+              alt="智能助手数字人"
+              className="hidden h-[300px] w-auto shrink-0 select-none object-contain object-bottom md:block"
+              draggable={false}
+            />
+            {showGreeting && (
+              <div className="relative mt-12 max-w-md animate-[fadeIn_0.6s_ease_both]">
+                <span className="absolute -left-1.5 top-5 hidden h-3.5 w-3.5 rotate-45 rounded-sm bg-white md:block" />
+                <div className="relative flex items-start gap-2 rounded-2xl bg-white px-4 py-3 shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+                  <p className="text-sm leading-relaxed text-gray-800">{ASSISTANT_HOME_GREETING}</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowGreeting(false)}
+                    className="mt-0.5 shrink-0 text-gray-300 transition-colors hover:text-gray-500"
+                    aria-label="关闭问候"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
-            ))}
+            )}
           </div>
-        </div>
 
-        {/* 主对话框（任务提醒嵌套在问答框内） */}
-        <div
-          className="w-full max-w-2xl animate-[fadeInUp_0.8s_0.2s_ease_both_backwards]"
-          style={{ filter: "drop-shadow(0 25px 60px rgba(0,0,0,0.5))" }}
-        >
-          <div className="relative overflow-hidden rounded-2xl bg-white shadow-[0_25px_60px_rgba(0,0,0,0.12)] ring-1 ring-gray-200/90">
-            {/* 智能助手问候语 */}
-            <div className="relative z-10 flex items-center gap-3 border-b border-gray-100 bg-white px-4 py-3">
-              <img
-                src={assistantAvatarImg}
-                alt="智能助手"
-                className="h-9 w-9 shrink-0 rounded-full object-cover ring-1 ring-gray-200"
-              />
-              <p className="min-w-0 flex-1 text-[13px] leading-relaxed text-gray-800">{ASSISTANT_HOME_GREETING}</p>
-            </div>
-
-            {/* 任务提醒（问候语下方；有真实数据优先，否则展示模拟） */}
-            {showTaskReminder && (
-              <div className="relative z-10 border-b border-gray-100 bg-white px-4 pb-3 pt-3">
-                <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-500">{ASSISTANT_TASK_REMINDER_TITLE}</p>
-                <p className="text-[13px] leading-relaxed text-gray-800">
+          {/* 待办事项卡片 */}
+          <div className="w-72 shrink-0 self-end rounded-2xl bg-white p-4 shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+            <h3 className="mb-3 text-sm font-semibold text-gray-800">待办事项</h3>
+            {hasTask ? (
+              <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
+                <p className="line-clamp-3 text-[13px] leading-relaxed text-gray-700">
                   {draftWake ? buildDraftWakeMessage(draftWake.title) : buildDraftWakeMessage(MOCK_DRAFT_TITLE)}
                 </p>
                 <div className="mt-2.5 flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => navigate("/policy-writing/drafting")}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-gradient-to-r from-[#d21639] to-[#a00f27] px-2.5 py-1 text-[11px] font-medium text-white shadow-sm transition-opacity hover:opacity-95"
+                    className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-[#d21639] to-[#a00f27] px-2.5 py-1 text-[11px] font-medium text-white shadow-sm transition-opacity hover:opacity-95"
                   >
                     {ASSISTANT_TASK_CONTINUE_LABEL}
                   </button>
@@ -211,108 +164,93 @@ export default function HomePage() {
                         setMockWakeDismissed(true);
                       }
                     }}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                    className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50"
                   >
                     {ASSISTANT_TASK_DISMISS_LABEL}
                   </button>
                 </div>
               </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <Inbox className="h-8 w-8 text-gray-300" />
+                <p className="mt-2 text-xs text-gray-400">暂无待办事项</p>
+              </div>
             )}
+          </div>
+        </div>
 
-            <div className="relative z-10 flex items-end gap-3 bg-white px-5 py-4">
-              <textarea
-                ref={inputRef}
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="请输入您的问题，例如：经开区最新惠企政策有哪些..."
-                rows={1}
-                className="flex-1 resize-none bg-transparent text-base text-gray-800 placeholder:text-gray-400 focus:outline-none leading-relaxed"
-                style={{ maxHeight: "120px", overflowY: "auto" }}
-                onInput={(e) => {
-                  const el = e.currentTarget;
-                  el.style.height = "auto";
-                  el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
-                }}
-              />
+        {/* 问答框（数字人下方） */}
+        <div className="mt-3 overflow-hidden rounded-2xl bg-white shadow-[0_25px_60px_rgba(0,0,0,0.25)] ring-1 ring-gray-200/80">
+          <textarea
+            ref={inputRef}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="输入消息，开始对话..."
+            rows={2}
+            className="w-full resize-none bg-transparent px-5 pt-4 text-base leading-relaxed text-gray-800 placeholder:text-gray-400 focus:outline-none"
+            style={{ maxHeight: "140px", overflowY: "auto" }}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+            }}
+          />
+          <div className="flex items-center justify-between px-4 py-3">
+            <button
+              type="button"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              aria-label="语音输入"
+            >
+              <Mic className="h-5 w-5" />
+            </button>
+            <div className="flex items-center gap-2">
               <button
+                type="button"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                aria-label="上传附件"
+              >
+                <Paperclip className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
                 onClick={() => handleSubmit(inputValue)}
                 disabled={!inputValue.trim()}
-                className="mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#d21639] to-[#a00f27] text-white shadow-md transition-all hover:scale-105 hover:shadow-[0_0_20px_rgba(210,22,57,0.4)] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#d21639] to-[#a00f27] text-white shadow-md transition-all hover:scale-105 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+                aria-label="发送"
               >
-                <ArrowRight className="h-4 w-4" />
+                <Send className="h-4 w-4" />
               </button>
             </div>
           </div>
-
-          {/* 提示文字 */}
-          <p className="mt-3 text-center text-xs text-white/40">
-            按 Enter 发送 · Shift+Enter 换行
-          </p>
         </div>
 
-        {/* 快捷问题 */}
-        <div className="mt-8 w-full max-w-2xl animate-[fadeInUp_0.9s_0.5s_ease_both_backwards]">
+        {/* 可以这样问 */}
+        <div className="mt-8 w-full">
           <div className="mb-3 flex items-center gap-2">
-            <Search className="h-4 w-4 text-white/50" />
-            <span className="text-sm text-white/50">可以这样问：</span>
+            <Search className="h-4 w-4 text-[#d21639]/50" />
+            <span className="text-sm text-gray-500">可以这样问：</span>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {QUICK_QUESTIONS.map((q) => (
               <button
                 key={q.id}
                 onClick={() => handleSubmit(q.label)}
-                className="group flex items-center gap-2 rounded-xl border border-white/15 bg-white/8 px-4 py-2.5 text-left text-sm text-white/75 backdrop-blur-sm transition-all hover:border-white/30 hover:bg-white/15 hover:text-white"
+                className="group flex items-center justify-between gap-3 rounded-xl border border-[#f3c6cf]/80 bg-white/75 px-4 py-3 text-left text-sm text-gray-700 shadow-[0_8px_24px_rgba(210,22,57,0.06)] backdrop-blur-sm transition-all hover:border-[#d21639]/25 hover:bg-white hover:text-gray-900"
               >
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#d21639] transition-transform group-hover:scale-125" />
-                {q.label}
+                <span className="flex items-center gap-2.5">
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#d21639] transition-transform group-hover:scale-125" />
+                  {q.label}
+                </span>
+                <ArrowUpRight className="h-4 w-4 shrink-0 text-gray-300 transition-colors group-hover:text-[#d21639]/70" />
               </button>
             ))}
           </div>
-        </div>
-
-        {/* 快速入口 */}
-        <div className="mt-8 w-full max-w-5xl animate-[fadeInUp_1s_0.8s_ease_both_backwards]">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="text-sm text-white/55">快速入口</span>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {QUICK_ASSISTANTS.map((assistant) => (
-              <button
-                key={assistant.key}
-                onClick={() => navigate(assistant.path)}
-                className="group rounded-xl border border-white/15 bg-white/8 px-4 py-3 text-left backdrop-blur-sm transition-all hover:border-white/30 hover:bg-white/15"
-              >
-                <div className="flex items-center gap-2">
-                  <assistant.Icon className="h-4 w-4 text-[#f1c2cc] transition-transform group-hover:scale-110" />
-                  <p className="text-sm font-medium text-white">{assistant.title}</p>
-                </div>
-                <p className="mt-1 text-xs text-white/60">{assistant.desc}</p>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* 底部信息 */}
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-4 text-xs text-white/30 sm:gap-6">
-          <span>北京经济技术开发区</span>
-          <span className="hidden h-3 w-px bg-white/20 sm:inline" />
-          <span>惠企政策智能服务平台</span>
-          <span className="hidden h-3 w-px bg-white/20 sm:inline" />
-          <span>AI · 2026</span>
         </div>
       </div>
 
       {/* 动画样式 */}
       <style>{`
-        @keyframes fadeInDown {
-          from { opacity: 0; transform: translateY(-20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
         @keyframes fadeIn {
           from { opacity: 0; }
           to { opacity: 1; }

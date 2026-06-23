@@ -1,9 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { FileText, BarChart3, Award, ArrowRight, BookOpen, Building2, Bot, Wallet, RefreshCw, ChevronRight, Eye, Clock, ClipboardList, DollarSign, Users, BadgeCheck, Calendar } from "lucide-react";
+import { AlertCircle, FileText, BarChart3, Award, Building2, Bot, Wallet, ChevronRight, Eye, Clock, ClipboardList, DollarSign, BadgeCheck, Calendar, PieChart as PieChartIcon } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { PageHero } from "@/components/PageHero";
 
 const PROJECT_AUDIT_URL =
@@ -11,6 +9,12 @@ const PROJECT_AUDIT_URL =
 const ALLOCATE_RESULT_URL = "https://test-bjjkq.zqlian.com/gov/#/audit/allocateList";
 const PUBLICIZE_URL = "https://test-bjjkq.zqlian.com/gov/#/audit/publicizeList";
 const FUND_DISBURSEMENT_URL = "https://test-bjjkq.zqlian.com/gov/#/appropriate/apply";
+
+const POLICY_REPORT_DIMENSIONS = [
+  { label: "已兑现事项分析", icon: BarChart3, iconClass: "text-primary", bgClass: "bg-primary/10" },
+  { label: "已拨付资金分析", icon: PieChartIcon, iconClass: "text-emerald-600", bgClass: "bg-emerald-500/10" },
+  { label: "已申报企业分析", icon: Building2, iconClass: "text-amber-600", bgClass: "bg-amber-500/10" },
+] as const;
 
 const Index = () => {
   const navigate = useNavigate();
@@ -135,13 +139,13 @@ const Index = () => {
                   externalUrl: "https://test-bjjkq.zqlian.com/gov/#/statistics/query",
                 },
                 {
-                  label: "已兑现资金",
-                  value: "85.3",
-                  unit: "亿元",
-                  icon: DollarSign,
-                  iconBg: "bg-violet-50",
-                  iconColor: "text-violet-500",
-                  externalUrl: "https://test-bjjkq.zqlian.com/gov/#/appropriate/appropriation",
+                  label: "逾期未兑现事项",
+                  value: "6",
+                  unit: "项",
+                  icon: AlertCircle,
+                  iconBg: "bg-red-50",
+                  iconColor: "text-red-500",
+                  externalUrl: "https://test-bjjkq.zqlian.com/gov/#/statistics/query",
                 },
               ].map((stat) => (
                 <div
@@ -275,80 +279,22 @@ const Index = () => {
             </div>
             <div>
               <h3 className="text-base font-bold text-foreground">兑现专报生成</h3>
-              <p className="text-xs text-muted-foreground"><p className="text-xs text-muted-foreground">AI分析，决策支撑</p></p>
+              <p className="text-xs text-muted-foreground">AI分析，决策支撑</p>
             </div>
           </div>
           <div className="px-5 pb-3 flex-1">
-            <div className="grid grid-cols-2 gap-3">
-              {["整体态势", "事项分布"].map((label) => (
-                <div key={label} className="bg-accent/50 rounded-lg p-3 flex flex-col items-center">
-                  <p className="text-xs text-muted-foreground mb-2">【{label}】</p>
-                  <div className="w-14 h-14 rounded-full border-4 border-primary/30 border-t-primary border-r-primary/60 relative flex items-center justify-center">
-                    <div className="w-7 h-7 rounded-full bg-card" />
+            <div className="grid grid-cols-3 gap-2">
+              {POLICY_REPORT_DIMENSIONS.map(({ label, icon: Icon, iconClass, bgClass }) => (
+                <div key={label} className="flex flex-col items-center rounded-lg bg-accent/50 p-2.5">
+                  <p className="mb-2 text-center text-[10px] leading-tight text-muted-foreground">【{label}】</p>
+                  <div className={`flex h-12 w-12 items-center justify-center rounded-full ${bgClass}`}>
+                    <Icon className={`h-6 w-6 ${iconClass}`} />
                   </div>
                 </div>
               ))}
             </div>
           </div>
         </Card>
-        </div>
-
-        {/* 兑现执行功能卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-          {[
-            {
-              title: "项目审核",
-              desc: "基于政策条件与申报材料进行规则校验与综合评审",
-              icon: ClipboardList,
-              iconColor: "text-blue-600",
-              iconBg: "bg-blue-50",
-              externalUrl: PROJECT_AUDIT_URL,
-            },
-            {
-              title: "确定扶持结果",
-              desc: "结合审核结果与评估规则，形成最终扶持名单及支持方式",
-              icon: BadgeCheck,
-              iconColor: "text-emerald-600",
-              iconBg: "bg-emerald-50",
-              externalUrl: ALLOCATE_RESULT_URL,
-            },
-            {
-              title: "项目公示",
-              desc: "对拟扶持项目进行公开透明展示，支持社会监督与异议反馈",
-              icon: Eye,
-              iconColor: "text-amber-600",
-              iconBg: "bg-amber-50",
-              externalUrl: PUBLICIZE_URL,
-            },
-            {
-              title: "资金拨付",
-              desc: "依据最终审批结果完成资金发放与记录归档",
-              icon: Wallet,
-              iconColor: "text-violet-600",
-              iconBg: "bg-violet-50",
-              externalUrl: FUND_DISBURSEMENT_URL,
-            },
-          ].map((item) => (
-            <Card
-              key={item.title}
-              className={`p-5 ${item.path || item.externalUrl ? "cursor-pointer transition-shadow hover:shadow-md" : ""}`}
-              onClick={
-                item.externalUrl
-                  ? () => window.open(item.externalUrl, "_blank", "noopener,noreferrer")
-                  : item.path
-                    ? () => navigate(item.path)
-                    : undefined
-              }
-            >
-              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border/60 bg-card">
-                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${item.iconBg}`}>
-                  <item.icon className={`h-5 w-5 ${item.iconColor}`} />
-                </div>
-              </div>
-              <h3 className="text-base font-bold text-foreground">{item.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{item.desc}</p>
-            </Card>
-          ))}
         </div>
 
       </div>

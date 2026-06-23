@@ -1,12 +1,19 @@
 import type { PolicyItem } from "@/components/policy-drafting/drafting/PolicySearchStep";
 import type { ClauseComparison } from "@/components/policy-drafting/drafting/PolicyAnalysisStep";
 import type { OutlineSection, OutlineSubSection } from "@/components/policy-drafting/drafting/OutlineGenerationStep";
-import { deriveDataIndustryCorePoints, isDataIndustryPolicyDraft } from "@/lib/samplePolicyDocuments";
+import { deriveDataIndustryCorePoints, isDataIndustryPolicyDraft, DATA_INDUSTRY_POLICY_TITLE } from "@/lib/samplePolicyDocuments";
+import {
+  formatPolicyLevel1,
+  formatPolicyLevel2,
+  formatPolicyLevel3,
+  isPolicyStructureHeadingLine,
+} from "@/lib/policyNumbering";
 import { isPolicyLlmConfigured } from "@/lib/llmClient";
 import {
   llmGenerateContent as llmGeneratePolicyBody,
   llmGenerateCoreElementsFromPolicies as llmGenCore,
   llmGenerateOutline as llmGenOutline,
+  llmExpandPolicyTitle,
 } from "@/lib/policyDraftLlm";
 
 export type { OutlineSubSection };
@@ -20,7 +27,69 @@ export interface Citation {
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** 是否已是完整政策标题（无需再润色扩写） */
+export function isFullPolicyTitle(text: string): boolean {
+  const t = text.trim();
+  if (t.length < 18) return false;
+  return (
+    (t.includes("北京经济技术开发区") || t.startsWith("关于")) &&
+    t.includes("关于") &&
+    /的(若干措施|实施方案|实施细则|管理办法|奖励办法|政策)$/.test(t)
+  );
+}
+
+/** 规则兜底：将简短政策方向扩写为完整标题 */
+function mockExpandPolicyTitle(direction: string, policyType: string): string {
+  const raw = direction.trim();
+  if (isFullPolicyTitle(raw)) return raw;
+
+  if (/数据产业/.test(raw)) {
+    return DATA_INDUSTRY_POLICY_TITLE;
+  }
+
+  let topic = raw
+    .replace(/^推进/, "")
+    .replace(/^关于/, "")
+    .replace(/(的?(若干措施|实施方案|实施细则|管理办法|奖励办法|政策))$/, "")
+    .trim();
+
+  if (topic && !/高质量|发展|建设|创新|提升/.test(topic)) {
+    topic = `${topic}高质量发展`;
+  } else if (topic && /发展$/.test(topic) && !topic.includes("高质量")) {
+    topic = topic.replace(/发展$/, "高质量发展");
+  }
+
+  const suffix = policyType === "其他" ? "政策" : policyType;
+  return `北京经济技术开发区关于加快推进${topic}的${suffix}`;
+}
+
+/** 根据政策方向自动生成完整政策标题（优先大模型，失败则规则兜底） */
+export async function expandPolicyTitleFromDirection(
+  direction: string,
+  policyType: string,
+): Promise<{ title: string }> {
+  const trimmed = direction.trim();
+  if (!trimmed) {
+    return { title: mockExpandPolicyTitle("推进数据产业高质量发展", policyType) };
+  }
+  if (isFullPolicyTitle(trimmed)) {
+    return { title: trimmed };
+  }
+
+  if (isPolicyLlmConfigured()) {
+    try {
+      return await llmExpandPolicyTitle(trimmed, policyType);
+    } catch {
+      /* fallback below */
+    }
+  }
+
+  await delay(600);
+  return { title: mockExpandPolicyTitle(trimmed, policyType) };
+}
+
 const levelSources: Record<PolicyItem["level"], string> = {
+  yizhuang: "北京经济技术开发区",
   national: "国家发展改革委",
   beijing: "北京市人民政府",
   other: "先进地区参考",
@@ -32,6 +101,54 @@ type OfficialPolicyTemplate = Omit<PolicyItem, "selected"> & {
 };
 
 const officialPolicyCorpus: OfficialPolicyTemplate[] = [
+  {
+    id: "yizhuang-data-industry-2025",
+    title: "北京经济技术开发区关于加快推进数据产业高质量发展的若干措施",
+    url: "https://www.beijing.gov.cn/zhengce/zhengcefagui/202510/t20251029_4243376.html",
+    level: "yizhuang",
+    source: "北京经济技术开发区管理委员会",
+    keywords: ["数据产业", "经开区", "亦庄", "北京经济技术开发区", "数据", "高质量发展", "数字经济"],
+  },
+  {
+    id: "yizhuang-auto-innovation-2025",
+    title: "北京经济技术开发区关于加快打造「北京亦庄·汽车智造创新城」的若干措施",
+    url: "https://www.beijing.gov.cn/zhengce/zhengcefagui/202512/t20251216_4344616.html",
+    level: "yizhuang",
+    source: "北京经济技术开发区管理委员会",
+    keywords: ["经开区", "亦庄", "汽车", "智造", "汽车智造", "北京经济技术开发区"],
+  },
+  {
+    id: "yizhuang-incubator-2025",
+    title: "亦庄新城科技企业孵化器认定管理办法",
+    url: "https://www.beijing.gov.cn/zhengce/zhengcefagui/202507/t20250725_4158429.html",
+    level: "yizhuang",
+    source: "北京经济技术开发区管理委员会",
+    keywords: ["经开区", "亦庄", "孵化器", "科技企业", "认定", "北京经济技术开发区"],
+  },
+  {
+    id: "yizhuang-industrial-land-2025",
+    title: "亦庄新城工业用地提质增效实施意见（试行）",
+    url: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202511/t20251110_4267716.html",
+    level: "yizhuang",
+    source: "北京经济技术开发区管理委员会",
+    keywords: ["经开区", "亦庄", "工业用地", "提质增效", "北京经济技术开发区"],
+  },
+  {
+    id: "yizhuang-bci-2026",
+    title: "北京经济技术开发区关于加快推动脑机接口技术和产业创新发展的若干措施",
+    url: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202602/t20260209_4503840.html",
+    level: "yizhuang",
+    source: "北京经济技术开发区管理委员会",
+    keywords: ["经开区", "亦庄", "脑机接口", "北京经济技术开发区"],
+  },
+  {
+    id: "yizhuang-ai-voucher-2025",
+    title: "北京经济技术开发区关于开展人工智能「模型券」专项奖励申报的通知",
+    url: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202508/t20250808_4169672.html",
+    level: "yizhuang",
+    source: "北京经济技术开发区信息技术产业局",
+    keywords: ["经开区", "亦庄", "人工智能", "模型券", "奖励", "北京经济技术开发区"],
+  },
   {
     id: "national-data-industry-2024",
     title: "关于促进数据产业高质量发展的指导意见",
@@ -165,18 +282,63 @@ const extendedOfficialPolicyCorpus: OfficialPolicyTemplate[] = [
   },
 ];
 
+const RELATED_SEARCH_TERMS: Record<string, string[]> = {
+  数据产业: ["数据要素", "数据资源", "公共数据", "企业数据", "数字经济", "大数据"],
+};
+
+function expandRelatedSearchTerms(terms: string[]): string[] {
+  const expanded = [...terms];
+  for (const term of terms) {
+    for (const related of RELATED_SEARCH_TERMS[term] ?? []) {
+      if (!expanded.includes(related)) expanded.push(related);
+    }
+  }
+  return expanded;
+}
+
 function getPolicySearchTerms(policyTitle: string, coreElements?: string): string[] {
   const text = `${policyTitle} ${coreElements ?? ""}`;
   const candidates = ["数据产业", "数据要素", "数据资源", "公共数据", "企业数据", "数字经济", "人工智能", "高质量发展"];
   const matched = candidates.filter((term) => text.includes(term));
-  return matched.length ? matched : [policyTitle.replace(/[《》“”"'，。、]/g, "").slice(0, 12)].filter(Boolean);
+  const base = matched.length
+    ? matched
+    : [policyTitle.replace(/[《》“”"'，。、]/g, "").slice(0, 12)].filter(Boolean);
+  return expandRelatedSearchTerms(base);
 }
 
 function isPolicyHeadingLine(line: string, policyTitle: string): boolean {
-  const text = line.replace(/\[ref:\d+\]/g, "").trim();
-  if (!text) return false;
-  if (text === policyTitle.trim()) return true;
-  return /^(第[一二三四五六七八九十\d]+[章节条]|[一二三四五六七八九十]+、|[（(][一二三四五六七八九十\d]+[）)]|附则|总则|支持内容|申报条件|申报流程)/.test(text);
+  return isPolicyStructureHeadingLine(line, policyTitle);
+}
+
+function buildSubSectionBody(
+  subSection: OutlineSubSection,
+  index: number,
+  citations: Citation[],
+  isData: boolean,
+): string[] {
+  const citation = citations[index % Math.max(citations.length, 1)];
+  const citeTag = citation ? `[ref:${citation.index}]` : "";
+  const points = (subSection.keyPoints ?? []).filter((p) => p.trim());
+  const fallbackPoints = isData
+    ? [
+        "建立任务清单并明确责任分工，细化实施对象、支持标准和完成时限",
+        "统一申报受理、评审认定、公示复核、资金拨付等办理环节和审核口径",
+        "建立月度调度、季度评估和年度复盘机制，对执行偏差及时纠偏并动态优化",
+      ]
+    : [
+        "明确执行主体、实施对象和办理时限，形成可操作的任务清单",
+        "将申报受理、审核认定、结果公示和资金兑现纳入统一流程管理",
+        "建立监督检查与绩效评估机制，对实施成效进行量化复盘",
+      ];
+  const activePoints = points.length > 0 ? points : fallbackPoints;
+  const lines: string[] = [];
+
+  activePoints.forEach((point, pointIndex) => {
+    const suffix = pointIndex === activePoints.length - 1 ? citeTag : "";
+    lines.push(`${formatPolicyLevel3(pointIndex, point)}${suffix}`);
+  });
+
+  return lines;
 }
 
 function formatPolicyContent(content: string, policyTitle: string): string {
@@ -190,6 +352,19 @@ function formatPolicyContent(content: string, policyTitle: string): string {
     .join("\n");
 }
 
+function policyMatchesSearchTerms(
+  policy: Pick<OfficialPolicyTemplate, "title" | "keywords">,
+  terms: string[],
+): boolean {
+  const haystack = `${policy.title} ${policy.keywords.join(" ")}`;
+  return terms.some((term) => {
+    const normalizedTerm = term.trim();
+    if (normalizedTerm.length < 2) return false;
+    if (haystack.includes(normalizedTerm)) return true;
+    return policy.keywords.some((keyword) => keyword.includes(normalizedTerm));
+  });
+}
+
 export async function searchPolicies(
   policyTitle: string,
   coreElements?: string,
@@ -198,9 +373,7 @@ export async function searchPolicies(
   await delay(700);
   const terms = getPolicySearchTerms(policyTitle, coreElements);
   const corpus = options?.includeExtended ? [...officialPolicyCorpus, ...extendedOfficialPolicyCorpus] : officialPolicyCorpus;
-  const matched = corpus.filter((policy) =>
-    policy.keywords.some((keyword) => terms.some((term) => keyword.includes(term) || term.includes(keyword))),
-  );
+  const matched = corpus.filter((policy) => policyMatchesSearchTerms(policy, terms));
   const policies = (matched.length ? matched : corpus).map(({ keywords, ...policy }) => ({
     ...policy,
     selected: options?.selected ?? true,
@@ -292,7 +465,7 @@ function buildSubSections(policyTitle: string, coreElements: string, selectedPol
     : ["适用对象", "支持方式", "申报机制", "保障措施", "监督评估"];
   const items = (lines.length > 0 ? lines : fallback).map((item, index) => ({
     id: `sub-${index + 1}`,
-    title: `第${index + 1}条 ${item}`,
+    title: formatPolicyLevel2(index, item),
     keyPoints: buildSubSectionKeyPoints(policyTitle, item, index),
     referencePolicies: refs.map((policy, refIndex) => ({
       title: policy.title,
@@ -398,7 +571,7 @@ export async function generateOutline(params: {
   const measureSubSections = params.coreItems && params.coreItems.length > 0
     ? params.coreItems.map((it, index) => ({
         id: `sub-${index + 1}`,
-        title: `第${index + 1}条 ${it.text.replace(/^\d+[.、]\s*/, "")}`,
+        title: formatPolicyLevel2(index, it.text.replace(/^\d+[.、]\s*/, "")),
         keyPoints: buildSubSectionKeyPoints(params.policyTitle, it.text.replace(/^\d+[.、]\s*/, ""), index),
         referencePolicies: it.refs.map((r) => ({
           title: r.title,
@@ -410,7 +583,7 @@ export async function generateOutline(params: {
 
   const goalSubSection: OutlineSubSection = {
     id: "goal-1",
-    title: "（一）发展目标",
+    title: formatPolicyLevel2(0, "发展目标"),
     keyPoints: isData
       ? [
           "围绕北京经济技术开发区数据产业高质量发展，明确总体定位、阶段目标和年度推进节奏。",
@@ -431,7 +604,7 @@ export async function generateOutline(params: {
 
   const finalSubSection: OutlineSubSection = {
     id: "final-1",
-    title: "（一）实施与解释",
+    title: formatPolicyLevel2(0, "实施与解释"),
     keyPoints: isData
       ? [
           "明确本措施实施期限、适用范围、职责分工和政策解释主体。",
@@ -453,19 +626,19 @@ export async function generateOutline(params: {
   const outline: OutlineSection[] = [
     {
       id: "part-1",
-      title: "一、总体目标",
+      title: formatPolicyLevel1(0, "总体目标"),
       keyPoints: [],
       subSections: [goalSubSection],
     },
     {
       id: "part-2",
-      title: "二、工作举措",
+      title: formatPolicyLevel1(1, "工作举措"),
       keyPoints: [],
       subSections: measureSubSections,
     },
     {
       id: "part-3",
-      title: "三、附则",
+      title: formatPolicyLevel1(2, "附则"),
       keyPoints: [],
       subSections: [finalSubSection],
     },
@@ -502,36 +675,18 @@ export async function generateContent(params: {
 
   await delay(1500);
   const isData = isDataIndustryPolicyDraft(params.policyTitle);
-  const buildFormalClause = (subTitle: string, points: string[], idx: number) => {
-    const citation = citations[idx % Math.max(citations.length, 1)];
-    const citeTag = citation ? `[ref:${citation.index}]` : "";
-    const p1 = points[0] || "明确政策实施范围和重点任务";
-    const p2 = points[1] || "细化支持方式、申报条件与兑现流程";
-    const p3 = points[2] || "建立监督评估和动态优化机制";
 
-    if (isData) {
-      return [
-        `${subTitle}`,
-        `建立任务清单并明确责任分工，细化实施对象、支持标准和完成时限；设置申报受理、评审认定、公示复核、资金拨付等办理环节，统一材料清单和审核口径；对符合条件的市场主体按程序纳入政策台账，实行全过程留痕管理；建立月度调度、季度评估和年度复盘机制，对执行偏差及时纠偏并开展动态优化。${p1}。${p2}。${p3}。${citeTag}`,
-      ];
-    }
-
-    return [
-      `${subTitle}`,
-      `明确执行主体、实施对象和办理时限，形成可操作的任务清单；将申报受理、审核认定、结果公示和资金兑现纳入统一流程管理，确保口径一致、节点清晰；建立监督检查与绩效评估机制，对实施成效进行量化复盘，并根据评估结果及时完善配套细则。${p1}。${p2}。${p3}。${citeTag}`,
-    ];
-  };
-
-  const sections = params.outline.flatMap((section) => {
-    const header = `${section.title}`;
-    const hasSubs = section.subSections.length > 0;
-    const chapterPoints = !hasSubs ? (section.keyPoints ?? []).filter((p) => p.trim()) : [];
-    const chapterBody =
-      chapterPoints.length > 0 ? [chapterPoints.map((p) => p.trim()).join("。") + "。"] : [];
-    const body = section.subSections.flatMap((subSection, index) =>
-      buildFormalClause(subSection.title, subSection.keyPoints, index)
-    );
-    return [header, ...chapterBody, ...body, ""];
+  const sections = params.outline.flatMap((section, sectionIndex) => {
+    const header = section.title.trim().match(/^[一二三四五六七八九十]+、/)
+      ? section.title
+      : formatPolicyLevel1(sectionIndex, section.title);
+    const body = section.subSections.flatMap((subSection, subIndex) => {
+      const level2Title = subSection.title.trim().match(/^[（(][一二三四五六七八九十\d]+[）)]/)
+        ? subSection.title
+        : formatPolicyLevel2(subIndex, subSection.title);
+      return [level2Title, ...buildSubSectionBody(subSection, subIndex, citations, isData)];
+    });
+    return [header, "", ...body, ""];
   });
 
   const intro = isData
@@ -559,8 +714,12 @@ export async function generateContent(params: {
         intro,
         "",
         ...sections,
-        "第四章 附则",
-        "本政策由区级主管部门负责解释，自发布之日起施行。",
+        formatPolicyLevel1(2, "附则"),
+        "",
+        formatPolicyLevel2(0, "解释与施行"),
+        formatPolicyLevel3(0, "本政策由区级主管部门负责解释"),
+        formatPolicyLevel3(1, "此前相关政策与本政策不一致的，以本政策为准"),
+        formatPolicyLevel3(2, "本政策自发布之日起施行"),
       ].join("\n");
 
   return { content: formatPolicyContent(content, params.policyTitle), citations };

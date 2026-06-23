@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Download, Sparkles, FileText, MessageSquare, Search, Upload, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, Loader2, Pencil, Check, X, Plus, ChevronDown, ChevronRight, Copy, RefreshCw, Users, Banknote, BarChart3, TrendingUp, ExternalLink, PenLine, Expand, Calculator, BookmarkPlus, Paintbrush, BookOpen, ShieldCheck, FolderOpen, GripVertical } from "lucide-react";
+import { ArrowLeft, Download, Sparkles, FileText, Search, Upload, Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, List, ListOrdered, Undo2, Redo2, Loader2, Pencil, Check, X, Plus, ChevronDown, ChevronRight, Copy, RefreshCw, Users, Banknote, BarChart3, TrendingUp, ExternalLink, PenLine, Expand, Calculator, BookmarkPlus, Paintbrush, BookOpen, ShieldCheck, FolderOpen, GripVertical } from "lucide-react";
 import { ClauseMaterialPanel } from "./ClauseMaterialPanel";
 import { reorderOutlineById, useOutlineChapterDrag } from "./outlineDrag";
 import { Button } from "@/components/ui/button";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { PolicyItem } from "./PolicySearchStep";
 import type { OutlineSection, OutlineSubSection } from "./OutlineGenerationStep";
+import { isPolicyStructureHeadingLine } from "@/lib/policyNumbering";
 import { generateContent, type Citation } from "@/lib/policyDraftApi";
 import { isPolicyLlmConfigured, policyLlmChat } from "@/lib/llmClient";
 
@@ -25,15 +26,15 @@ interface PolicyOutputPageProps {
 
 const editorTools = [
   { id: "outline", icon: Sparkles, label: "大纲编辑" },
-  { id: "clause", icon: FileText, label: "生成条款" },
-  { id: "material", icon: FolderOpen, label: "素材库" },
-  { id: "evaluate", icon: MessageSquare, label: "政策自评估" },
-  { id: "reference", icon: BookOpen, label: "参考来源" },
   { id: "proofread", icon: ShieldCheck, label: "审稿核稿" },
-  { id: "calculate", icon: Calculator, label: "政策测算" },
+  { id: "clause", icon: FileText, label: "生成条款" },
+  { id: "calculate", icon: Calculator, label: "资金测算" },
+  { id: "material", icon: FolderOpen, label: "素材库" },
+  { id: "reference", icon: BookOpen, label: "参考来源" },
 ];
 
 const referenceLevelLabels: Record<PolicyItem["level"], string> = {
+  yizhuang: "经开区政策",
   national: "国家级政策",
   beijing: "北京市政策",
   other: "其他省市政策",
@@ -788,7 +789,7 @@ function PolicyReferenceSourcesPanel({
           source: policy.source,
         }));
 
-  const groupedRefs = (["national", "beijing", "other", "material"] as const).map((level) => ({
+  const groupedRefs = (["yizhuang", "beijing", "national", "other", "material"] as const).map((level) => ({
     level,
     label: referenceLevelLabels[level],
     items: selectedRefs.filter((p) => p.level === level),
@@ -1656,7 +1657,7 @@ function EvaluationPanel({ content, policyTitle }: { content: string; policyTitl
   return (
     <div className="p-4 flex flex-col h-full">
       <div className="flex items-center justify-between mb-4 shrink-0">
-        <h3 className="text-sm font-semibold text-foreground">政策自评估</h3>
+        <h3 className="text-sm font-semibold text-foreground">政策前评估</h3>
         {status === "done" && (
           <button onClick={handleReset} className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
             <RefreshCw className="h-3 w-3" />重新评估
@@ -2147,12 +2148,7 @@ export function PolicyOutputPage({
   /** 渲染正文：處理引用角標 [ref:N] */
   const renderHighlightedText = (text: string) => renderToken(text, "all");
 
-  const isPolicyHeadingLine = (line: string) => {
-    const text = line.replace(/\[ref:\d+\]/g, "").trim();
-    if (!text) return false;
-    if (text === policyTitle.trim()) return true;
-    return /^(第[一二三四五六七八九十\d]+[章节条]|[一二三四五六七八九十]+、|[（(][一二三四五六七八九十\d]+[）)]|附则|总则|支持内容|申报条件|申报流程)/.test(text);
-  };
+  const isPolicyHeadingLine = (line: string) => isPolicyStructureHeadingLine(line, policyTitle);
 
   const renderPolicyLines = (text: string, keyPrefix: string) =>
     text.split("\n").map((line, lineIndex) => {
@@ -2169,6 +2165,16 @@ export function PolicyOutputPage({
         </p>
       );
     });
+
+  const handleNavigateToPreEvaluation = () => {
+    navigate("/policy-writing/pre-evaluation", {
+      state: {
+        startEvaluation: true,
+        policyTitle,
+        policyContent: displayedText || fullContentRef.current,
+      },
+    });
+  };
 
   const handleToolClick = (id: string) => {
     setActivePanel((prev) => (prev === id ? null : id));
@@ -2280,17 +2286,9 @@ export function PolicyOutputPage({
               <Button
                 size="sm"
                 className="text-xs gap-1.5 gov-gradient text-primary-foreground hover:opacity-90"
-                onClick={() =>
-                  navigate("/policy-writing/pre-evaluation", {
-                    state: {
-                      startEvaluation: true,
-                      policyTitle,
-                      policyContent: displayedText || fullContentRef.current,
-                    },
-                  })
-                }
+                onClick={handleNavigateToPreEvaluation}
               >
-                去评估
+                政策前评估
               </Button>
               <Button variant="outline" size="sm" className="text-xs gap-1.5">
                 <Download className="h-3.5 w-3.5" />
@@ -2842,11 +2840,6 @@ export function PolicyOutputPage({
                     <ClauseGeneratorPanel policyTitle={policyTitle} />
                   </div>
                 )}
-                {activePanel === "evaluate" && (
-                  <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-                    <EvaluationPanel content={displayedText} policyTitle={policyTitle} />
-                  </div>
-                )}
                 {activePanel === "reference" && (
                   <PolicyReferenceSourcesPanel citations={citations} selectedPolicies={selectedPolicies} />
                 )}
@@ -2859,7 +2852,7 @@ export function PolicyOutputPage({
                 {activePanel === "material" && (
                   <ClauseMaterialPanel onInsert={handleInsertClauseMaterial} />
                 )}
-                {activePanel !== "mindmap" && activePanel !== "outline" && activePanel !== "reference" && activePanel !== "proofread" && activePanel !== "material" && activePanel !== "clause" && activePanel !== "evaluate" && (
+                {activePanel !== "mindmap" && activePanel !== "outline" && activePanel !== "reference" && activePanel !== "proofread" && activePanel !== "material" && activePanel !== "clause" && (
                   <div className="p-4 flex flex-col items-center justify-center h-full min-h-[300px] text-muted-foreground">
                     <p className="text-sm">功能开发中...</p>
                   </div>

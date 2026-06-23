@@ -131,7 +131,7 @@ export async function llmGenerateOutline(params: {
   const refTitles = refs.map((p) => p.title).join("；");
 
   const sys =
-    "你是政府政策性文件结构专家。根据政策标题与核心要素，设计三级大纲：一级章（如 一、总体要求）、二级节含要点提示，便于后续生成正文。";
+    "你是政府政策性文件结构专家。根据政策标题与核心要素，设计三级大纲：一级用「一、二、三」；二级用「（一）（二）（三）」；三级要点用阿拉伯数字「1、2、3」。";
   const user = `政策标题：${params.policyTitle}
 
 核心要素：
@@ -141,11 +141,11 @@ ${params.coreElements}
 
 请只输出一个 JSON 对象（不要 Markdown），结构：
 {"outline":[
-  {"id":"part-1","title":"一、总体目标","keyPoints":["章级要点1","章级要点2"],"subSections":[
-    {"id":"s1","title":"（一）指导思想","keyPoints":["节级要点1","节级要点2"],"referencePolicies":[{"title":"参考政策名","clause":"参考表述摘要"}]}
+  {"id":"part-1","title":"一、总体目标","keyPoints":[],"subSections":[
+    {"id":"s1","title":"（一）指导思想","keyPoints":["1、要点表述","2、要点表述"],"referencePolicies":[{"title":"参考政策名","clause":"参考表述摘要"}]}
   ]}
 ]}
-要求：至少 3 个一级章；每章至少 1 个 subSection；一级章 keyPoints 可选 0～3 条；二级节 keyPoints 每节 2～4 条；referencePolicies 可与参考政策对应或概括。`;
+要求：至少 3 个一级章；每章至少 1 个 subSection；subSection.title 必须使用「（一）」式二级标题，不要使用「第×条」；keyPoints 为三级条目内容（生成正文时展开为 1、2、3 条目）；referencePolicies 可与参考政策对应或概括。`;
 
   const raw = await policyLlmChat({ system: sys, user, temperature: 0.4, max_tokens: 3500 });
   const json = extractJsonObject(raw);
@@ -178,7 +178,7 @@ export async function llmGenerateContent(params: {
     .join("\n\n");
 
   const sys =
-    "你是省/市级政府机关政策撰稿人。根据给定要素与大纲撰写完整政策文本：用语规范、条款清晰，可使用「第一章」「第一条」等结构；包含简要导语、分章条文、附则与施行日期说明；不要输出 Markdown 代码围栏；可适当引用参考政策精神但不要编造文号。";
+    "你是省/市级政府机关政策撰稿人。根据给定要素与大纲撰写完整政策文本：用语规范、层次清楚，严格采用三级结构——第一级「一、二、三、四」；第二级「（一）（二）（三）（四）」；第三级「1、2、3、4」；包含简要导语、分章条文、附则与施行日期说明；不要输出 Markdown 代码围栏；不要使用「第×条」「第一章」或「（1）（2）」等四级编号；可适当引用参考政策精神但不要编造文号。";
 
   const user = `请撰写政策全文。
 
@@ -194,7 +194,7 @@ ${outlineBrief}
 【可参考政策目录】
 ${refBlock || "（无勾选）"}
 
-要求：正文不少于 2000 汉字；层次清楚；最后包含施行说明及「本办法/措施由××部门负责解释，自印发之日起施行」类表述（部门可用「有关主管部门」）。`;
+要求：正文不少于 2000 汉字；必须严格按三级标题体例组织；最后包含施行说明及「本措施/政策由××部门负责解释，自印发之日起施行」类表述（部门可用「有关主管部门」）。`;
 
   const content = await policyLlmChat({
     system: sys,
@@ -204,4 +204,30 @@ ${refBlock || "（无勾选）"}
   });
 
   return { content: content.trim() };
+}
+
+/** 根据政策方向润色扩写为完整政策标题 */
+export async function llmExpandPolicyTitle(
+  direction: string,
+  policyType: string,
+): Promise<{ title: string }> {
+  const sys =
+    "你是地方政府公文标题撰写专家。根据用户提供的政策方向关键词和体例类型，生成一份完整、规范的政策文件标题。";
+  const user = `政策方向：${direction.trim()}
+体例类型：${policyType}
+
+要求：
+1. 发文机关使用「北京经济技术开发区」
+2. 采用「北京经济技术开发区关于……的${policyType}」格式（体例为「其他」时用「的政策」）
+3. 对方向进行规范润色与扩写，符合政府公文标题习惯
+4. 只输出标题一行，不要引号、不要 Markdown、不要解释
+
+示例：
+方向「推进数据产业高质量发展」→ 北京经济技术开发区关于加快推进数据产业高质量发展的若干措施
+方向「数据产业发展」→ 北京经济技术开发区关于加快推进数据产业高质量发展的若干措施`;
+
+  const raw = await policyLlmChat({ system: sys, user, temperature: 0.3, max_tokens: 200 });
+  const title = raw.replace(/^["'《]|["'》]$/g, "").split("\n")[0].trim();
+  if (!title || title.length < 12) throw new Error("标题生成结果无效");
+  return { title };
 }

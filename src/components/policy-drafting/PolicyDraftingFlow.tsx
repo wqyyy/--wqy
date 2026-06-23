@@ -11,6 +11,7 @@ import {
   Sparkles,
   ListOrdered,
   ScrollText,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,14 +21,18 @@ import { PolicyAnalysisStep, type ClauseComparison } from "@/components/policy-d
 import { OutlineGenerationStep, type OutlineSection } from "@/components/policy-drafting/drafting/OutlineGenerationStep";
 import { PolicyOutputPage } from "@/components/policy-drafting/drafting/PolicyOutputPage";
 import { QuickDraftProgress } from "@/components/policy-drafting/drafting/QuickDraftProgress";
+import { expandPolicyTitleFromDirection, isFullPolicyTitle } from "@/lib/policyDraftApi";
 import { DATA_INDUSTRY_POLICY_TITLE } from "@/lib/samplePolicyDocuments";
 
+/** 「确定政策方向」输入框默认内容 */
+const DEFAULT_POLICY_DIRECTION = "推进数据产业高质量发展";
+
 const flowSteps = [
-  { id: 1, label: "输入政策标题", icon: ClipboardList },
-  { id: 2, label: "政策检索", icon: Search },
-  { id: 3, label: "核心要素生成", icon: Sparkles },
-  { id: 4, label: "大纲生成", icon: ListOrdered },
-  { id: 5, label: "正文生成", icon: ScrollText },
+  { id: 1, label: "确定政策方向", icon: ClipboardList },
+  { id: 2, label: "检索同类政策", icon: Search },
+  { id: 3, label: "生成核心要素", icon: Sparkles },
+  { id: 4, label: "生成政策大纲", icon: ListOrdered },
+  { id: 5, label: "生成政策正文", icon: ScrollText },
 ];
 
 const policyTypeOptions = [
@@ -41,20 +46,53 @@ const policyTypeOptions = [
   "其他",
 ] as const;
 
-const policyScopeOptions = ["宏观政策", "中观政策", "微观政策"] as const;
+type PolicyTypeOption = (typeof policyTypeOptions)[number];
 
-function inferPolicyTypeFromTitle(title: string): (typeof policyTypeOptions)[number] {
+type PolicyScope = "中观政策" | "微观政策";
+
+const POLICY_TYPE_META: Record<
+  PolicyTypeOption,
+  { scope: PolicyScope; description: string }
+> = {
+  若干措施: {
+    scope: "微观政策",
+    description: "要点式文件，突出总体目标与具体举措。",
+  },
+  实施方案: {
+    scope: "中观政策",
+    description: "战略部署文件，含总体要求、重点行动与组织机制。",
+  },
+  实施细则: {
+    scope: "微观政策",
+    description: "细化上位政策，章条体例，明确标准与流程。",
+  },
+  实施意见: {
+    scope: "中观政策",
+    description: "导向性文件，统筹思路、目标与部门职责。",
+  },
+  工作方案: {
+    scope: "中观政策",
+    description: "专项任务文件，明确主要任务与保障措施。",
+  },
+  管理办法: {
+    scope: "微观政策",
+    description: "制度性文件，规定认定、申报与监管要求。",
+  },
+  奖励办法: {
+    scope: "微观政策",
+    description: "明确奖励标准与兑现流程。",
+  },
+  其他: {
+    scope: "微观政策",
+    description: "自定义体例，按实际需求灵活组织。",
+  },
+};
+
+function inferPolicyTypeFromTitle(title: string): PolicyTypeOption {
   const text = title.trim();
   if (!text) return "若干措施";
   const matched = policyTypeOptions.find((option) => text.includes(option));
   return matched ?? "若干措施";
-}
-
-/** 政策类型 → 政策分类联动 */
-function inferPolicyScopeFromType(type: (typeof policyTypeOptions)[number]): (typeof policyScopeOptions)[number] {
-  if (type === "实施方案") return "宏观政策";
-  if (type === "工作方案") return "中观政策";
-  return "微观政策";
 }
 
 interface PolicyDraftingFlowProps {
@@ -73,11 +111,13 @@ export function PolicyDraftingFlow({
   const [currentStep, setCurrentStep] = useState(1);
   /** 已完成（訪問過）的最大步驟，用於控制步驟條可點擊範圍 */
   const [maxReachedStep, setMaxReachedStep] = useState(1);
-  const [title, setTitle] = useState(() => initialTitle?.trim() || DATA_INDUSTRY_POLICY_TITLE);
+  const [direction, setDirection] = useState(() => initialTitle?.trim() || DEFAULT_POLICY_DIRECTION);
+  const [title, setTitle] = useState(() => {
+    const t = initialTitle?.trim() || "";
+    return t && isFullPolicyTitle(t) ? t : "";
+  });
+  const [titleGenerating, setTitleGenerating] = useState(false);
   const [policyType, setPolicyType] = useState<(typeof policyTypeOptions)[number]>("若干措施");
-  const [policyScope, setPolicyScope] = useState<(typeof policyScopeOptions)[number]>(() =>
-    inferPolicyScopeFromType("若干措施"),
-  );
   const [coreElements, setCoreElements] = useState("");
   const [coreItems, setCoreItems] = useState<{ id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[]>([]);
   const [selectedPolicies, setSelectedPolicies] = useState<PolicyItem[]>([]);
@@ -97,16 +137,33 @@ export function PolicyDraftingFlow({
 
   useEffect(() => {
     const t = initialTitle?.trim();
-    if (t) setTitle(t);
+    if (t) {
+      setDirection(t);
+      if (isFullPolicyTitle(t)) setTitle(t);
+    }
   }, [initialTitle]);
 
   useEffect(() => {
-    const inferredType = inferPolicyTypeFromTitle(title);
+    const inferredType = inferPolicyTypeFromTitle(direction);
     setPolicyType(inferredType);
-    setPolicyScope(inferPolicyScopeFromType(inferredType));
-  }, [title]);
+  }, [direction]);
 
-  const goNext = () => {
+  const expandTitleFromDirection = async () => {
+    if (title.trim() && isFullPolicyTitle(title)) return title;
+    setTitleGenerating(true);
+    try {
+      const { title: expanded } = await expandPolicyTitleFromDirection(direction, policyType);
+      setTitle(expanded);
+      return expanded;
+    } finally {
+      setTitleGenerating(false);
+    }
+  };
+
+  const goNext = async () => {
+    if (currentStep === 1) {
+      await expandTitleFromDirection();
+    }
     if (currentStep < 5) {
       const next = currentStep + 1;
       setCurrentStep(next);
@@ -160,7 +217,7 @@ export function PolicyDraftingFlow({
           返回
         </button>
         <QuickDraftProgress
-          policyTitle={title}
+          policyTitle={title || direction}
           coreElements={coreElements}
           onComplete={handleQuickDraftComplete}
         />
@@ -177,7 +234,7 @@ export function PolicyDraftingFlow({
     return (
       <div className="flex-1 flex flex-col min-h-0">
         <PolicyOutputPage
-          policyTitle={title}
+          policyTitle={title || direction}
           coreElements={coreElements}
           selectedPolicies={quickDraftResult.policies}
           outline={quickDraftResult.outline}
@@ -198,7 +255,7 @@ export function PolicyDraftingFlow({
     return (
       <div className="flex-1 flex flex-col min-h-0">
         <PolicyOutputPage
-          policyTitle={title}
+          policyTitle={title || direction}
           coreElements={coreElements}
           selectedPolicies={selectedPolicies}
           outline={outlineResult}
@@ -298,31 +355,28 @@ export function PolicyDraftingFlow({
         </div>
       </div>
 
-      {/* Step content（Step 4 雙欄佈局需跳出 max-w 限制，單獨處理） */}
+      {/* Step content */}
       <motion.div
         key={currentStep}
         initial={{ opacity: 0, x: 16 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.25 }}
-        className={currentStep === 4 ? "" : "max-w-4xl mx-auto"}
       >
         {/* Step 1: Input */}
         {currentStep === 1 && (
-          <div className="bg-card rounded-xl border border-border p-6 space-y-6">
-            <div>
-              <h2 className="text-lg font-semibold text-foreground mb-1">输入政策标题</h2>
-              <p className="text-sm text-muted-foreground">请输入政策标题，AI 将自动检索参考政策并生成初稿</p>
-            </div>
-
+          <div className="space-y-6 rounded-xl border border-border bg-card px-5 py-6 md:px-7">
             <div className="space-y-2">
               <Label htmlFor="policy-title" className="text-sm font-medium">
-                政策标题 <span className="text-primary">*</span>
+                确定政策方向 <span className="text-primary">*</span>
               </Label>
               <Input
                 id="policy-title"
-                placeholder={DATA_INDUSTRY_POLICY_TITLE}
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                placeholder={DEFAULT_POLICY_DIRECTION}
+                value={direction}
+                onChange={(e) => {
+                  setDirection(e.target.value);
+                  setTitle("");
+                }}
                 className="h-11"
               />
             </div>
@@ -331,51 +385,42 @@ export function PolicyDraftingFlow({
               <Label className="text-sm font-medium">
                 政策类型 <span className="text-primary">*</span>
               </Label>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
                 {policyTypeOptions.map((option) => {
                   const checked = policyType === option;
+                  const meta = POLICY_TYPE_META[option];
                   return (
                     <button
                       key={option}
                       type="button"
-                      onClick={() => {
-                        setPolicyType(option);
-                        setPolicyScope(inferPolicyScopeFromType(option));
-                      }}
-                      className={`h-10 rounded-lg border text-sm transition-colors ${
+                      onClick={() => setPolicyType(option)}
+                      className={`flex flex-col items-start gap-1.5 rounded-lg border px-3 py-2.5 text-left transition-colors ${
                         checked
-                          ? "border-primary bg-primary/5 text-primary font-medium"
-                          : "border-border text-muted-foreground hover:text-foreground hover:border-primary/40"
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/40 hover:bg-muted/20"
                       }`}
                       aria-pressed={checked}
                     >
-                      {option}
+                      <div className="flex w-full items-start justify-between gap-1">
+                        <span
+                          className={`text-sm ${checked ? "font-semibold text-primary" : "font-medium text-foreground"}`}
+                        >
+                          {option}
+                        </span>
+                        <span
+                          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none ${
+                            checked
+                              ? "bg-primary/10 text-primary"
+                              : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {meta.scope}
+                        </span>
+                      </div>
+                      <p className="text-[10px] leading-relaxed text-foreground">
+                        {meta.description}
+                      </p>
                     </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">
-                政策分类 <span className="text-primary">*</span>
-              </Label>
-              <div className="grid grid-cols-3 gap-2.5">
-                {policyScopeOptions.map((option) => {
-                  const checked = policyScope === option;
-                  return (
-                    <div
-                      key={option}
-                      title="随政策类型自动匹配"
-                      className={`flex h-10 items-center justify-center rounded-lg border text-sm ${
-                        checked
-                          ? "border-primary bg-primary/5 text-primary font-medium"
-                          : "border-border bg-muted/20 text-muted-foreground"
-                      }`}
-                      aria-current={checked ? "true" : undefined}
-                    >
-                      {option}
-                    </div>
                   );
                 })}
               </div>
@@ -385,10 +430,14 @@ export function PolicyDraftingFlow({
             <div className="grid grid-cols-2 gap-3 pt-1">
               {/* 快速起草 */}
               <button
-                onClick={() => { if (title.trim()) setQuickMode(true); }}
-                disabled={!title.trim()}
+                onClick={async () => {
+                  if (!direction.trim() || titleGenerating) return;
+                  await expandTitleFromDirection();
+                  setQuickMode(true);
+                }}
+                disabled={!direction.trim() || titleGenerating}
                 className={`group relative flex flex-col items-start gap-3 rounded-xl border-2 p-5 text-left transition-all
-                  ${title.trim()
+                  ${direction.trim() && !titleGenerating
                     ? "border-primary/30 hover:border-primary hover:bg-primary/[0.03] cursor-pointer"
                     : "border-border opacity-50 cursor-not-allowed"
                   }`}
@@ -410,10 +459,13 @@ export function PolicyDraftingFlow({
 
               {/* 分步起草 */}
               <button
-                onClick={() => { if (title.trim()) goNext(); }}
-                disabled={!title.trim()}
+                onClick={async () => {
+                  if (!direction.trim() || titleGenerating) return;
+                  await goNext();
+                }}
+                disabled={!direction.trim() || titleGenerating}
                 className={`group relative flex flex-col items-start gap-3 rounded-xl border-2 p-5 text-left transition-all
-                  ${title.trim()
+                  ${direction.trim() && !titleGenerating
                     ? "border-primary/30 hover:border-primary hover:bg-primary/[0.03] cursor-pointer"
                     : "border-border opacity-50 cursor-not-allowed"
                   }`}
@@ -433,17 +485,27 @@ export function PolicyDraftingFlow({
                 </div>
               </button>
             </div>
+
+            {titleGenerating && (
+              <div className="flex items-center justify-center gap-2 rounded-lg border border-border bg-muted/30 py-3 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                AI 正在润色扩写政策标题…
+              </div>
+            )}
           </div>
         )}
 
         {/* Step 2: Policy Search */}
         {currentStep === 2 && (
-          <div className="bg-card rounded-xl border border-border p-6 space-y-6">
+          <div className="space-y-6 rounded-xl border border-border bg-card px-5 py-6 md:px-7">
             <PolicySearchStep
               policyTitle={title}
+              policyDirection={direction}
+              titleGenerating={titleGenerating}
               coreElements={coreElements}
               policies={selectedPolicies}
               onPoliciesSelected={setSelectedPolicies}
+              onPolicyTitleChange={setTitle}
             />
             {renderBottomActions(
               `下一步：核心要素生成（已选 ${selectedPolicies.filter(p => p.selected).length} 条）`,
@@ -454,7 +516,7 @@ export function PolicyDraftingFlow({
 
         {/* Step 3: Core elements generation (formerly analysis) */}
         {currentStep === 3 && (
-          <div className="bg-card rounded-xl border border-border p-6 space-y-6">
+          <div className="space-y-6 rounded-xl border border-border bg-card px-5 py-6 md:px-7">
             <PolicyAnalysisStep
               selectedPolicies={selectedPolicies}
               policyTitle={title}
@@ -468,7 +530,7 @@ export function PolicyDraftingFlow({
 
         {/* Step 4: Outline Generation */}
         {currentStep === 4 && (
-          <div className="bg-card rounded-xl border border-border p-6 space-y-6">
+          <div className="space-y-6 rounded-xl border border-border bg-card px-5 py-6 md:px-7">
               <OutlineGenerationStep
                 policyTitle={title}
                 coreElements={coreElements}
