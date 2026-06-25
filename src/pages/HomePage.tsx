@@ -2,15 +2,15 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Inbox, Mic, Paperclip, Send, X, Search, ArrowUpRight } from "lucide-react";
 import {
-  buildDraftWakeMessage,
   dismissDraftWake,
   getPendingDraftWake,
   type PendingDraftWake,
 } from "@/lib/policyDraftWake";
 import {
   ASSISTANT_HOME_GREETING,
-  ASSISTANT_TASK_CONTINUE_LABEL,
   ASSISTANT_TASK_DISMISS_LABEL,
+  ASSISTANT_TASK_VIEW_LABEL,
+  buildCompletedTaskMessage,
 } from "@/lib/assistantCopy";
 import digitalHumanImg from "@/assets/digital-human-upper.png";
 
@@ -22,8 +22,8 @@ const QUICK_QUESTIONS = [
   { id: "redeem", label: "我想看一下经开区最新的兑现数据" },
 ];
 
-/** 无真实未完成草稿时，用于页面展示的模拟任务（便于预览样式与交互） */
-const MOCK_DRAFT_TITLE = "关于促进数据产业高质量发展的若干政策措施（示例）";
+/** 无真实任务时，用于页面展示的模拟任务（便于预览样式与交互） */
+const MOCK_TASK_TITLE = "关于促进数据产业高质量发展的若干政策措施";
 
 export default function HomePage() {
   const [inputValue, setInputValue] = useState("");
@@ -63,6 +63,7 @@ export default function HomePage() {
   };
 
   const hasTask = Boolean(draftWake || (!mockWakeDismissed && !getPendingDraftWake()));
+  const taskCount = hasTask ? 1 : 0;
 
   return (
     <div className="relative min-h-full w-full overflow-x-hidden">
@@ -139,11 +140,21 @@ export default function HomePage() {
 
           {/* 待办事项卡片 */}
           <div className="w-72 shrink-0 self-end rounded-2xl bg-white p-4 shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
-            <h3 className="mb-3 text-sm font-semibold text-gray-800">待办事项</h3>
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-800">
+              待办事项
+              {taskCount > 0 && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#d21639] px-1.5 text-[10px] font-semibold leading-none text-white shadow-sm">
+                  {taskCount > 99 ? "99+" : taskCount}
+                </span>
+              )}
+            </h3>
             {hasTask ? (
               <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
                 <p className="line-clamp-3 text-[13px] leading-relaxed text-gray-700">
-                  {draftWake ? buildDraftWakeMessage(draftWake.title) : buildDraftWakeMessage(MOCK_DRAFT_TITLE)}
+                  {buildCompletedTaskMessage(
+                    "政策起草",
+                    draftWake?.title ?? MOCK_TASK_TITLE,
+                  )}
                 </p>
                 <div className="mt-2.5 flex flex-wrap gap-2">
                   <button
@@ -151,7 +162,7 @@ export default function HomePage() {
                     onClick={() => navigate("/policy-writing/drafting")}
                     className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-[#d21639] to-[#a00f27] px-2.5 py-1 text-[11px] font-medium text-white shadow-sm transition-opacity hover:opacity-95"
                   >
-                    {ASSISTANT_TASK_CONTINUE_LABEL}
+                    {ASSISTANT_TASK_VIEW_LABEL}
                   </button>
                   <button
                     type="button"

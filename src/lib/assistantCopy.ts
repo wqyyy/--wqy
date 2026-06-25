@@ -3,6 +3,11 @@ export const ASSISTANT_HOME_GREETING =
 
 export const ASSISTANT_TASK_REMINDER_TITLE = "任务提醒";
 
-export const ASSISTANT_TASK_CONTINUE_LABEL = "继续优化";
+export const ASSISTANT_TASK_CONTINUE_LABEL = "继续完善";
+export const ASSISTANT_TASK_VIEW_LABEL = "查看";
 export const ASSISTANT_TASK_DISMISS_LABEL = "忽略";
 
+/** 已完成任务提醒文案 */
+export function buildCompletedTaskMessage(taskType: string, taskName: string): string {
+  return `您的${taskType}任务「${taskName}」已生成完成，是否查看结果？`;
+}

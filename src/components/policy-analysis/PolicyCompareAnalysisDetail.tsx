@@ -11,6 +11,7 @@ import {
   BarChart3,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,7 +28,7 @@ import type { ContrastType } from "@/components/policy-analysis/compareAnalysisT
 import type { ClauseMaterialItem } from "@/lib/clauseMaterialLibrary";
 
 const FLOW_STEPS = [
-  { id: 1, label: "选择分析类型", icon: SlidersHorizontal },
+  { id: 1, label: "选择分析条件", icon: SlidersHorizontal },
   { id: 2, label: "添加分析条款", icon: FilePlus },
   { id: 3, label: "开始AI分析", icon: Sparkles },
   { id: 4, label: "查看分析结果", icon: Eye },
@@ -174,6 +175,20 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
       return;
     }
     setSelectedClauseIds(clauses.map((clause) => clause.id));
+  };
+
+  const relabelClauses = (items: ClauseItem[]) =>
+    items.map((clause, index) => ({
+      ...clause,
+      label: `条款${index + 1}`,
+    }));
+
+  const handleDeleteClause = (id: string) => {
+    setClauses((prev) => relabelClauses(prev.filter((clause) => clause.id !== id)));
+    setSelectedClauseIds((prev) => prev.filter((clauseId) => clauseId !== id));
+    setHasAnalyzed(false);
+    setResults([]);
+    setViewingResultId(null);
   };
 
   const openCustomInput = () => {
@@ -540,7 +555,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                       <div
                         key={clause.id}
                         className={cn(
-                          "relative rounded-lg border border-border bg-background p-4 pt-8 shadow-sm",
+                          "relative rounded-lg border border-border bg-background p-4 pb-10 pt-8 shadow-sm",
                           selectedClauseIds.includes(clause.id) && "border-primary/40",
                         )}
                       >
@@ -561,6 +576,14 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                             {clause.meta ? ` ${clause.meta}` : ""}
                           </p>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteClause(clause.id)}
+                          className="absolute bottom-3 right-3 flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          aria-label="删除条款"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -587,7 +610,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                         <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-foreground">
                           1
                         </span>
-                        <span>选择分析类型（横向对比 / 查重 / 异同对比）</span>
+                        <span>选择分析条件（横向对比 / 查重 / 异同对比）</span>
                       </li>
                       <li className="flex gap-2">
                         <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-foreground">
