@@ -29,7 +29,7 @@ const DEFAULT_POLICY_DIRECTION = "推进数据产业高质量发展";
 
 const flowSteps = [
   { id: 1, label: "确定政策方向", icon: ClipboardList },
-  { id: 2, label: "检索同类政策", icon: Search },
+  { id: 2, label: "检索相似政策", icon: Search },
   { id: 3, label: "生成核心要素", icon: Sparkles },
   { id: 4, label: "生成政策大纲", icon: ListOrdered },
   { id: 5, label: "生成政策正文", icon: ScrollText },
@@ -56,35 +56,35 @@ const POLICY_TYPE_META: Record<
 > = {
   若干措施: {
     scope: "微观政策",
-    description: "要点式文件，突出总体目标与具体举措。",
+    description: "聚焦重点领域提出具体举措，突出支持方向、任务抓手和保障措施。",
   },
   实施方案: {
     scope: "中观政策",
-    description: "战略部署文件，含总体要求、重点行动与组织机制。",
+    description: "面向重点工作制定的总体安排，明确目标、任务与推进机制。",
   },
   实施细则: {
     scope: "微观政策",
-    description: "细化上位政策，章条体例，明确标准与流程。",
+    description: "对上位政策进行细化落地，明确条件、标准、流程与材料要求。",
   },
   实施意见: {
     scope: "中观政策",
-    description: "导向性文件，统筹思路、目标与部门职责。",
+    description: "围绕特定方向提出指导要求，明确工作思路、目标与职责分工。",
   },
   工作方案: {
     scope: "中观政策",
-    description: "专项任务文件，明确主要任务与保障措施。",
+    description: "面向专项任务制定执行安排，明确任务分工、时间节点和保障措施。",
   },
   管理办法: {
     scope: "微观政策",
-    description: "制度性文件，规定认定、申报与监管要求。",
+    description: "对事项管理作出制度规定，明确认定、申报、审核与监督要求。",
   },
   奖励办法: {
     scope: "微观政策",
-    description: "明确奖励标准与兑现流程。",
+    description: "明确奖励对象、支持标准、兑现方式及申报审核流程。",
   },
   其他: {
     scope: "微观政策",
-    description: "自定义体例，按实际需求灵活组织。",
+    description: "适用于无法归入既有类型的政策文件，可按实际内容灵活分类。",
   },
 };
 
