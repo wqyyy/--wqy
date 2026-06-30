@@ -1935,6 +1935,8 @@ export function PolicyOutputPage({
     return init;
   });
   const [isOutlineRegenerating, setIsOutlineRegenerating] = useState(false);
+  const [isContentRegenerating, setIsContentRegenerating] = useState(false);
+  const typewriterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (outlineProp.length > 0) {
@@ -1959,6 +1961,46 @@ export function PolicyOutputPage({
       })));
       setIsOutlineRegenerating(false);
     }, 1800);
+  };
+
+  const startTypewriter = (content: string) => {
+    if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
+    fullContentRef.current = content;
+    setIsComplete(false);
+    setDisplayedText("");
+    const charDelay = typewriterMode ? 6 : 12;
+    let index = 0;
+    typewriterIntervalRef.current = setInterval(() => {
+      if (index < content.length) {
+        setDisplayedText(content.slice(0, index + 1));
+        index++;
+      } else {
+        setIsComplete(true);
+        if (typewriterIntervalRef.current) clearInterval(typewriterIntervalRef.current);
+        typewriterIntervalRef.current = null;
+      }
+    }, charDelay);
+  };
+
+  /** 按当前大纲重新生成正文 */
+  const handleRegenerateContent = async () => {
+    if (isContentRegenerating || isLoading) return;
+    setIsContentRegenerating(true);
+    setError(null);
+    try {
+      const { content, citations: cites } = await generateContent({
+        policyTitle,
+        coreElements,
+        selectedPolicies,
+        outline: editableOutline,
+      });
+      if (cites?.length) setCitations(cites);
+      startTypewriter(content);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "重新生成正文失败");
+    } finally {
+      setIsContentRegenerating(false);
+    }
   };
 
   /** 節：刪除參考文檔 */
@@ -2070,25 +2112,8 @@ export function PolicyOutputPage({
     generateContent({ policyTitle, coreElements, selectedPolicies, outline: outlineProp })
       .then(({ content, citations: cites }) => {
         if (cites?.length) setCitations(cites);
-        fullContentRef.current = content;
         setIsLoading(false);
-
-        /**
-         * typewriterMode：快速起草入口，跳过等待直接逐字输出；
-         * 正常模式：12ms/字；快速模式：6ms/字（更快体验打字机效果）
-         */
-        const charDelay = typewriterMode ? 6 : 12;
-        let index = 0;
-        const interval = setInterval(() => {
-          if (index < content.length) {
-            setDisplayedText(content.slice(0, index + 1));
-            index++;
-          } else {
-            setIsComplete(true);
-            clearInterval(interval);
-          }
-        }, charDelay);
-        return () => clearInterval(interval);
+        startTypewriter(content);
       })
       .catch((err: Error) => {
         setError(err.message);
@@ -2832,6 +2857,27 @@ export function PolicyOutputPage({
                           </div>
                         ))}
                       </div>
+                    </div>
+
+                    <div className="shrink-0 border-t border-border bg-card px-4 py-3">
+                      <Button
+                        type="button"
+                        className="h-9 w-full gap-1.5 rounded-lg text-xs"
+                        disabled={isContentRegenerating || isLoading}
+                        onClick={handleRegenerateContent}
+                      >
+                        {isContentRegenerating ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            正在重新生成正文…
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw className="h-3.5 w-3.5" />
+                            重新生成正文
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 )}

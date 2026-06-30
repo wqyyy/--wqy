@@ -78,3 +78,18 @@ export const POLICY_DRAFTING_TASKS: PolicyDraftingTask[] = [
     updatedAt: "2026-01-30 13:27:06",
   },
 ];
+
+export function getPolicyDraftingTaskById(taskId: string): PolicyDraftingTask | undefined {
+  return POLICY_DRAFTING_TASKS.find((task) => task.id === taskId);
+}
+
+/** 已完成任务进入正文详情页，进行中任务恢复到对应步骤 */
+export function resolveDraftingEntryFromTask(task: PolicyDraftingTask): {
+  step: number;
+  openOutputPage: boolean;
+} {
+  if (task.status === "已完成" || task.currentStep >= 5) {
+    return { step: 5, openOutputPage: true };
+  }
+  return { step: task.currentStep, openOutputPage: false };
+}

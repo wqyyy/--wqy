@@ -23,6 +23,10 @@ import { PolicyOutputPage } from "@/components/policy-drafting/drafting/PolicyOu
 import { QuickDraftProgress } from "@/components/policy-drafting/drafting/QuickDraftProgress";
 import { expandPolicyTitleFromDirection, isFullPolicyTitle } from "@/lib/policyDraftApi";
 import { DATA_INDUSTRY_POLICY_TITLE } from "@/lib/samplePolicyDocuments";
+import {
+  resolveDraftingEntryFromTask,
+  type PolicyDraftingTask,
+} from "@/lib/policyDraftingTasks";
 
 /** 「确定政策方向」输入框默认内容 */
 const DEFAULT_POLICY_DIRECTION = "推进数据产业高质量发展";
@@ -100,31 +104,61 @@ interface PolicyDraftingFlowProps {
   initialTitle?: string;
   /** 从助手流式起草直接传入的完整政策内容，有值时跳过所有步骤直接进入编辑器 */
   directContent?: string;
+  /** 从历史任务列表打开时恢复进度或进入正文详情页 */
+  resumeTask?: PolicyDraftingTask;
+}
+
+function resolveInitialDraftState(resumeTask?: PolicyDraftingTask) {
+  if (!resumeTask) {
+    return { step: 1, maxStep: 1, draftCompleted: false };
+  }
+  const { step, openOutputPage } = resolveDraftingEntryFromTask(resumeTask);
+  return {
+    step,
+    maxStep: resumeTask.currentStep,
+    draftCompleted: openOutputPage,
+  };
+}
+
+function resolveInitialPolicyType(resumeTask?: PolicyDraftingTask, title?: string): PolicyTypeOption {
+  if (
+    resumeTask?.policyType &&
+    policyTypeOptions.includes(resumeTask.policyType as PolicyTypeOption)
+  ) {
+    return resumeTask.policyType as PolicyTypeOption;
+  }
+  return inferPolicyTypeFromTitle(title ?? resumeTask?.title ?? "");
 }
 
 export function PolicyDraftingFlow({
   onBack,
   initialTitle,
   directContent,
+  resumeTask,
 }: PolicyDraftingFlowProps) {
+  const initialDraft = resolveInitialDraftState(resumeTask);
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(initialDraft.step);
   /** 已完成（訪問過）的最大步驟，用於控制步驟條可點擊範圍 */
-  const [maxReachedStep, setMaxReachedStep] = useState(1);
-  const [direction, setDirection] = useState(() => initialTitle?.trim() || DEFAULT_POLICY_DIRECTION);
+  const [maxReachedStep, setMaxReachedStep] = useState(initialDraft.maxStep);
+  const [direction, setDirection] = useState(
+    () => initialTitle?.trim() || resumeTask?.title || DEFAULT_POLICY_DIRECTION,
+  );
   const [title, setTitle] = useState(() => {
-    const t = initialTitle?.trim() || "";
+    const t = (initialTitle?.trim() || resumeTask?.title || "").trim();
     return t && isFullPolicyTitle(t) ? t : "";
   });
   const [titleGenerating, setTitleGenerating] = useState(false);
-  const [policyType, setPolicyType] = useState<(typeof policyTypeOptions)[number]>("若干措施");
+  const [policyType, setPolicyType] = useState<PolicyTypeOption>(() =>
+    resolveInitialPolicyType(resumeTask, initialTitle ?? resumeTask?.title),
+  );
   const [coreElements, setCoreElements] = useState("");
   const [coreItems, setCoreItems] = useState<{ id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[]>([]);
   const [selectedPolicies, setSelectedPolicies] = useState<PolicyItem[]>([]);
   const [analysisResult, setAnalysisResult] = useState<ClauseComparison[]>([]);
   const [outlineResult, setOutlineResult] = useState<OutlineSection[]>([]);
   /** 起草是否已完成（进入正文生成页面即算完成） */
-  const [draftCompleted, setDraftCompleted] = useState(false);
+  const [draftCompleted, setDraftCompleted] = useState(initialDraft.draftCompleted);
   /** 快速起草模式：显示进度页，完成后直接进入编辑器（打字机模式） */
   const [quickMode, setQuickMode] = useState(false);
   /** 快速起草完成后切到编辑器并开启打字机输出 */
@@ -136,6 +170,12 @@ export function PolicyDraftingFlow({
   }>({ policies: [], outline: [] });
 
   useEffect(() => {
+    if (initialDraft.draftCompleted) {
+      localStorage.setItem("policy-draft-completed", "1");
+    }
+  }, [initialDraft.draftCompleted]);
+
+  useEffect(() => {
     const t = initialTitle?.trim();
     if (t) {
       setDirection(t);
@@ -144,9 +184,10 @@ export function PolicyDraftingFlow({
   }, [initialTitle]);
 
   useEffect(() => {
+    if (resumeTask) return;
     const inferredType = inferPolicyTypeFromTitle(direction);
     setPolicyType(inferredType);
-  }, [direction]);
+  }, [direction, resumeTask]);
 
   const expandTitleFromDirection = async () => {
     if (title.trim() && isFullPolicyTitle(title)) return title;
@@ -259,7 +300,13 @@ export function PolicyDraftingFlow({
           coreElements={coreElements}
           selectedPolicies={selectedPolicies}
           outline={outlineResult}
-          onBack={() => setCurrentStep(4)}
+          onBack={() => {
+            if (resumeTask && resolveDraftingEntryFromTask(resumeTask).openOutputPage) {
+              onBack();
+              return;
+            }
+            setCurrentStep(4);
+          }}
         />
       </div>
     );

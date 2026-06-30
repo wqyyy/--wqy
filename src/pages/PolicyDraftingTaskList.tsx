@@ -24,9 +24,9 @@ export default function PolicyDraftingTaskList() {
     );
   }, [keyword]);
 
-  const openTask = (taskId: string, title: string) => {
-    navigate(`/policy-writing/drafting?taskId=${taskId}`, {
-      state: { policyTitle: title },
+  const openTask = (task: (typeof POLICY_DRAFTING_TASKS)[number]) => {
+    navigate(`/policy-writing/drafting?taskId=${task.id}`, {
+      state: { policyTitle: task.title, fromTaskList: true },
     });
   };
 
@@ -74,11 +74,11 @@ export default function PolicyDraftingTaskList() {
                 role="button"
                 tabIndex={0}
                 className="cursor-pointer border border-border p-5 transition-all hover:border-primary/30 hover:shadow-sm"
-                onClick={() => openTask(task.id, task.title)}
+                onClick={() => openTask(task)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    openTask(task.id, task.title);
+                    openTask(task);
                   }
                 }}
               >

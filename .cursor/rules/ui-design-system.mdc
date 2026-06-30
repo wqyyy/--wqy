@@ -1,0 +1,32 @@
+---
+description: UI 字号、间距与布局规范（惠企政策大脑）
+globs: src/**/*.{tsx,ts,css}
+alwaysApply: false
+---
+
+# UI 设计规范
+
+完整说明见 `docs/UI-DESIGN-SYSTEM.md`。编写或修改前端 UI 时遵循：
+
+## 字号
+
+- 禁止新增 `text-[Npx]`；使用语义 class：
+  - `text-page-title` / `text-section-title` / `text-card-title` / `text-panel-title`
+  - `text-body` / `text-caption` / `text-micro` / `text-nano`
+  - `text-display` 仅用于 PageHero
+
+## 布局
+
+- 标准业务页：`<div className="page-shell"><div className="page-container">`
+- 多步流程：`flow-container`（max-w-5xl）
+- 默认最大宽度：`max-w-page`（1280px）；宽表：`max-w-pageWide`
+
+## 颜色与组件
+
+- 用 `text-foreground`、`text-muted-foreground`、`text-primary`，避免 `gray-*` 和 `#d21639`
+- 按钮用 `Button` 组件（default/sm/lg），输入用 `Input`（h-10）
+- 卡片圆角 `rounded-xl`，大卡片/弹窗 `rounded-2xl`
+
+## 迁移
+
+改动现有文件时，顺手将同文件内的魔法字号/宽度替换为上述 token。

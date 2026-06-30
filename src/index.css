@@ -83,4 +83,50 @@
   .gov-card-hover:hover {
     @apply shadow-lg -translate-y-1;
   }
+
+  /* ── 页面布局（见 docs/UI-DESIGN-SYSTEM.md）── */
+  .page-shell {
+    @apply h-full overflow-y-auto px-page-x py-page-x md:px-page-x-md md:py-page-x-md;
+  }
+
+  .page-container {
+    @apply mx-auto w-full max-w-page space-y-6;
+  }
+
+  .page-container-tight {
+    @apply mx-auto w-full max-w-content space-y-6;
+  }
+
+  .flow-container {
+    @apply mx-auto w-full max-w-content px-6 py-8 md:px-8;
+  }
+
+  /* ── 标题层级 ── */
+  .text-page-title {
+    @apply text-xl font-semibold text-foreground;
+  }
+
+  .text-section-title {
+    @apply text-lg font-semibold text-foreground;
+  }
+
+  .text-card-title {
+    @apply text-base font-semibold text-foreground;
+  }
+
+  .text-panel-title {
+    @apply text-sm font-semibold text-foreground;
+  }
+
+  .text-body {
+    @apply text-sm leading-relaxed text-foreground;
+  }
+
+  .text-caption {
+    @apply text-xs leading-normal text-muted-foreground;
+  }
+
+  .text-micro {
+    @apply text-micro leading-snug text-muted-foreground;
+  }
 }
