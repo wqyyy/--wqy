@@ -4,11 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHero } from "@/components/PageHero";
 import { generatedDocuments, generatedDocStorageKey } from "@/lib/generatedDocuments";
-
-const statusColorMap: Record<string, string> = {
-  生成中: "bg-amber-50 text-amber-600 border-amber-200",
-  已完成: "bg-emerald-50 text-emerald-600 border-emerald-200",
-};
+import { getTaskStatusBadgeClass } from "@/lib/taskStatusBadgeClass";
 
 const categoryColorMap: Record<string, string> = {
   政策草稿: "bg-primary/10 text-primary border-primary/20",
@@ -81,7 +77,7 @@ export default function MyDocuments() {
                       <Badge variant="outline" className={categoryColorMap[item.category]}>
                         {item.category}
                       </Badge>
-                      <Badge variant="outline" className={statusColorMap[item.status]}>
+                      <Badge variant="outline" className={getTaskStatusBadgeClass(item.status)}>
                         {item.status}
                       </Badge>
                     </div>

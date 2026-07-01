@@ -9,6 +9,8 @@ export type PolicyPreAssessmentTask = {
   updatedAt: string;
 };
 
+const STORAGE_KEY = "policy-pre-assessment-tasks";
+
 export const POLICY_PRE_ASSESSMENT_TASKS: PolicyPreAssessmentTask[] = [
   {
     id: "pre-1",
@@ -71,3 +73,55 @@ export const POLICY_PRE_ASSESSMENT_TASKS: PolicyPreAssessmentTask[] = [
     updatedAt: "2026-01-24 16:20:05",
   },
 ];
+
+export function loadPolicyPreAssessmentTasks(): PolicyPreAssessmentTask[] {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as PolicyPreAssessmentTask[];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // ignore invalid cache
+  }
+  return POLICY_PRE_ASSESSMENT_TASKS.map((task) => ({ ...task }));
+}
+
+export function savePolicyPreAssessmentTasks(tasks: PolicyPreAssessmentTask[]) {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+}
+
+export function formatPolicyPreAssessmentUpdatedAt(date = new Date()) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+export function getPolicyPreAssessmentTaskById(taskId: string): PolicyPreAssessmentTask | undefined {
+  return loadPolicyPreAssessmentTasks().find((task) => task.id === taskId);
+}
+
+export function downloadPolicyPreAssessmentTask(task: PolicyPreAssessmentTask) {
+  const content = [
+    "政策前评估报告意见书",
+    "",
+    `评估对象：${task.title}`,
+    `评估日期：${new Date().toLocaleDateString("zh-CN")}`,
+    `文件来源：${task.source}`,
+    "",
+    "综合评估结论",
+    "",
+    "本政策整体方向合理，条款结构清晰，与上位法律法规保持一致，合规性评估通过，具备出台条件。",
+    "",
+    `导出时间：${new Date().toLocaleString("zh-CN")}`,
+  ].join("\n");
+
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${task.title}_前评估报告意见书_${new Date().toLocaleDateString("zh-CN").replace(/\//g, "")}.txt`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}

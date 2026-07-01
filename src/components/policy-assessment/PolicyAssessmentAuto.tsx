@@ -161,6 +161,10 @@ const STAGE_SUMMARIES = [
   "本维度主要补充流程衔接、文本表达、政策解读和后续管理方面的完善建议。建议在正式出台前同步做好解读材料、兑现指引和动态评估安排，降低执行偏差。",
 ];
 
+/** 全部维度分析完成后的全文总结（只读展示，不进入预览/导出） */
+const FULL_REPORT_SUMMARY =
+  "综合条款拆解、一致性、落地性、合规性及其他意见五个维度的评估结果，本政策整体方向清晰，条款结构较为完整，扶持对象和支持方式基本明确，与上位政策及区域产业发展要求总体一致。当前主要问题集中在市区政策衔接边界、部分条款执行口径、资金测算依据及程序合规说明等方面。建议在正式印发前，进一步细化申报审核流程、资金安排和配套解读材料，并建立动态评估机制，以提升政策可执行性与兑现效果。";
+
 export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, onStageChange }: Props) {
   const [clauses, setClauses] = useState<Clause[]>([]);
   const [step3, setStep3] = useState<Step3Result | null>(null);
@@ -523,6 +527,12 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
           </div>
 
           <div className="space-y-3 p-4">
+            {finished && !stopped && (
+              <div className="rounded-lg border border-primary/15 bg-primary/[0.04] px-3 py-2.5">
+                <p className="mb-1 text-xs font-medium text-primary">全文总结</p>
+                <p className="text-xs leading-6 text-muted-foreground">{FULL_REPORT_SUMMARY}</p>
+              </div>
+            )}
             {STAGES.map((s, i) => {
               const Icon = s.icon;
               const active = !finished && stage === i;

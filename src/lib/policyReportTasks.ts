@@ -7,6 +7,8 @@ export type PolicyReportTask = {
   updatedAt: string;
 };
 
+const STORAGE_KEY = "policy-report-tasks";
+
 const CHART_TYPE_LABELS: Record<PolicyReportTask["chartType"], string> = {
   bar: "柱状图",
   pie: "饼图",
@@ -83,3 +85,52 @@ export const POLICY_REPORT_TASKS: PolicyReportTask[] = [
     updatedAt: "2025-05-14 09:45:00",
   },
 ];
+
+export function loadPolicyReportTasks(): PolicyReportTask[] {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as PolicyReportTask[];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // ignore invalid cache
+  }
+  return POLICY_REPORT_TASKS.map((task) => ({ ...task }));
+}
+
+export function savePolicyReportTasks(tasks: PolicyReportTask[]) {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+}
+
+export function formatPolicyReportUpdatedAt(date = new Date()) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+export function downloadPolicyReportTask(task: PolicyReportTask) {
+  const content = [
+    task.title,
+    "",
+    "【整体情况评估】",
+    "本季度政策兑现工作整体推进顺利，兑现效率持续提升。重点领域政策覆盖面广，资金使用效率较高。",
+    "",
+    "本季度共涉及政策兑现事项156项，兑现资金总额达8.2亿元，惠及企业1,256家。整体兑现率为89.7%。",
+    "",
+    `导出时间：${new Date().toLocaleString("zh-CN")}`,
+  ].join("\n");
+
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${task.title}_${new Date().toLocaleDateString("zh-CN").replace(/\//g, "")}.txt`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
+
+export function getPolicyReportTaskById(taskId: string): PolicyReportTask | undefined {
+  return loadPolicyReportTasks().find((task) => task.id === taskId);
+}

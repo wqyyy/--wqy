@@ -9,6 +9,8 @@ export type PolicyEvaluationTask = {
   updatedAt: string;
 };
 
+const STORAGE_KEY = "policy-evaluation-tasks";
+
 export const POLICY_EVALUATION_TASKS: PolicyEvaluationTask[] = [
   {
     id: "eval-1",
@@ -71,3 +73,71 @@ export const POLICY_EVALUATION_TASKS: PolicyEvaluationTask[] = [
     updatedAt: "2026-01-18 14:27:55",
   },
 ];
+
+export function loadPolicyEvaluationTasks(): PolicyEvaluationTask[] {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as PolicyEvaluationTask[];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // ignore invalid cache
+  }
+  return POLICY_EVALUATION_TASKS.map((task) => ({ ...task }));
+}
+
+export function savePolicyEvaluationTasks(tasks: PolicyEvaluationTask[]) {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+}
+
+export function formatPolicyEvaluationUpdatedAt(date = new Date()) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+export function getPolicyEvaluationTaskById(taskId: string): PolicyEvaluationTask | undefined {
+  return loadPolicyEvaluationTasks().find((task) => task.id === taskId);
+}
+
+export function downloadPolicyEvaluationTask(task: PolicyEvaluationTask) {
+  const content = [
+    `关于《${task.title}》的政策评价报告`,
+    "",
+    `评价对象：${task.title}`,
+    `主管部门：${task.department}`,
+    `政策领域：${task.domain}`,
+    `评价日期：${new Date().toLocaleDateString("zh-CN")}`,
+    "",
+    "一、政策实施总体情况",
+    "",
+    "该政策目标导向清晰，实施路径较为明确，在支持对象识别、兑现流程和部门协同方面形成了较为完整的执行链条。",
+    "",
+    "二、政策效果评估",
+    "",
+    "政策在促进相关产业发展、优化营商环境和提升企业获得感方面取得了阶段性成效，政策知晓度和兑现效率总体处于较好水平。",
+    "",
+    "三、存在问题与改进建议",
+    "",
+    "建议进一步细化政策条款解释口径，优化申报审核流程，并加强政策兑现后的跟踪评估与动态调整。",
+    "",
+    `导出时间：${new Date().toLocaleString("zh-CN")}`,
+  ].join("\n");
+
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${task.title}_政策评价报告_${new Date().toLocaleDateString("zh-CN").replace(/\//g, "")}.txt`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
+
+/** 已完成任务进入报告详情页，进行中任务恢复到评价流程 */
+export function resolveEvaluationEntryFromTask(task: PolicyEvaluationTask): {
+  directFinal: boolean;
+} {
+  return { directFinal: task.status === "已完成" || task.currentStep >= 5 };
+}

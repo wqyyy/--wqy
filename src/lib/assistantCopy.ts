@@ -6,6 +6,7 @@ export const ASSISTANT_TASK_REMINDER_TITLE = "任务提醒";
 export const ASSISTANT_TASK_CONTINUE_LABEL = "继续完善";
 export const ASSISTANT_TASK_VIEW_LABEL = "查看";
 export const ASSISTANT_TASK_DISMISS_LABEL = "忽略";
+export const ASSISTANT_TASK_DISMISS_ALL_LABEL = "全部忽略";
 
 /** 已完成任务提醒文案 */
 export function buildCompletedTaskMessage(taskType: string, taskName: string): string {

@@ -14,6 +14,7 @@ import {
   FileBarChart2,
   BookOpen,
   BookMarked,
+  List,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -251,9 +252,19 @@ const PolicyEvaluation = () => {
                   </p>
                 </div>
               </div>
-              <Badge variant="secondary" className="shrink-0">
-                共 {filteredPolicies.length} 条
-              </Badge>
+              <div className="flex items-center gap-2 shrink-0">
+                <Badge variant="secondary">共 {filteredPolicies.length} 条</Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => navigate("/policy-evaluation/tasks")}
+                >
+                  <List className="h-4 w-4" />
+                  历史任务列表
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-3 px-6 pb-4 pt-3">

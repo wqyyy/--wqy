@@ -4,11 +4,13 @@ export type PolicyDraftingTask = {
   policyType: string;
   policyScope: string;
   draftMode: "快速起草" | "分步起草";
-  status: "进行中" | "已完成";
+  status: "生成中" | "已完成";
   currentStep: number;
   createdAt: string;
   updatedAt: string;
 };
+
+const STORAGE_KEY = "policy-drafting-tasks";
 
 export const POLICY_DRAFTING_TASKS: PolicyDraftingTask[] = [
   {
@@ -39,7 +41,7 @@ export const POLICY_DRAFTING_TASKS: PolicyDraftingTask[] = [
     policyType: "奖励办法",
     policyScope: "微观政策",
     draftMode: "分步起草",
-    status: "进行中",
+    status: "生成中",
     currentStep: 4,
     createdAt: "2026-02-28 10:15:26",
     updatedAt: "2026-03-01 18:22:57",
@@ -50,7 +52,7 @@ export const POLICY_DRAFTING_TASKS: PolicyDraftingTask[] = [
     policyType: "工作方案",
     policyScope: "中观政策",
     draftMode: "分步起草",
-    status: "进行中",
+    status: "生成中",
     currentStep: 3,
     createdAt: "2026-02-20 16:48:03",
     updatedAt: "2026-02-25 09:12:18",
@@ -79,11 +81,33 @@ export const POLICY_DRAFTING_TASKS: PolicyDraftingTask[] = [
   },
 ];
 
-export function getPolicyDraftingTaskById(taskId: string): PolicyDraftingTask | undefined {
-  return POLICY_DRAFTING_TASKS.find((task) => task.id === taskId);
+export function loadPolicyDraftingTasks(): PolicyDraftingTask[] {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw) as PolicyDraftingTask[];
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // ignore invalid cache
+  }
+  return POLICY_DRAFTING_TASKS.map((task) => ({ ...task }));
 }
 
-/** 已完成任务进入正文详情页，进行中任务恢复到对应步骤 */
+export function savePolicyDraftingTasks(tasks: PolicyDraftingTask[]) {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+}
+
+export function formatPolicyDraftingUpdatedAt(date = new Date()) {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+export function getPolicyDraftingTaskById(taskId: string): PolicyDraftingTask | undefined {
+  return loadPolicyDraftingTasks().find((task) => task.id === taskId);
+}
+
+/** 已完成任务进入正文详情页，生成中任务恢复到对应步骤 */
 export function resolveDraftingEntryFromTask(task: PolicyDraftingTask): {
   step: number;
   openOutputPage: boolean;

@@ -1,33 +1,93 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, PenTool, Search } from "lucide-react";
+import { ArrowLeft, Pencil, PenTool, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { POLICY_DRAFTING_TASKS } from "@/lib/policyDraftingTasks";
+import { TaskListCard, TaskListIconButton } from "@/components/TaskListCard";
+import { TaskListSearchBar } from "@/components/TaskListSearchBar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { EditPolicyDraftingTaskDialog } from "@/components/policy-drafting/EditPolicyDraftingTaskDialog";
+import {
+  formatPolicyDraftingUpdatedAt,
+  loadPolicyDraftingTasks,
+  type PolicyDraftingTask,
+  savePolicyDraftingTasks,
+} from "@/lib/policyDraftingTasks";
+import { TaskListPagination } from "@/components/TaskListPagination";
+import { useTaskListPagination } from "@/hooks/useTaskListPagination";
 
 export default function PolicyDraftingTaskList() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [tasks, setTasks] = useState<PolicyDraftingTask[]>(() => loadPolicyDraftingTasks());
+  const [editingTask, setEditingTask] = useState<PolicyDraftingTask | null>(null);
+  const [deletingTask, setDeletingTask] = useState<PolicyDraftingTask | null>(null);
+
+  const persistTasks = (nextTasks: PolicyDraftingTask[]) => {
+    setTasks(nextTasks);
+    savePolicyDraftingTasks(nextTasks);
+  };
 
   const filteredTasks = useMemo(() => {
-    const q = keyword.trim().toLowerCase();
-    if (!q) return POLICY_DRAFTING_TASKS;
-    return POLICY_DRAFTING_TASKS.filter(
-      (task) =>
-        task.title.toLowerCase().includes(q) ||
-        task.policyType.toLowerCase().includes(q) ||
-        task.policyScope.toLowerCase().includes(q) ||
-        task.draftMode.toLowerCase().includes(q) ||
-        task.status.toLowerCase().includes(q),
-    );
-  }, [keyword]);
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return tasks;
+    return tasks.filter((task) => task.title.toLowerCase().includes(q));
+  }, [searchQuery, tasks]);
 
-  const openTask = (task: (typeof POLICY_DRAFTING_TASKS)[number]) => {
+  const handleSearch = () => {
+    setSearchQuery(keyword.trim());
+  };
+
+  const handleReset = () => {
+    setKeyword("");
+    setSearchQuery("");
+  };
+
+  const {
+    currentPage,
+    setCurrentPage,
+    pageSize,
+    setPageSize,
+    totalItems,
+    totalPages,
+    pagedItems,
+  } = useTaskListPagination(filteredTasks, searchQuery);
+
+  const openTask = (task: PolicyDraftingTask) => {
     navigate(`/policy-writing/drafting?taskId=${task.id}`, {
       state: { policyTitle: task.title, fromTaskList: true },
     });
+  };
+
+  const handleEditConfirm = (title: string) => {
+    if (!editingTask) return;
+    const nextTasks = tasks.map((task) =>
+      task.id === editingTask.id
+        ? { ...task, title, updatedAt: formatPolicyDraftingUpdatedAt() }
+        : task,
+    );
+    persistTasks(nextTasks);
+    toast.success("任务名称已更新");
+    setEditingTask(null);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (!deletingTask) return;
+    const nextTasks = tasks.filter((task) => task.id !== deletingTask.id);
+    persistTasks(nextTasks);
+    toast.success("任务已删除");
+    setDeletingTask(null);
   };
 
   return (
@@ -42,25 +102,24 @@ export default function PolicyDraftingTaskList() {
           返回政策起草
         </button>
 
-        <div className="space-y-2">
-          <h1 className="text-xl font-semibold text-foreground">历史任务列表</h1>
-          <p className="text-sm text-muted-foreground">查看并打开历史政策起草任务，继续编辑或复用起草成果。</p>
-        </div>
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索任务名称、政策类型、起草方式或状态"
-              className="h-10 pl-9"
-            />
-          </div>
-          <Button variant="outline" onClick={() => setKeyword("")}>
-            重置
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-xl font-semibold text-foreground">政策起草任务列表</h1>
+          <Button
+            className="h-9 gap-1.5 px-4 gov-gradient text-primary-foreground hover:opacity-90"
+            onClick={() => navigate("/policy-writing/drafting")}
+          >
+            <Plus className="h-4 w-4" />
+            新建起草任务
           </Button>
         </div>
+
+        <TaskListSearchBar
+          value={keyword}
+          onChange={setKeyword}
+          onSearch={handleSearch}
+          onReset={handleReset}
+          placeholder="请输入起草任务名称进行搜索"
+        />
 
         {filteredTasks.length === 0 ? (
           <Card className="border border-dashed border-border py-16 text-center text-sm text-muted-foreground">
@@ -68,52 +127,81 @@ export default function PolicyDraftingTaskList() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {filteredTasks.map((task) => (
-              <Card
+            {pagedItems.map((task) => (
+              <TaskListCard
                 key={task.id}
-                role="button"
-                tabIndex={0}
-                className="cursor-pointer border border-border p-5 transition-all hover:border-primary/30 hover:shadow-sm"
-                onClick={() => openTask(task)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault();
-                    openTask(task);
-                  }
-                }}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <PenTool className="h-5 w-5" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="line-clamp-2 text-base font-semibold text-foreground">{task.title}</h3>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      <Badge variant="outline" className="text-[10px]">
-                        {task.policyType}
-                      </Badge>
-                      <Badge variant="outline" className="text-[10px]">
-                        {task.draftMode}
-                      </Badge>
-                      <Badge variant={task.status === "已完成" ? "default" : "secondary"} className="text-[10px]">
-                        {task.status}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 space-y-1 text-xs text-muted-foreground">
-                  <p>政策分类：{task.policyScope}</p>
-                  <p>当前进度：第 {task.currentStep} / 5 步</p>
-                  <p>创建时间：{task.createdAt}</p>
-                  <p>修改时间：{task.updatedAt}</p>
-                </div>
-              </Card>
+                title={task.title}
+                status={task.status}
+                icon={PenTool}
+                createdAt={task.createdAt}
+                updatedAt={task.updatedAt}
+                onOpen={() => openTask(task)}
+                actions={
+                  <>
+                    <TaskListIconButton
+                      label={`编辑 ${task.title}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setEditingTask(task);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </TaskListIconButton>
+                    <TaskListIconButton
+                      label={`删除 ${task.title}`}
+                      destructive
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeletingTask(task);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </TaskListIconButton>
+                  </>
+                }
+              />
             ))}
           </div>
         )}
 
-        <p className="text-sm text-muted-foreground">共 {filteredTasks.length} 条</p>
+        <TaskListPagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={totalItems}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
+
+      <EditPolicyDraftingTaskDialog
+        open={Boolean(editingTask)}
+        onOpenChange={(open) => {
+          if (!open) setEditingTask(null);
+        }}
+        initialTitle={editingTask?.title ?? ""}
+        onConfirm={handleEditConfirm}
+      />
+
+      <AlertDialog open={Boolean(deletingTask)} onOpenChange={(open) => !open && setDeletingTask(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除任务？</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除后将无法恢复「{deletingTask?.title}」，请确认是否继续。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={handleDeleteConfirm}
+            >
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

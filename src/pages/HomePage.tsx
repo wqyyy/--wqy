@@ -9,6 +9,7 @@ import {
 import {
   ASSISTANT_HOME_GREETING,
   ASSISTANT_TASK_DISMISS_LABEL,
+  ASSISTANT_TASK_DISMISS_ALL_LABEL,
   ASSISTANT_TASK_VIEW_LABEL,
   buildCompletedTaskMessage,
 } from "@/lib/assistantCopy";
@@ -25,12 +26,27 @@ const QUICK_QUESTIONS = [
 /** 无真实任务时，用于页面展示的模拟任务（便于预览样式与交互） */
 const MOCK_TASK_TITLE = "关于促进数据产业高质量发展的若干政策措施";
 
+const MOCK_REMINDERS = [
+  {
+    id: "mock-1",
+    taskType: "政策起草",
+    title: MOCK_TASK_TITLE,
+    path: "/policy-writing/drafting",
+  },
+  {
+    id: "mock-2",
+    taskType: "兑现专报",
+    title: "2024年第四季度政策兑现专报",
+    path: "/policy-report/tasks",
+  },
+] as const;
+
 export default function HomePage() {
   const [inputValue, setInputValue] = useState("");
   const [showGreeting, setShowGreeting] = useState(true);
   const [draftWake, setDraftWake] = useState<PendingDraftWake | null>(() => getPendingDraftWake());
-  /** 用户点击「忽略」后隐藏模拟任务，刷新页面会再次出现 */
-  const [mockWakeDismissed, setMockWakeDismissed] = useState(false);
+  /** 用户逐条忽略后隐藏的模拟任务 id，刷新页面会再次出现 */
+  const [dismissedMockIds, setDismissedMockIds] = useState<string[]>([]);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -62,8 +78,37 @@ export default function HomePage() {
     }
   };
 
-  const hasTask = Boolean(draftWake || (!mockWakeDismissed && !getPendingDraftWake()));
-  const taskCount = hasTask ? 1 : 0;
+  const reminders = draftWake
+    ? [
+        {
+          id: "draft-wake",
+          taskType: "政策起草",
+          title: draftWake.title,
+          path: "/policy-writing/drafting",
+        },
+      ]
+    : MOCK_REMINDERS.filter((reminder) => !dismissedMockIds.includes(reminder.id));
+
+  const hasTask = reminders.length > 0;
+  const taskCount = reminders.length;
+
+  const handleDismissReminder = (reminderId: string) => {
+    if (reminderId === "draft-wake") {
+      if (!draftWake) return;
+      dismissDraftWake(draftWake.signature);
+      setDraftWake(null);
+      return;
+    }
+    setDismissedMockIds((prev) => (prev.includes(reminderId) ? prev : [...prev, reminderId]));
+  };
+
+  const handleDismissAll = () => {
+    if (draftWake) {
+      dismissDraftWake(draftWake.signature);
+      setDraftWake(null);
+    }
+    setDismissedMockIds(MOCK_REMINDERS.map((reminder) => reminder.id));
+  };
 
   return (
     <div className="relative min-h-full w-full overflow-x-hidden">
@@ -139,50 +184,57 @@ export default function HomePage() {
           </div>
 
           {/* 待办事项卡片 */}
-          <div className="w-72 shrink-0 self-end rounded-2xl bg-white p-4 shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-800">
-              待办事项
-              {taskCount > 0 && (
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#d21639] px-1.5 text-[10px] font-semibold leading-none text-white shadow-sm">
-                  {taskCount > 99 ? "99+" : taskCount}
-                </span>
+          <div className="w-80 shrink-0 self-end rounded-2xl bg-white p-4 shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                任务提醒
+                {taskCount > 0 && (
+                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#d21639] px-1.5 text-[10px] font-semibold leading-none text-white shadow-sm">
+                    {taskCount > 99 ? "99+" : taskCount}
+                  </span>
+                )}
+              </h3>
+              {hasTask && (
+                <button
+                  type="button"
+                  onClick={handleDismissAll}
+                  className="shrink-0 text-[11px] font-medium text-gray-500 transition-colors hover:text-gray-700"
+                >
+                  {ASSISTANT_TASK_DISMISS_ALL_LABEL}
+                </button>
               )}
-            </h3>
+            </div>
             {hasTask ? (
-              <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3">
-                <p className="line-clamp-3 text-[13px] leading-relaxed text-gray-700">
-                  {buildCompletedTaskMessage(
-                    "政策起草",
-                    draftWake?.title ?? MOCK_TASK_TITLE,
-                  )}
-                </p>
-                <div className="mt-2.5 flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => navigate("/policy-writing/drafting")}
-                    className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-[#d21639] to-[#a00f27] px-2.5 py-1 text-[11px] font-medium text-white shadow-sm transition-opacity hover:opacity-95"
+              <div className="flex min-h-[252px] flex-col gap-2">
+                {reminders.map((reminder) => (
+                  <div
+                    key={reminder.id}
+                    className="rounded-xl border border-gray-100 bg-gray-50/60 p-3"
                   >
-                    {ASSISTANT_TASK_VIEW_LABEL}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (draftWake) {
-                        dismissDraftWake(draftWake.signature);
-                        setDraftWake(null);
-                        setMockWakeDismissed(true);
-                      } else {
-                        setMockWakeDismissed(true);
-                      }
-                    }}
-                    className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50"
-                  >
-                    {ASSISTANT_TASK_DISMISS_LABEL}
-                  </button>
-                </div>
+                    <p className="line-clamp-3 text-[13px] leading-relaxed text-gray-700">
+                      {buildCompletedTaskMessage(reminder.taskType, reminder.title)}
+                    </p>
+                    <div className="mt-2.5 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => navigate(reminder.path)}
+                        className="inline-flex items-center gap-1 rounded-md bg-gradient-to-r from-[#d21639] to-[#a00f27] px-2.5 py-1 text-[11px] font-medium text-white shadow-sm transition-opacity hover:opacity-95"
+                      >
+                        {ASSISTANT_TASK_VIEW_LABEL}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDismissReminder(reminder.id)}
+                        className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50"
+                      >
+                        {ASSISTANT_TASK_DISMISS_LABEL}
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="flex min-h-[252px] flex-col items-center justify-center py-8 text-center">
                 <Inbox className="h-8 w-8 text-gray-300" />
                 <p className="mt-2 text-xs text-gray-400">暂无待办事项</p>
               </div>

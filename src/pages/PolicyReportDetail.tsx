@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { reportDetail } from "@/data/mockData";
+import { getPolicyReportTaskById } from "@/lib/policyReportTasks";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
 const COLORS = ["hsl(350,85%,42%)", "hsl(210,70%,45%)", "hsl(38,90%,55%)", "hsl(145,60%,42%)", "hsl(25,90%,55%)", "hsl(270,50%,50%)"];
@@ -13,6 +14,8 @@ const PolicyReportDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const data = reportDetail;
+  const task = id ? getPolicyReportTaskById(id) : undefined;
+  const displayTitle = task?.title ?? data.title;
 
   return (
     <div className="p-6 space-y-6">
@@ -21,7 +24,7 @@ const PolicyReportDetail = () => {
           <ArrowLeft className="w-4 h-4" />
         </Button>
         <div>
-          <h1 className="text-xl font-bold text-foreground">{data.title}</h1>
+          <h1 className="text-xl font-bold text-foreground">{displayTitle}</h1>
           <p className="text-sm text-muted-foreground">专报ID: {id}</p>
         </div>
       </div>
