@@ -2301,7 +2301,7 @@ export function PolicyOutputPage({
           </button>
           <h2 className="text-base font-semibold text-foreground">政策文件编辑</h2>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {isComplete && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -2320,6 +2320,16 @@ export function PolicyOutputPage({
               </Button>
             </motion.div>
           )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => navigate("/policy-writing/drafting/tasks")}
+          >
+            <List className="h-4 w-4" />
+            历史任务列表
+          </Button>
         </div>
       </div>
 
