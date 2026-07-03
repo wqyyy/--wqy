@@ -247,7 +247,7 @@ export function ReportItemSelectionStep({
             已选 <span className="font-bold text-primary">{selectedItems.length}</span> 项
           </div>
           <button type="button" onClick={togglePageSelectAll} className="text-sm text-primary hover:underline">
-            {allPageSelected ? "取消全选本页" : "全选本页"}
+            {allPageSelected ? "取消全选" : "全选本页"}
           </button>
         </div>
 

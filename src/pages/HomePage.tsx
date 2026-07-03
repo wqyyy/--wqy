@@ -111,54 +111,90 @@ export default function HomePage() {
   };
 
   return (
-    <div className="relative min-h-full w-full overflow-x-hidden">
-      {/* 红白 Soft UI 背景：柔和渐变 + 流动光带 */}
-      <div className="absolute inset-0 overflow-hidden bg-[#fafafa]">
-        <div className="absolute inset-0 bg-gradient-to-br from-white via-[#fff8f9] to-[#fdecef]" />
-        <div className="absolute left-1/2 top-0 h-[85%] w-[130%] -translate-x-1/2 bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.98)_0%,rgba(255,240,243,0.55)_45%,transparent_78%)]" />
-        <div className="pointer-events-none absolute -right-[8%] top-[2%] h-[48%] w-[58%] rotate-[18deg] rounded-[42%] bg-gradient-to-bl from-[#d21639]/14 via-[#f5b8c4]/22 to-transparent blur-3xl" />
-        <div className="pointer-events-none absolute -left-[12%] top-[18%] h-[52%] w-[62%] -rotate-[8deg] rounded-[46%] bg-gradient-to-tr from-[#d21639]/10 via-[#ffe3e9]/35 to-transparent blur-3xl" />
-        <div className="pointer-events-none absolute bottom-[-8%] left-[5%] h-[42%] w-[90%] rounded-[50%] bg-gradient-to-t from-[#d21639]/8 via-[#fff1f4]/45 to-transparent blur-2xl" />
-        <div className="pointer-events-none absolute right-[8%] top-[42%] h-[28%] w-[38%] rotate-[-14deg] rounded-[40%] bg-gradient-to-l from-[#ffc9d4]/30 to-transparent blur-2xl" />
+    <div className="relative min-h-screen w-full overflow-x-hidden">
+      {/* 参考 home-bg 丝带布局，改用系统红白配色，铺满可视区域 */}
+      <div className="pointer-events-none absolute inset-0 min-h-screen overflow-hidden bg-[#f7f4f4]">
+        <div className="absolute inset-0 bg-gradient-to-tr from-white from-[18%] via-[#fdfafa] via-[55%] to-[#fdeef2]" />
+        <div className="absolute inset-y-0 right-0 w-[42%] bg-gradient-to-l from-[#fdeef2]/90 via-[#fff6f8]/45 to-transparent" />
+
         <svg
-          className="pointer-events-none absolute inset-0 h-full w-full opacity-60"
-          viewBox="0 0 1440 900"
-          preserveAspectRatio="xMidYMid slice"
+          className="absolute inset-0 h-full min-h-screen w-full"
+          viewBox="0 0 1920 1080"
+          preserveAspectRatio="xMaxYMid slice"
           aria-hidden
         >
           <defs>
-            <linearGradient id="homeWaveA" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#d21639" stopOpacity="0.12" />
+            <linearGradient id="homeRibbonFillA" x1="100%" y1="0%" x2="20%" y2="100%">
+              <stop offset="0%" stopColor="#f8d4dc" stopOpacity="0.72" />
+              <stop offset="45%" stopColor="#fbe8ed" stopOpacity="0.38" />
               <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
             </linearGradient>
-            <linearGradient id="homeWaveB" x1="100%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#f4a3b3" stopOpacity="0.18" />
+            <linearGradient id="homeRibbonFillB" x1="95%" y1="5%" x2="15%" y2="95%">
+              <stop offset="0%" stopColor="#d21639" stopOpacity="0.14" />
+              <stop offset="40%" stopColor="#efb8c4" stopOpacity="0.22" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="homeRibbonFillC" x1="88%" y1="0%" x2="30%" y2="85%">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.95" />
+              <stop offset="35%" stopColor="#fff6f8" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#fdecef" stopOpacity="0.08" />
+            </linearGradient>
+            <linearGradient id="homeRibbonLineA" x1="100%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#f4a3b3" stopOpacity="0.55" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+            </linearGradient>
+            <linearGradient id="homeRibbonLineB" x1="100%" y1="20%" x2="10%" y2="100%">
+              <stop offset="0%" stopColor="#d21639" stopOpacity="0.22" />
               <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
             </linearGradient>
           </defs>
+
           <path
-            d="M-80 520 C 220 380, 420 680, 720 520 S 1180 360, 1520 480"
-            fill="none"
-            stroke="url(#homeWaveA)"
-            strokeWidth="140"
-            strokeLinecap="round"
+            d="M1180 -120 C1520 80, 1380 420, 1580 640 C1700 780, 1840 900, 1960 980 L1960 -120 Z"
+            fill="url(#homeRibbonFillC)"
           />
           <path
-            d="M-40 680 C 280 560, 520 820, 820 660 S 1240 500, 1500 620"
+            d="M980 -60 C1320 180, 1200 520, 1460 760 C1580 900, 1720 1000, 1920 1080 L1920 -60 Z"
+            fill="url(#homeRibbonFillA)"
+          />
+          <path
+            d="M860 20 C1140 260, 1060 560, 1280 780 C1400 920, 1540 1020, 1920 1080 L1920 20 Z"
+            fill="url(#homeRibbonFillB)"
+            opacity="0.9"
+          />
+          <path
+            d="M620 40 C920 300, 860 580, 1080 820 C1180 940, 1280 1020, 1380 1080"
             fill="none"
-            stroke="url(#homeWaveB)"
-            strokeWidth="110"
-            strokeLinecap="round"
+            stroke="url(#homeRibbonLineA)"
+            strokeWidth="2.5"
+            opacity="0.55"
+          />
+          <path
+            d="M760 120 C1020 360, 960 640, 1160 860 C1240 960, 1320 1020, 1400 1060"
+            fill="none"
+            stroke="url(#homeRibbonLineB)"
+            strokeWidth="1.5"
+            opacity="0.45"
+          />
+          <path
+            d="M540 180 C820 420, 760 700, 980 920"
+            fill="none"
+            stroke="#f5c6d0"
+            strokeWidth="1"
+            opacity="0.35"
           />
         </svg>
+
+        <div className="absolute -right-[4%] -top-[12%] h-[58%] w-[56%] rounded-full bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.92)_0%,rgba(255,241,244,0.45)_42%,transparent_72%)]" />
+        <div className="absolute inset-y-0 right-0 w-[38%] bg-[radial-gradient(ellipse_at_top_right,rgba(210,22,57,0.06)_0%,transparent_72%)]" />
       </div>
 
-      {/* 主内容区 */}
-      <div className="relative z-10 mx-auto flex min-h-full w-full max-w-6xl flex-col justify-center px-6 py-10">
-        {/* 顶部：数字人上半身 + 问候气泡（左）  待办事项（右） */}
-        <div className="flex items-end justify-between gap-4">
+      {/* 主内容区：与系统其它页面同宽，撑满可视高度 */}
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1400px] flex-col justify-center px-5 py-8 md:px-8 lg:px-10">
+        {/* 顶部：数字人 + 问候（左）  任务提醒（右） */}
+        <div className="flex w-full flex-col items-stretch gap-6 xl:flex-row xl:items-end xl:justify-between">
           {/* 数字人上半身 + 气泡 */}
-          <div className="flex items-start gap-3">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
             <img
               src={digitalHumanImg}
               alt="智能助手数字人"
@@ -184,7 +220,7 @@ export default function HomePage() {
           </div>
 
           {/* 待办事项卡片 */}
-          <div className="w-80 shrink-0 self-end rounded-2xl bg-white p-4 shadow-[0_18px_40px_rgba(0,0,0,0.22)]">
+          <div className="w-full shrink-0 rounded-2xl bg-white p-4 shadow-[0_18px_40px_rgba(0,0,0,0.22)] xl:w-[320px]">
             <div className="mb-3 flex items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800">
                 任务提醒
