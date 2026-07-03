@@ -13,7 +13,7 @@ import {
 import { NEW_COMPARE_ANALYSIS_PATH } from "@/lib/policyCompareAnalysisTasks";
 
 const stats = [
-  { icon: FileText, label: "政策知识库", value: "30万+", desc: "国家到区级政策资金全覆盖", color: "bg-rose-100 text-rose-600", cardBg: "bg-rose-100/80", action: "去检索", link: "/policy-writing/search" },
+  { icon: FileText, label: "政策知识库", value: "30万+", desc: "智能检索政策文件，收藏关键条款，构建可复用的条款素材库。", color: "bg-rose-100 text-rose-600", cardBg: "bg-rose-100/80", action: "去检索", link: "/policy-writing/search" },
   { icon: BarChart3, label: "政策对比分析", value: "231", desc: "多地政策对比分析，提升政策设计竞争力", color: "bg-sky-100 text-sky-600", cardBg: "bg-sky-100/80", action: "去分析", link: NEW_COMPARE_ANALYSIS_PATH },
   { icon: Activity, label: "政策起草", value: "486", desc: "自动生成核心要点、大纲与正文，支持章节级AI协同。", color: "bg-orange-100 text-orange-600", cardBg: "bg-orange-100/80", action: "去起草", link: "/policy-writing/drafting" },
   { icon: Clock, label: "政策前评估", value: "120", desc: "从合规性、一致性和落地性三方面发现风险并给出修改建议。", color: "bg-emerald-100 text-emerald-600", cardBg: "bg-emerald-100/80", action: "去评估", link: "/policy-writing/pre-evaluation" },

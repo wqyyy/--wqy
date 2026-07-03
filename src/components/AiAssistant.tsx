@@ -19,6 +19,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import avatarImg from "@/assets/ai-assistant-avatar.png";
+
+const assistantAvatarClass =
+  "h-full w-full scale-[1.18] rounded-full bg-white object-cover object-[50%_12%] origin-center";
+
+function AssistantAvatar({
+  className,
+  wrapperClassName,
+  alt = "",
+}: {
+  className?: string;
+  wrapperClassName?: string;
+  alt?: string;
+}) {
+  return (
+    <span className={cn("inline-flex items-center justify-center overflow-hidden rounded-full bg-white", wrapperClassName)}>
+      <img src={avatarImg} alt={alt} className={cn(assistantAvatarClass, className)} />
+    </span>
+  );
+}
 import {
   getAssistantPlan,
   sceneConfigs,
@@ -706,10 +725,10 @@ export function AiAssistant() {
         <div className="relative">
           <button
             onClick={() => setOpen(true)}
-            className="h-14 w-14 overflow-hidden rounded-full border-2 border-primary bg-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl"
+            className="h-14 w-14 overflow-hidden rounded-full bg-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl"
             title="打开智能助手"
           >
-            <img src={avatarImg} alt="智能助手" className="h-full w-full object-cover" />
+            <AssistantAvatar alt="智能助手" className="h-14 w-14" wrapperClassName="h-14 w-14" />
           </button>
           {/* 有气泡时的红点提示 */}
           {bubbleHint && (
@@ -730,9 +749,7 @@ export function AiAssistant() {
       {/* 标题栏 */}
       <div className="flex h-12 shrink-0 items-center justify-between bg-primary px-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-transparent">
-            <img src={avatarImg} alt="" className="h-full w-full rounded-full object-cover" />
-          </div>
+          <AssistantAvatar wrapperClassName="h-7 w-7" />
           <span className="text-sm font-bold tracking-wide text-primary-foreground">智能助手</span>
           <span className="rounded-full bg-primary-foreground/15 px-2 py-0.5 text-[10px] text-primary-foreground/90">
             全局助手
@@ -816,7 +833,7 @@ export function AiAssistant() {
           {currentConversation?.messages.map((message, index) => (
             <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
               {message.role === "assistant" && (
-                <img src={avatarImg} alt="" className="mr-2 mt-0.5 h-8 w-8 shrink-0 rounded-full" />
+                <AssistantAvatar wrapperClassName="mr-2 mt-0.5 h-8 w-8 shrink-0" />
               )}
               <div className="max-w-[78%] flex flex-col gap-1.5">
                 {/* 流式起草消息 */}
@@ -910,7 +927,7 @@ export function AiAssistant() {
 
           {isThinking && (
             <div className="flex justify-start">
-              <img src={avatarImg} alt="" className="mr-2 mt-0.5 h-8 w-8 shrink-0 rounded-full" />
+              <AssistantAvatar wrapperClassName="mr-2 mt-0.5 h-8 w-8 shrink-0" />
               <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-sm text-foreground">
                 <Loader2 className="h-4 w-4 animate-spin text-primary" />
                 正在思考并联动页面...

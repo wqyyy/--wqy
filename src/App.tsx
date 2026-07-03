@@ -21,6 +21,7 @@ import PolicyAnalysisHub from "./pages/PolicyAnalysisHub";
 import PolicyCompareAnalysisTaskList from "./pages/PolicyCompareAnalysisTaskList";
 import PolicyReach from "./pages/PolicyReach";
 import PolicySearch from "./pages/PolicySearch";
+import PolicySearchNew from "./pages/PolicySearchNew";
 import PolicyDraftingPage from "./pages/PolicyDraftingPage";
 import PolicyDraftingTaskList from "./pages/PolicyDraftingTaskList";
 import PolicyPreEvaluationPage from "./pages/PolicyPreEvaluationPage";
@@ -62,7 +63,8 @@ const App = () => (
             <Route path="/policy-writing/pre-evaluation/tasks" element={<PolicyPreAssessmentTaskList />} />
             <Route path="/policy-writing/analysis" element={<PolicyAnalysisHub />} />
             <Route path="/policy-writing/analysis/tasks" element={<PolicyCompareAnalysisTaskList />} />
-            <Route path="/policy-writing/search" element={<PolicySearch />} />
+            <Route path="/policy-writing/search" element={<PolicySearchNew />} />
+            <Route path="/policy-writing/search-old" element={<PolicySearch />} />
             <Route path="/policy-report" element={<PolicyReport />} />
             <Route path="/policy-report/tasks" element={<PolicyReportTaskList />} />
             <Route path="/policy-report/create" element={<PolicyReportCreate />} />
