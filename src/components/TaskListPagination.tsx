@@ -19,6 +19,7 @@ type TaskListPaginationProps = {
   pageSize: number;
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
+  pageSizeOptions?: readonly number[];
   className?: string;
 };
 
@@ -29,6 +30,7 @@ export function TaskListPagination({
   pageSize,
   onPageChange,
   onPageSizeChange,
+  pageSizeOptions = TASK_LIST_PAGE_SIZE_OPTIONS,
   className,
 }: TaskListPaginationProps) {
   if (totalItems === 0) return null;
@@ -91,7 +93,7 @@ export function TaskListPagination({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {TASK_LIST_PAGE_SIZE_OPTIONS.map((size) => (
+            {pageSizeOptions.map((size) => (
               <DropdownMenuItem key={size} onClick={() => onPageSizeChange(size)}>
                 {size} 条/页
               </DropdownMenuItem>

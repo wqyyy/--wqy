@@ -640,6 +640,12 @@ const generatePolicies = (): PolicyResult[] => {
 
 const basePolicies: PolicyResult[] = generatePolicies();
 
+const SUMMARY_ANSWER_COLLAPSE_THRESHOLD = 180;
+
+function isLongSummaryAnswer(answer: string) {
+  return answer.length > SUMMARY_ANSWER_COLLAPSE_THRESHOLD || answer.split("\n").filter(Boolean).length > 4;
+}
+
 export default function PolicySearchNew() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -659,6 +665,7 @@ export default function PolicySearchNew() {
     loadFavoritePolicies().map((item) => item.id)
   );
   const [aiSummary, setAiSummary] = useState<string>("");
+  const [summaryAnswerExpanded, setSummaryAnswerExpanded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10; // 每页显示10条
 
@@ -1091,6 +1098,10 @@ export default function PolicySearchNew() {
       setAiSummary("");
     }
   }, [keyword, pageResults, favoriteIds, topTags, yearFilter, regionFilter, themeFilter, searchTarget]);
+
+  useEffect(() => {
+    setSummaryAnswerExpanded(false);
+  }, [aiSummary]);
 
   const totalResults = pageResults.length;
 
@@ -1607,8 +1618,31 @@ export default function PolicySearchNew() {
                         )}
 
                         <div>
-                          <h5 className="mb-2 text-sm font-semibold text-foreground">智能简要回答</h5>
-                          <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-line">{summary.answer}</p>
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <h5 className="text-sm font-semibold text-foreground">智能简要回答</h5>
+                            {isLongSummaryAnswer(summary.answer) ? (
+                              <button
+                                type="button"
+                                className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
+                                onClick={() => setSummaryAnswerExpanded((current) => !current)}
+                              >
+                                {summaryAnswerExpanded ? "收起" : "展开"}
+                                <ChevronDown
+                                  className={cn("h-4 w-4 transition-transform", summaryAnswerExpanded && "rotate-180")}
+                                />
+                              </button>
+                            ) : null}
+                          </div>
+                          <p
+                            className={cn(
+                              "text-sm leading-relaxed text-muted-foreground whitespace-pre-line",
+                              !summaryAnswerExpanded &&
+                                isLongSummaryAnswer(summary.answer) &&
+                                "max-h-[6.5rem] overflow-hidden",
+                            )}
+                          >
+                            {summary.answer}
+                          </p>
                         </div>
                       </>
                     );

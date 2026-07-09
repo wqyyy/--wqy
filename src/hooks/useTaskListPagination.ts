@@ -3,9 +3,17 @@ import { useEffect, useMemo, useState } from "react";
 export const TASK_LIST_PAGE_SIZE_OPTIONS = [6, 9, 12] as const;
 export const DEFAULT_TASK_LIST_PAGE_SIZE = 9;
 
-export function useTaskListPagination<T>(items: T[], resetKey?: string | number) {
+type TaskListPaginationOptions = {
+  defaultPageSize?: number;
+};
+
+export function useTaskListPagination<T>(
+  items: T[],
+  resetKey?: string | number,
+  options?: TaskListPaginationOptions,
+) {
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(DEFAULT_TASK_LIST_PAGE_SIZE);
+  const [pageSize, setPageSize] = useState(options?.defaultPageSize ?? DEFAULT_TASK_LIST_PAGE_SIZE);
 
   const totalItems = items.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
