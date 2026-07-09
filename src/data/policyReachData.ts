@@ -44,14 +44,9 @@ export interface PushedCompany {
 }
 
 export const DEPARTMENTS = [
-  "发展和改革委员会",
-  "科学技术局",
-  "工业和信息化局",
-  "财政局",
-  "人力资源和社会保障局",
-  "商务局",
-  "市场监督管理局",
-  "生态环境局",
+  "商务金融局",
+  "科技和产业促进局",
+  "信息技术产业局",
 ];
 
 export const POLICY_ITEMS: PolicyItem[] = [
@@ -70,8 +65,32 @@ export const POLICY_ITEMS: PolicyItem[] = [
     successfulPushCount: 38,
     summary: "对当年度研发投入达到一定规模的软件和信息技术服务业企业给予研发奖励",
     relatedPolicy: "北京经济技术开发区促进科技创新发展若干措施",
-    publishDepartment: "科学技术服务中心",
+    publishDepartment: "科技和产业促进局",
     enterpriseTags: ["软件和信息技术服务业", "研发投入", "规上企业", "研发奖励"],
+  },
+  {
+    id: "pi012",
+    title: "支持人工智能公共创新平台建设专项奖励",
+    department: "信息技术产业局",
+    publishDate: "2026-06-15",
+    startDate: "2026-06-20",
+    endDate: "2026-12-31",
+    type: "奖励",
+    status: "申报中",
+    pushStatus: "待推送",
+    estimatedPushCount: 128,
+    totalPushed: 0,
+    successfulPushCount: 0,
+    summary: "支持人工智能领域公共创新平台建设，对符合条件的企业给予专项奖励",
+    relatedPolicy: "北京经济技术开发区促进人工智能产业发展若干措施",
+    publishDepartment: "信息技术产业局",
+    enterpriseTags: [
+      "人工智能产业",
+      "数字经济产业",
+      "新一代信息技术产业",
+      "软件和信息技术服务业",
+      "公共服务平台",
+    ],
   },
   {
     id: "pi009",
@@ -88,7 +107,7 @@ export const POLICY_ITEMS: PolicyItem[] = [
     successfulPushCount: 0,
     summary: "对当年度第一季度营业收入同比增长的规上批发和零售业企业给予营收奖励",
     relatedPolicy: "北京经济技术开发区促进商贸服务业高质量发展若干措施",
-    publishDepartment: "商务服务中心",
+    publishDepartment: "商务金融局",
     enterpriseTags: ["批发和零售业", "规上企业", "当年度第一季度营业收入同比增长", "营收奖励"],
   },
   {
@@ -106,7 +125,7 @@ export const POLICY_ITEMS: PolicyItem[] = [
     successfulPushCount: 47,
     summary: "对当年度第一季度产值同比增长的规上建筑业企业给予产值奖励",
     relatedPolicy: "北京经济技术开发区促进建筑业高质量发展若干措施",
-    publishDepartment: "发展和改革服务中心",
+    publishDepartment: "科技和产业促进局",
     enterpriseTags: ["建筑业", "规上企业", "当年度第一季度产值同比增长", "产值奖励"],
   },
   {
@@ -124,7 +143,7 @@ export const POLICY_ITEMS: PolicyItem[] = [
     successfulPushCount: 61,
     summary: "对当年度第一季度营业收入同比增长的规上租赁和商务服务业企业给予营收奖励",
     relatedPolicy: "北京经济技术开发区促进商贸服务业高质量发展若干措施",
-    publishDepartment: "商务服务中心",
+    publishDepartment: "商务金融局",
     enterpriseTags: ["租赁和商务服务业", "规上企业", "当年度第一季度营业收入同比增长", "营收奖励"],
   },
   {
@@ -142,7 +161,7 @@ export const POLICY_ITEMS: PolicyItem[] = [
     successfulPushCount: 0,
     summary: "对当年度第一季度营业收入同比增长的居民服务、修理和其他服务业企业给予营收奖励",
     relatedPolicy: "北京经济技术开发区促进生活性服务业品质提升若干措施",
-    publishDepartment: "商务服务中心",
+    publishDepartment: "商务金融局",
     enterpriseTags: ["居民服务、修理和其他服务业", "当年度第一季度营业收入同比增长", "营收奖励"],
   },
 ];
@@ -187,6 +206,9 @@ const matchPointsPool: Record<string, string[][]> = {
   pi011: [
     ["软件和信息技术服务业", "当年度研发投入达到规定标准", "在区内注册并正常经营"],
   ],
+  pi012: [
+    ["人工智能产业", "公共创新平台", "在区内注册并正常经营"],
+  ],
 };
 
 const pushReasons: Record<string, string[]> = {
@@ -204,6 +226,9 @@ const pushReasons: Record<string, string[]> = {
   ],
   pi011: [
     "企业为软件和信息技术服务业企业，当年度研发投入达到规定标准，符合本事项研发奖励申报条件",
+  ],
+  pi012: [
+    "企业从事人工智能公共创新平台建设，符合本事项专项奖励申报条件",
   ],
 };
 
@@ -250,4 +275,5 @@ export const PUSHED_COMPANIES: PushedCompany[] = [
   ...genCompanies("pi009", 10),
   ...genCompanies("pi010", 6),
   ...genCompanies("pi011", 8),
+  ...genCompanies("pi012", 10),
 ];

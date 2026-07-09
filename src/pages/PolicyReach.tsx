@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ElementType } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ElementType } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
@@ -65,7 +65,7 @@ const reachFlowSteps = [
 
 const reachOverviewStats = [
   { label: "可推送事项数量", value: "23", unit: "项", note: "已完成企业匹配，可进入推送", icon: Highlighter, color: "text-primary", bg: "bg-primary/10" },
-  { label: "已推送事项数量", value: "32", unit: "家", note: "已成功送达企业端的事项数量", icon: Tag, color: "text-primary", bg: "bg-primary/10" },
+  { label: "已推送事项数量", value: "32", unit: "项", note: "已成功送达企业端的事项数量", icon: Tag, color: "text-primary", bg: "bg-primary/10" },
   { label: "已推送企业数量", value: "3,286", unit: "家", note: "较上周提升 8.6%", icon: Building2, color: "text-emerald-600", bg: "bg-emerald-500/10" },
   { label: "已推送次数", value: "9,842", unit: "次", note: "短信、站内信、专员触达", icon: Send, color: "text-blue-600", bg: "bg-blue-500/10" },
 ];
@@ -73,20 +73,118 @@ const reachOverviewStats = [
 const REACH_LIST_PAGE_SIZE = 10;
 const REACH_LIST_PAGE_SIZE_OPTIONS = [10, 20, 30] as const;
 
+function PolicyItemTags({ tags, isPendingPush }: { tags: string[]; isPendingPush: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  const [hasOverflow, setHasOverflow] = useState(false);
+  const [collapsedMaxHeight, setCollapsedMaxHeight] = useState<number>();
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const measureOverflow = useCallback(() => {
+    const el = containerRef.current;
+    if (!el || expanded) return;
+
+    const tagEl = el.querySelector<HTMLElement>("[data-tag-item]");
+    if (!tagEl) {
+      setHasOverflow(false);
+      return;
+    }
+
+    const tagHeight = tagEl.offsetHeight;
+    const rowGap = 6;
+    const twoRowMaxHeight = tagHeight * 2 + rowGap;
+    setCollapsedMaxHeight(twoRowMaxHeight);
+
+    const prevMaxHeight = el.style.maxHeight;
+    const prevOverflow = el.style.overflow;
+    el.style.maxHeight = "none";
+    el.style.overflow = "visible";
+    const fullHeight = el.scrollHeight;
+    el.style.maxHeight = prevMaxHeight;
+    el.style.overflow = prevOverflow;
+
+    setHasOverflow(fullHeight > twoRowMaxHeight + 1);
+  }, [expanded]);
+
+  useLayoutEffect(() => {
+    measureOverflow();
+  }, [tags, expanded, measureOverflow]);
+
+  useEffect(() => {
+    setExpanded(false);
+  }, [tags]);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver(() => {
+      if (!expanded) measureOverflow();
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [expanded, measureOverflow]);
+
+  return (
+    <div className="shrink-0 lg:w-[280px]">
+      <div
+        ref={containerRef}
+        className="flex flex-wrap gap-1.5"
+        style={
+          !expanded && collapsedMaxHeight
+            ? { maxHeight: collapsedMaxHeight, overflow: "hidden" }
+            : undefined
+        }
+      >
+        {tags.map((tag) => (
+          <span
+            key={tag}
+            data-tag-item
+            className="inline-flex max-w-full items-center rounded-md border border-primary/15 bg-primary/[0.04] px-2 py-1 text-[11px] leading-snug text-foreground"
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+      {hasOverflow && (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            setExpanded((current) => !current);
+          }}
+          className="mt-1.5 inline-flex items-center text-[11px] font-medium text-primary transition-colors hover:underline"
+        >
+          {expanded ? "收起" : "更多"}
+        </button>
+      )}
+      {isPendingPush && (
+        <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">以上为模型匹配标签，仅供参考</p>
+      )}
+    </div>
+  );
+}
+
 function PolicyItemCardBody({
   item,
   showChevron = false,
-  showStats = true,
+  showEstimatedMatch,
+  showPushedStats,
 }: {
   item: PolicyItem;
   showChevron?: boolean;
-  showStats?: boolean;
+  /** 是否展示预计匹配（待推送事项） */
+  showEstimatedMatch?: boolean;
+  /** 是否展示已推送/成功推送（已推送事项） */
+  showPushedStats?: boolean;
 }) {
   const itemStatus = item.status;
   const statusMeta = ITEM_STATUS_META[itemStatus];
   const StatusIcon = statusMeta.icon;
   const pushStatusMeta = PUSH_STATUS_META[item.pushStatus];
   const isPendingPush = item.pushStatus === "待推送";
+  const shouldShowEstimated = showEstimatedMatch ?? isPendingPush;
+  const shouldShowPushed = showPushedStats ?? !isPendingPush;
+  const shouldReserveStatsSlot = !isPendingPush && !shouldShowPushed;
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
@@ -118,52 +216,42 @@ function PolicyItemCardBody({
       </div>
 
       {item.enterpriseTags && item.enterpriseTags.length > 0 && (
-        <div className="shrink-0 lg:w-[280px]">
-          <div className="flex flex-wrap gap-1.5">
-            {item.enterpriseTags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex max-w-full items-center rounded-md border border-primary/15 bg-primary/[0.04] px-2 py-1 text-[11px] leading-snug text-foreground"
-              >
-                {tag}
-              </span>
-            ))}
+        <PolicyItemTags tags={item.enterpriseTags} isPendingPush={isPendingPush} />
+      )}
+
+      {shouldShowEstimated && isPendingPush && (
+        <div className="shrink-0 lg:w-[360px]">
+          <div className="rounded-xl border border-border/80 bg-muted/20 px-4 py-3">
+            <p className="text-[10px] text-muted-foreground">预计匹配</p>
+            <p className="mt-1 text-lg font-bold text-foreground">
+              {item.estimatedPushCount}
+              <span className="ml-0.5 text-[11px] font-medium text-muted-foreground">家企业</span>
+            </p>
+            <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">以上为模型预估匹配结果，仅供参考</p>
           </div>
-          {isPendingPush && (
-            <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">以上为模型匹配标签，仅供参考</p>
-          )}
         </div>
       )}
 
-      {showStats && (
+      {shouldShowPushed && !isPendingPush && (
         <div className="shrink-0 lg:w-[360px]">
-          {isPendingPush ? (
-            <div className="rounded-xl border border-border/80 bg-muted/20 px-4 py-3">
-              <p className="text-[10px] text-muted-foreground">预计匹配</p>
-              <p className="mt-1 text-lg font-bold text-foreground">
-                {item.estimatedPushCount}
-                <span className="ml-0.5 text-[11px] font-medium text-muted-foreground">家企业</span>
-              </p>
-              <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">以上为模型预估匹配结果，仅供参考</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 divide-x divide-border rounded-xl border border-border/80 bg-muted/20 px-4 py-3">
-              {[
-                { label: "已推送", value: item.totalPushed, color: "text-primary" },
-                { label: "成功推送", value: item.successfulPushCount, color: "text-emerald-600" },
-              ].map((stat, index) => (
-                <div key={stat.label} className={cn("px-3", index === 0 && "pl-0", index === 1 && "pr-0")}>
-                  <p className="text-[10px] text-muted-foreground">{stat.label}</p>
-                  <p className={cn("mt-1 text-lg font-bold", stat.color)}>
-                    {stat.value}
-                    <span className="ml-0.5 text-[11px] font-medium text-muted-foreground">家</span>
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="grid grid-cols-2 divide-x divide-border rounded-xl border border-border/80 bg-muted/20 px-4 py-3">
+            {[
+              { label: "已推送", value: item.totalPushed, color: "text-primary" },
+              { label: "成功推送", value: item.successfulPushCount, color: "text-emerald-600" },
+            ].map((stat, index) => (
+              <div key={stat.label} className={cn("px-3", index === 0 && "pl-0", index === 1 && "pr-0")}>
+                <p className="text-[10px] text-muted-foreground">{stat.label}</p>
+                <p className={cn("mt-1 text-lg font-bold", stat.color)}>
+                  {stat.value}
+                  <span className="ml-0.5 text-[11px] font-medium text-muted-foreground">家</span>
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       )}
+
+      {shouldReserveStatsSlot && <div className="hidden shrink-0 lg:block lg:w-[360px]" aria-hidden />}
 
       {showChevron && <ChevronRight className="hidden h-4 w-4 shrink-0 text-muted-foreground lg:block" />}
     </div>
@@ -297,6 +385,7 @@ function PolicyDetail({
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const isPendingPushItem = item.pushStatus === "待推送";
 
   useEffect(() => {
     setSearch(initialSearch ?? "");
@@ -308,6 +397,8 @@ function PolicyDetail({
     const result = companies.filter((company) => {
       const matchSearch =
         !search || company.name.includes(search) || company.industry.includes(search) || company.registrationNo.includes(search);
+      if (isPendingPushItem) return matchSearch;
+
       const matchStatus =
         statusFilter === "all" ||
         (statusFilter === "推送失败" && company.pushResult === "失败") ||
@@ -318,19 +409,18 @@ function PolicyDetail({
       return matchSearch && matchStatus;
     });
 
-    if (item.pushStatus !== "已推送") return result;
+    if (isPendingPushItem) return result;
 
     return [...result].sort((a, b) => {
       const aFailed = a.pushResult === "失败" ? 1 : 0;
       const bFailed = b.pushResult === "失败" ? 1 : 0;
       return aFailed - bFailed;
     });
-  }, [companies, item.pushStatus, search, statusFilter]);
+  }, [companies, isPendingPushItem, search, statusFilter]);
 
   const statusCounts = useMemo(
     () => ({
       已申报: companies.filter((company) => company.status === "已申报" || company.status === "已触达").length,
-      推送成功: companies.filter((company) => company.pushResult === "成功").length,
     }),
     [companies],
   );
@@ -343,9 +433,19 @@ function PolicyDetail({
     totalItems,
     totalPages,
     pagedItems,
-  } = useTaskListPagination(filtered, `${item.id}-${search}-${statusFilter}`, {
-    defaultPageSize: REACH_LIST_PAGE_SIZE,
-  });
+  } = useTaskListPagination(
+    filtered,
+    isPendingPushItem ? `${item.id}-${search}` : `${item.id}-${search}-${statusFilter}`,
+    {
+      defaultPageSize: REACH_LIST_PAGE_SIZE,
+    },
+  );
+
+  const enterpriseDisplayCount = search.trim()
+    ? totalItems
+    : isPendingPushItem
+      ? item.estimatedPushCount
+      : item.totalPushed;
 
   return (
     <div className="space-y-4">
@@ -356,25 +456,31 @@ function PolicyDetail({
         </button>
 
         <Card className="p-5">
-          <PolicyItemCardBody item={item} showStats={false} />
+          <PolicyItemCardBody
+            item={item}
+            showEstimatedMatch={isPendingPushItem}
+            showPushedStats={false}
+          />
         </Card>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: "推送总数", value: companies.length, icon: Send, color: "text-primary" },
-          { label: "推送成功数量", value: statusCounts.推送成功, icon: CheckCircle, color: "text-emerald-600" },
-          { label: "已申报", value: statusCounts.已申报, icon: BadgeCheck, color: "text-blue-600" },
-        ].map(({ label, value, icon: Icon, color }) => (
-          <Card key={label} className="flex items-center gap-3 px-4 py-3">
-            <Icon className={`h-5 w-5 shrink-0 ${color}`} />
-            <div>
-              <p className={`text-xl font-bold ${color}`}>{value}</p>
-              <p className="text-[11px] text-muted-foreground">{label}</p>
-            </div>
-          </Card>
-        ))}
-      </div>
+      {!isPendingPushItem && (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "已推送", value: item.totalPushed, icon: Send, color: "text-primary" },
+            { label: "成功推送", value: item.successfulPushCount, icon: CheckCircle, color: "text-emerald-600" },
+            { label: "已申报", value: statusCounts.已申报, icon: BadgeCheck, color: "text-blue-600" },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <Card key={label} className="flex items-center gap-3 px-4 py-3">
+              <Icon className={`h-5 w-5 shrink-0 ${color}`} />
+              <div>
+                <p className={`text-xl font-bold ${color}`}>{value}</p>
+                <p className="text-[11px] text-muted-foreground">{label}</p>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <Card className="space-y-3 p-4">
         <div className="flex gap-2">
@@ -388,19 +494,21 @@ function PolicyDetail({
               className="h-9 w-full rounded-lg border border-border bg-background pl-9 pr-4 text-sm text-foreground outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className="min-w-[100px] cursor-pointer rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none"
-          >
-            <option value="all">全部状态</option>
-            <option value="已申报">已申报</option>
-            <option value="未响应">未响应</option>
-            <option value="推送失败">推送失败</option>
-          </select>
+          {!isPendingPushItem && (
+            <select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="min-w-[100px] cursor-pointer rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none"
+            >
+              <option value="all">全部状态</option>
+              <option value="已申报">已申报</option>
+              <option value="未响应">未响应</option>
+              <option value="推送失败">推送失败</option>
+            </select>
+          )}
         </div>
         <p className="text-xs text-muted-foreground">
-          共 <span className="font-semibold text-foreground">{totalItems}</span> 家企业
+          共 <span className="font-semibold text-foreground">{enterpriseDisplayCount}</span> 家企业
         </p>
       </Card>
 
@@ -414,7 +522,7 @@ function PolicyDetail({
           pagedItems.map((company) => {
             const displayStatus = company.status === "已触达" ? "已申报" : company.status;
             const statusMeta = STATUS_META[displayStatus];
-            const isPushFailed = item.pushStatus === "已推送" && company.pushResult === "失败";
+            const isPushFailed = !isPendingPushItem && company.pushResult === "失败";
 
             return (
               <Card key={company.id} className="overflow-hidden">
@@ -425,7 +533,12 @@ function PolicyDetail({
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="text-sm font-semibold text-foreground">{company.name}</h4>
-                      {isPushFailed ? (
+                      {isPendingPushItem ? (
+                        <span className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                          <Clock className="h-3 w-3" />
+                          待推送
+                        </span>
+                      ) : isPushFailed ? (
                         <span className="flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-600">
                           <XCircle className="h-3 w-3" />
                           推送失败
