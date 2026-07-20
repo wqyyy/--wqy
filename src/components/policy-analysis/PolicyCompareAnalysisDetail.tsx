@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Trash2,
+  XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -131,10 +132,12 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
   const [selectedClauseIds, setSelectedClauseIds] = useState<string[]>(() =>
     isNew ? [] : defaultClauses.map((c) => c.id),
   );
-  const [hasAnalyzed, setHasAnalyzed] = useState(false);
+  const [hasAnalyzed, setHasAnalyzed] = useState(() => !isNew);
   const [clauses, setClauses] = useState<ClauseItem[]>(() => (isNew ? [] : defaultClauses));
   const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
-  const [results, setResults] = useState<AnalysisResultItem[]>([]);
+  const [results, setResults] = useState<AnalysisResultItem[]>(() =>
+    isNew ? [] : buildAnalysisResults("horizontal", defaultClauses, "80%"),
+  );
   const [viewingResultId, setViewingResultId] = useState<string | null>(null);
   const [publishDateStart, setPublishDateStart] = useState("");
   const [publishDateEnd, setPublishDateEnd] = useState("");
@@ -628,44 +631,60 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                   </div>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {results.map((item) => (
-                    <div key={item.id} className="rounded-lg border border-border bg-background p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <span className="inline-flex rounded border border-primary/30 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary">
-                            {item.clauseLabel}
-                          </span>
-                          <p className="mt-2 text-sm font-semibold text-foreground">
-                            {item.typeLabel} - 分析结果
-                          </p>
-                          {item.detail.type === "duplicate" ? (
-                            <p className="mt-2 text-sm text-muted-foreground">
-                              共找到{" "}
-                              <span className="font-semibold text-primary">{item.detail.duplicateCount}</span>{" "}
-                              条重复条款
+                <div className="space-y-2">
+                  {results.map((item) => {
+                    const isFailed = item.status === "failed";
+                    return (
+                      <div key={item.id} className="rounded-lg border border-border bg-background px-3 py-2.5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="inline-flex rounded border border-primary/30 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary">
+                                {item.clauseLabel}
+                              </span>
+                              {isFailed ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-destructive">
+                                  <XCircle className="h-3.5 w-3.5" />
+                                  分析失败
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                  分析完成
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-1 text-sm font-semibold text-foreground">
+                              {item.typeLabel} - 分析结果
                             </p>
-                          ) : item.detail.type === "horizontal" ? null : (
-                            <p className="mt-2 text-sm text-muted-foreground">{getResultSummary(item)}</p>
+                            {isFailed ? (
+                              <p className="mt-1 text-xs leading-relaxed text-destructive/90">
+                                {item.failReason || "分析失败，请稍后重试"}
+                              </p>
+                            ) : item.detail.type === "duplicate" ? (
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                共找到{" "}
+                                <span className="font-semibold text-primary">{item.detail.duplicateCount}</span>{" "}
+                                条重复条款
+                              </p>
+                            ) : item.detail.type === "horizontal" ? null : (
+                              <p className="mt-1 text-xs text-muted-foreground">{getResultSummary(item)}</p>
+                            )}
+                            <p className="mt-0.5 text-[11px] text-muted-foreground">{item.finishedAt}</p>
+                          </div>
+                          {!isFailed && (
+                            <button
+                              type="button"
+                              onClick={() => setViewingResultId(item.id)}
+                              className="shrink-0 rounded bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                            >
+                              查看结果
+                            </button>
                           )}
-                          <p className="mt-1 text-xs text-muted-foreground">{item.finishedAt}</p>
                         </div>
-                        <span className="inline-flex shrink-0 items-center gap-1 text-xs text-emerald-600">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          分析完成
-                        </span>
                       </div>
-                      <div className="mt-3 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setViewingResultId(item.id)}
-                          className="rounded bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                        >
-                          查看结果
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>

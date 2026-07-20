@@ -2,7 +2,7 @@ export type PolicyCompareAnalysisTask = {
   id: string;
   title: string;
   taskType: "横向对比" | "查重" | "异同对比";
-  status: "进行中" | "已完成";
+  status: "进行中" | "已完成" | "失败";
   createdAt: string;
   updatedAt: string;
 };
@@ -59,6 +59,14 @@ export const POLICY_COMPARE_ANALYSIS_TASKS: PolicyCompareAnalysisTask[] = [
     status: "进行中",
     createdAt: "2026-04-02 10:15:00",
     updatedAt: "2026-04-03 14:22:18",
+  },
+  {
+    id: "task-7",
+    title: "氢能政策横向对比分析",
+    taskType: "横向对比",
+    status: "失败",
+    createdAt: "2026-04-08 15:20:11",
+    updatedAt: "2026-04-08 15:21:03",
   },
 ];
 

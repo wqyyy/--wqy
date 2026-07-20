@@ -46,17 +46,29 @@ const EnterpriseEvaluation = () => {
             </TableHeader>
             <TableBody>
               {evaluationItems.map((item) => (
-                <TableRow key={item.id} className="cursor-pointer" onClick={() => navigate(`/enterprise-evaluation/${item.id}`)}>
+                <TableRow
+                  key={item.id}
+                  className="cursor-pointer"
+                  onClick={() => navigate(`/enterprise-evaluation/${item.id}`)}
+                >
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell>{item.department}</TableCell>
                   <TableCell className="text-center">{item.enterpriseCount}</TableCell>
                   <TableCell>{item.deadline}</TableCell>
                   <TableCell className="text-center">
-                    <Badge variant={statusColors[item.status] as any}>{item.status}</Badge>
+                    <Badge variant={statusColors[item.status] as "default" | "secondary" | "outline"}>{item.status}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button size="sm" variant="outline" className="gap-1 text-primary border-primary/30">
-                      <Star className="w-3 h-3" /> 智能评优
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1 border-primary/30 text-primary"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        navigate(`/enterprise-evaluation/${item.id}`);
+                      }}
+                    >
+                      <Star className="h-3 w-3" /> 智能评优
                     </Button>
                   </TableCell>
                 </TableRow>

@@ -186,7 +186,8 @@ export const dashboardData = {
 };
 
 export const evaluationItems = [
-  { id: "1", name: "高新技术企业培育奖励", department: "科技局", enterpriseCount: 86, deadline: "2024-12-31", status: "评优中" },
+  { id: "hq-dataset", name: "经开区高质量数据集典型案例认定", department: "信息技术产业局", enterpriseCount: 8, deadline: "2025-12-31", status: "评优中" },
+  { id: "1", name: "高新技术企业培育奖励", department: "科技局", enterpriseCount: 86, deadline: "2024-12-31", status: "待评优" },
   { id: "2", name: "技术改造投资补贴", department: "经信局", enterpriseCount: 124, deadline: "2024-12-25", status: "待评优" },
   { id: "3", name: "研发投入奖励", department: "科技局", enterpriseCount: 67, deadline: "2024-12-20", status: "已完成" },
   { id: "4", name: "数字化转型示范企业", department: "经信局", enterpriseCount: 45, deadline: "2024-12-15", status: "已完成" },

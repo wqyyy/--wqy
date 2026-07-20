@@ -142,6 +142,8 @@ export type DiffDetail = {
 
 export type AnalysisResultDetail = HorizontalDetail | DuplicateDetail | DiffDetail;
 
+export type AnalysisResultStatus = "completed" | "failed";
+
 export type AnalysisResultItem = {
   id: string;
   clauseIds: string[];
@@ -149,6 +151,9 @@ export type AnalysisResultItem = {
   contrastType: ContrastType;
   typeLabel: string;
   finishedAt: string;
+  status: AnalysisResultStatus;
+  /** 分析失败时的原因说明 */
+  failReason?: string;
   duplicateCount?: number;
   detail: AnalysisResultDetail;
 };
@@ -209,6 +214,33 @@ function buildDiffDetail(clauses: ClauseItem[]): DiffDetail {
   };
 }
 
+function buildFailedResultExample(
+  contrastType: ContrastType,
+  selectedClauses: ClauseItem[],
+  finishedAt: string,
+): AnalysisResultItem {
+  const typeLabel = TYPE_LABELS[contrastType];
+  const failedClause = selectedClauses[selectedClauses.length - 1] ?? selectedClauses[0];
+  const emptyDetail: AnalysisResultDetail =
+    contrastType === "duplicate"
+      ? { type: "duplicate", duplicateCount: 0, hits: [] }
+      : contrastType === "diff"
+        ? { type: "diff", differences: [] }
+        : { type: "horizontal", similarities: [], differences: [] };
+
+  return {
+    id: `result-failed-${Date.now()}`,
+    clauseIds: failedClause ? [failedClause.id] : [],
+    clauseLabel: failedClause?.label ?? "条款",
+    contrastType,
+    typeLabel,
+    finishedAt,
+    status: "failed",
+    failReason: "模型调用超时，未能完成该条款的对比分析，请检查网络后重试。",
+    detail: emptyDetail,
+  };
+}
+
 export function buildAnalysisResults(
   contrastType: ContrastType,
   selectedClauses: ClauseItem[],
@@ -227,12 +259,14 @@ export function buildAnalysisResults(
         contrastType,
         typeLabel,
         finishedAt,
+        status: "completed",
         detail,
       },
+      buildFailedResultExample(contrastType, selectedClauses, finishedAt),
     ];
   }
 
-  return selectedClauses.map((clause, index) => {
+  const completed = selectedClauses.map((clause, index) => {
     const detail =
       contrastType === "duplicate"
         ? buildDuplicateDetail(clause, overlapRate || "80%")
@@ -245,10 +279,13 @@ export function buildAnalysisResults(
       contrastType,
       typeLabel,
       finishedAt,
+      status: "completed" as const,
       duplicateCount: detail.type === "duplicate" ? detail.duplicateCount : undefined,
       detail,
     };
   });
+
+  return [...completed, buildFailedResultExample(contrastType, selectedClauses, finishedAt)];
 }
 
 export function getResultSummary(item: AnalysisResultItem) {

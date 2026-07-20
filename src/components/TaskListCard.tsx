@@ -28,7 +28,7 @@ export function TaskListCard({
     <Card
       role="button"
       tabIndex={0}
-      className="cursor-pointer border border-border p-5 transition-all hover:border-primary/30 hover:shadow-sm"
+      className="cursor-pointer border border-border p-4 transition-all hover:border-primary/30 hover:shadow-sm"
       onClick={onOpen}
       onKeyDown={(event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -37,23 +37,23 @@ export function TaskListCard({
         }
       }}
     >
-      <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-          <Icon className="h-5 w-5" />
+      <div className="flex items-start gap-2.5">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
-          <h3 className="line-clamp-2 text-base font-semibold text-foreground">{title}</h3>
-          {status ? (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              <Badge variant="outline" className={`text-[10px] ${getTaskStatusBadgeClass(status)}`}>
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="line-clamp-1 text-sm font-semibold text-foreground">{title}</h3>
+            {status ? (
+              <Badge variant="outline" className={`shrink-0 text-[10px] ${getTaskStatusBadgeClass(status)}`}>
                 {status}
               </Badge>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
-      <div className="mt-4 flex items-end justify-between gap-3">
-        <div className="min-w-0 space-y-1 text-xs text-muted-foreground">
+      <div className="mt-3 flex items-end justify-between gap-3">
+        <div className="min-w-0 space-y-0.5 text-xs text-muted-foreground">
           <p>创建时间：{createdAt}</p>
           <p>修改时间：{updatedAt}</p>
         </div>

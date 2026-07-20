@@ -1,0 +1,56 @@
+/* 嵌入主应用布局时的适配，不改变原型视觉 */
+.ee-proto {
+  min-height: 100%;
+  background: var(--color-bg-secondary, #f5f6f8);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  font-size: 15px;
+  line-height: 1.58;
+  color: var(--color-text, #333);
+}
+
+.ee-proto .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.ee-proto .page-container {
+  min-height: calc(100vh - 50px);
+}
+
+.ee-proto button,
+.ee-proto input,
+.ee-proto textarea {
+  font: inherit;
+}
+
+/* 嵌入应用布局时，父级高度链路不完整会导致评分标准列表 flex 高度塌成 0 */
+.ee-proto .workflow-pages,
+.ee-proto .workflow-page.active {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+}
+
+.ee-proto .criteria-workspace-card {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 520px;
+  overflow: visible;
+}
+
+.ee-proto .criteria-workspace-card .criteria-card-body,
+.ee-proto .criteria-workspace-card .criteria-edit-panel {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+}
+
+.ee-proto .criteria-workspace-card .criteria-list,
+.ee-proto .criteria-list {
+  flex: 0 0 auto;
+  min-height: 360px;
+  max-height: min(62vh, 720px);
+  overflow-y: auto;
+}
