@@ -59,6 +59,16 @@ export function getRemainingCriteriaScore(criteria: ScoringCriteria): number {
   return Math.max(0, getCriteriaTotalScore(criteria) - getAllocatedCriteriaScore(criteria));
 }
 
+/** 一级指标满分合计相对总分的剩余可分配分值（一级满分由二级汇总，与全局剩余一致） */
+export function getRemainingLevel1Score(criteria: ScoringCriteria): number {
+  return getRemainingCriteriaScore(criteria);
+}
+
+/** 某一级下二级相对该一级满分的剩余；一级已由二级汇总时为 0，新增二级需占用全局剩余并抬升该一级 */
+export function getRemainingLevel2Score(indicator: Level1Indicator): number {
+  return Math.max(0, normalizeScoreValue(indicator.maxScore) - getLevel1ComputedScore(indicator));
+}
+
 export function getScoreEditUpperLimit(criteria: ScoringCriteria, currentScore: number): number {
   return normalizeScoreValue(currentScore) + getRemainingCriteriaScore(criteria);
 }
@@ -201,7 +211,7 @@ export function buildScoreBasis(score: ScoreItem, indicator?: Level2Indicator): 
 }
 
 export function createEmptyLevel1(remaining: number): Level1Indicator {
-  const maxScore = Math.max(1, remaining || 1);
+  const maxScore = normalizeScoreValue(remaining);
   return {
     level: 1,
     code: "新",
@@ -225,7 +235,7 @@ export function createEmptyLevel2(remaining: number, level1Index: number, childI
     level: 2,
     code: `${level1Index + 1}.${childIndex + 1}`,
     name: "新建二级指标",
-    maxScore: Math.max(1, remaining || 1),
+    maxScore: normalizeScoreValue(remaining),
     rules: "请填写评分细则",
     materialRef: "",
   };

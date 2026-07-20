@@ -24,6 +24,8 @@ import {
   exportResultsCsv,
   formatScoreValue,
   getRemainingCriteriaScore,
+  getRemainingLevel1Score,
+  getRemainingLevel2Score,
   getScoreBand,
   getScoreEditUpperLimit,
   normalizeScoreValue,
@@ -226,6 +228,58 @@ export default function EnterpriseEvaluationDetail() {
 
   const updateCriteria = (updater: (prev: ScoringCriteria) => ScoringCriteria) => {
     setEditedCriteria((prev) => syncCriteriaScores(updater(prev)));
+  };
+
+  const handleAddLevel1 = () => {
+    if (scoringInProgress) return;
+    const remaining = getRemainingLevel1Score(editedCriteria);
+    if (remaining <= 0) {
+      showToast("剩余可分配分值为0，无法添加指标");
+      return;
+    }
+    updateCriteria((prev) =>
+      renumberCriteria({
+        ...prev,
+        indicators: [...prev.indicators, createEmptyLevel1(getRemainingLevel1Score(prev))],
+      }),
+    );
+    showToast(`已添加一级指标，默认分配${formatScoreValue(remaining)}分`);
+  };
+
+  const handleAddLevel2 = (level1Index: number) => {
+    if (scoringInProgress) return;
+    const parent = editedCriteria.indicators[level1Index];
+    if (!parent) return;
+
+    // 一级满分由二级汇总：优先用该一级剩余；否则用全局剩余（新增二级会抬升该一级满分）
+    const parentRemaining = getRemainingLevel2Score(parent);
+    const globalRemaining = getRemainingCriteriaScore(editedCriteria);
+    const remaining = parentRemaining > 0 ? parentRemaining : globalRemaining;
+
+    if (remaining <= 0) {
+      showToast("剩余可分配分值为0，无法添加指标");
+      return;
+    }
+
+    updateCriteria((prev) => {
+      const current = prev.indicators[level1Index];
+      if (!current) return prev;
+      const nextParentRemaining = getRemainingLevel2Score(current);
+      const nextGlobalRemaining = getRemainingCriteriaScore(prev);
+      const nextRemaining = nextParentRemaining > 0 ? nextParentRemaining : nextGlobalRemaining;
+      if (nextRemaining <= 0) return prev;
+      const nextChildren = [
+        ...current.children,
+        createEmptyLevel2(nextRemaining, level1Index, current.children.length),
+      ];
+      return renumberCriteria({
+        ...prev,
+        indicators: prev.indicators.map((entry, index) =>
+          index === level1Index ? { ...entry, children: nextChildren } : entry,
+        ),
+      });
+    });
+    showToast(`已添加二级指标，默认分配${formatScoreValue(remaining)}分`);
   };
 
   const beginScoring = () => {
@@ -573,21 +627,7 @@ export default function EnterpriseEvaluationDetail() {
                                   type="button"
                                   className="criteria-btn"
                                   disabled={scoringInProgress}
-                                  onClick={() =>
-                                    updateCriteria((prev) => {
-                                      const remaining = getRemainingCriteriaScore(prev);
-                                      const nextChildren = [
-                                        ...prev.indicators[level1Index].children,
-                                        createEmptyLevel2(remaining, level1Index, prev.indicators[level1Index].children.length),
-                                      ];
-                                      return renumberCriteria({
-                                        ...prev,
-                                        indicators: prev.indicators.map((entry, index) =>
-                                          index === level1Index ? { ...entry, children: nextChildren } : entry,
-                                        ),
-                                      });
-                                    })
-                                  }
+                                  onClick={() => handleAddLevel2(level1Index)}
                                 >
                                   添加二级
                                 </button>
@@ -732,14 +772,7 @@ export default function EnterpriseEvaluationDetail() {
                             type="button"
                             className="criteria-btn"
                             disabled={scoringInProgress}
-                            onClick={() =>
-                              updateCriteria((prev) =>
-                                renumberCriteria({
-                                  ...prev,
-                                  indicators: [...prev.indicators, createEmptyLevel1(getRemainingCriteriaScore(prev))],
-                                }),
-                              )
-                            }
+                            onClick={handleAddLevel1}
                           >
                             添加一级指标
                           </button>
