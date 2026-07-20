@@ -1618,21 +1618,7 @@ export default function PolicySearchNew() {
                         )}
 
                         <div>
-                          <div className="mb-2 flex items-center justify-between gap-3">
-                            <h5 className="text-sm font-semibold text-foreground">智能简要回答</h5>
-                            {isLongSummaryAnswer(summary.answer) ? (
-                              <button
-                                type="button"
-                                className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary hover:underline"
-                                onClick={() => setSummaryAnswerExpanded((current) => !current)}
-                              >
-                                {summaryAnswerExpanded ? "收起" : "展开"}
-                                <ChevronDown
-                                  className={cn("h-4 w-4 transition-transform", summaryAnswerExpanded && "rotate-180")}
-                                />
-                              </button>
-                            ) : null}
-                          </div>
+                          <h5 className="mb-2 text-sm font-semibold text-foreground">智能简要回答</h5>
                           <p
                             className={cn(
                               "text-sm leading-relaxed text-muted-foreground whitespace-pre-line",
@@ -1643,6 +1629,18 @@ export default function PolicySearchNew() {
                           >
                             {summary.answer}
                           </p>
+                          {isLongSummaryAnswer(summary.answer) ? (
+                            <button
+                              type="button"
+                              className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                              onClick={() => setSummaryAnswerExpanded((current) => !current)}
+                            >
+                              {summaryAnswerExpanded ? "收起" : "展开"}
+                              <ChevronDown
+                                className={cn("h-4 w-4 transition-transform", summaryAnswerExpanded && "rotate-180")}
+                              />
+                            </button>
+                          ) : null}
                         </div>
                       </>
                     );

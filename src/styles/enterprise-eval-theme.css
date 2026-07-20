@@ -290,11 +290,9 @@
 }
 
 .preview-stage-grid {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
-  display: grid;
-  grid-template-rows: minmax(330px, auto) minmax(360px, 1fr);
-  gap: var(--card-stack-gap);
+  display: block;
 }
 
 .preview-stage-grid .right-card-statistics {

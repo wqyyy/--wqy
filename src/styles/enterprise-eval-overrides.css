@@ -54,3 +54,10 @@
   max-height: min(62vh, 720px);
   overflow-y: auto;
 }
+
+/* 结果预览：企业列表已在网格外渲染，去掉第二行占位空白 */
+.ee-proto .preview-stage-grid {
+  flex: 0 0 auto;
+  display: block;
+  grid-template-rows: none;
+}
