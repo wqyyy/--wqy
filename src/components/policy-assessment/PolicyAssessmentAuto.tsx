@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Search, GitCompare, Cpu, Shield, FileText, Check, ChevronDown, Square, RotateCcw } from "lucide-react";
+import { Loader2, Search, GitCompare, Cpu, Shield, Workflow, FileText, Check, ChevronDown, Square, RotateCcw } from "lucide-react";
 import { generateReportText } from "./AssessmentStep7";
 import type { AssessmentPolicy } from "./AssessmentStep1";
 import type { Clause } from "./AssessmentStep2";
@@ -8,6 +8,7 @@ import type { Step4Result } from "./AssessmentStep4";
 import type { Step5Result } from "./AssessmentStep5";
 import type { Step6Result } from "./AssessmentStep6";
 import { escapeHtml } from "@/lib/govReportHeaderHtml";
+import { KECHUANG_V1_PROCESS_OPINIONS } from "@/lib/preAssessmentKechuangV1";
 
 interface Props {
   policy: AssessmentPolicy;
@@ -68,6 +69,7 @@ function mapReportToEditableSections(reportText: string): string[] {
     extractSectionBody(reportText, "二、政策一致性评估意见", ["三、政策落地性意见"]),
     extractSectionBody(reportText, "三、政策落地性意见", ["四、政策合规性意见"]),
     extractSectionBody(reportText, "四、政策合规性意见", ["五、流程管理意见"]),
+    extractSectionBody(reportText, "五、流程管理意见", ["六、其他意见"]),
     extractSectionBody(reportText, "六、其他意见", ["附注："]),
   ];
 }
@@ -78,7 +80,8 @@ function mergeEditableSectionsIntoReport(reportText: string, editableSections: s
   merged = replaceSectionBody(merged, "二、政策一致性评估意见", ["三、政策落地性意见"], editableSections[1] || "");
   merged = replaceSectionBody(merged, "三、政策落地性意见", ["四、政策合规性意见"], editableSections[2] || "");
   merged = replaceSectionBody(merged, "四、政策合规性意见", ["五、流程管理意见"], editableSections[3] || "");
-  merged = replaceSectionBody(merged, "六、其他意见", ["附注："], editableSections[4] || "");
+  merged = replaceSectionBody(merged, "五、流程管理意见", ["六、其他意见"], editableSections[4] || "");
+  merged = replaceSectionBody(merged, "六、其他意见", ["附注："], editableSections[5] || "");
   return merged;
 }
 
@@ -129,6 +132,10 @@ function mockStep6(): Step6Result {
   ];
 }
 
+function mockProcessManagementOpinions(): string {
+  return KECHUANG_V1_PROCESS_OPINIONS.join("\n");
+}
+
 const STAGES = [
   {
     id: 0, label: "条款拆解", icon: Search, duration: 900,
@@ -147,7 +154,11 @@ const STAGES = [
     thoughts: ["进行公平竞争审查…", "核查行政许可合规性…", "检查资金管理合规要求…"],
   },
   {
-    id: 4, label: "其他意见", icon: FileText, duration: 700,
+    id: 4, label: "流程管理评估", icon: Workflow, duration: 800,
+    thoughts: ["核查预算追加与上会衔接要求…", "对照全生命周期管理办法梳理解读准备…", "梳理跨年度兑现与流程统筹事项…"],
+  },
+  {
+    id: 5, label: "其他意见", icon: FileText, duration: 700,
     thoughts: ["归纳需补充的实施细则…", "提炼关键优化建议…", "整理风险提示与补充意见…"],
   },
 ];
@@ -158,12 +169,13 @@ const STAGE_SUMMARIES = [
   "本维度重点检视政策条款与上位政策、同类政策及既有扶持规则之间的衔接关系。整体看，政策方向与科技创新、产业发展和营商环境优化要求基本一致，但部分条款仍需进一步明确与市区两级政策的适用边界。",
   "本维度重点评估政策对象、支持方式、资金测算和执行流程是否清晰可操作。整体看，政策具备一定落地基础，但仍建议围绕申报条件、资金安排、材料清单和审核口径进一步细化。",
   "本维度重点从公平竞争、资金管理、行政规范和程序合规等方面进行审查。总体看，政策不存在明显方向性合规障碍，但部分奖励补贴和执行机制条款需补充依据、流程和约束条件。",
-  "本维度主要补充流程衔接、文本表达、政策解读和后续管理方面的完善建议。建议在正式出台前同步做好解读材料、兑现指引和动态评估安排，降低执行偏差。",
+  "本维度重点关注预算追加、政策解读准备、实施周期与跨年度兑现等流程管理事项。建议在上会审议前同步完成资金测算、解读材料和兑现流程安排，降低后续执行衔接风险。",
+  "本维度主要补充文本表达、调研论证和后续管理方面的完善建议。建议在正式出台前同步做好企业调研反馈、兑现指引和动态评估安排，降低执行偏差。",
 ];
 
 /** 全部维度分析完成后的全文总结（只读展示，不进入预览/导出） */
 const FULL_REPORT_SUMMARY =
-  "综合条款拆解、一致性、落地性、合规性及其他意见五个维度的评估结果，本政策整体方向清晰，条款结构较为完整，扶持对象和支持方式基本明确，与上位政策及区域产业发展要求总体一致。当前主要问题集中在市区政策衔接边界、部分条款执行口径、资金测算依据及程序合规说明等方面。建议在正式印发前，进一步细化申报审核流程、资金安排和配套解读材料，并建立动态评估机制，以提升政策可执行性与兑现效果。";
+  "综合条款拆解、一致性、落地性、合规性、流程管理及其他意见六个维度的评估结果，本政策整体方向清晰，条款结构较为完整，扶持对象和支持方式基本明确，与上位政策及区域产业发展要求总体一致。当前主要问题集中在市区政策衔接边界、部分条款执行口径、资金测算依据、程序合规说明及解读兑现流程安排等方面。建议在正式印发前，进一步细化申报审核流程、资金安排和配套解读材料，并建立动态评估机制，以提升政策可执行性与兑现效果。";
 
 export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, onStageChange }: Props) {
   const [clauses, setClauses] = useState<Clause[]>([]);
@@ -381,17 +393,40 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
       });
       await new Promise(r => setTimeout(r, STAGES[4].duration));
       if (stopped()) return;
-      currentStep6 = mockStep6();
-      setStep6(currentStep6);
       setEditableResults((prev) => {
         const next = [...prev];
-        next[4] = buildReportSections({
+        const sections = buildReportSections({
           clauses: currentClauses,
           step3: currentStep3,
           step4: currentStep4,
           step5: currentStep5,
           step6: currentStep6,
-        })[4] || next[4];
+        });
+        next[4] = sections[4] || mockProcessManagementOpinions();
+        return next;
+      });
+      setExpandedThinking(null);
+
+      setStage(5);
+      setExpandedThinking(5);
+      setThoughtLogs(prev => {
+        const next = [...prev];
+        next[5] = STAGES[5].thoughts.join("\n");
+        return next;
+      });
+      await new Promise(r => setTimeout(r, STAGES[5].duration));
+      if (stopped()) return;
+      currentStep6 = mockStep6();
+      setStep6(currentStep6);
+      setEditableResults((prev) => {
+        const next = [...prev];
+        next[5] = buildReportSections({
+          clauses: currentClauses,
+          step3: currentStep3,
+          step4: currentStep4,
+          step5: currentStep5,
+          step6: currentStep6,
+        })[5] || next[5];
         return next;
       });
       setExpandedThinking(null);

@@ -12,6 +12,7 @@ import {
   KECHUANG_V1_CONSISTENCY_OPINIONS,
   KECHUANG_V1_LANDING_OPINIONS,
   KECHUANG_V1_OTHER_OPINIONS,
+  KECHUANG_V1_PROCESS_OPINIONS,
 } from "@/lib/preAssessmentKechuangV1";
 
 interface Props {
@@ -244,8 +245,7 @@ export function generateReportText({ policy, clauses, step3, step4, step5, step6
   // ── 五、流程管理意见 ──
   push(`五、流程管理意见`);
   push(``);
-  push(`1.建议做好资金测算工作，如有25年度需兑现的事项，在政策上会时同步提请追加预算。`);
-  push(`2.根据《惠企政策全生命周期管理办法（2.0版）》的工作要求，建议提前做好政策解读准备工作。`);
+  push(...KECHUANG_V1_PROCESS_OPINIONS);
   push(``);
 
   // ── 六、其他意见 ──
