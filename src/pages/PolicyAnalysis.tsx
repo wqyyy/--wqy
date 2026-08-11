@@ -128,6 +128,19 @@ const SECTION_TITLES = [
   "五、优化建议分析",
 ];
 
+/** 各维度只读总结（仅页面展示，不进入预览/导出） */
+const STAGE_SUMMARIES = [
+  "本维度重点评估政策目标匹配度、结构完整性和适用边界。整体看，政策方向与区域产业升级、开放型经济发展要求基本一致，闭环框架较完整，但对中小外资企业等分层支持仍可细化，建议后续补强可操作细则与跨部门协同。",
+  "本维度逐条检视奖励补贴、资格认定、流程材料和条款可持续性。奖励类条款执行基础较好，认定与流程类条款仍存在口径偏原则、材料标准不一等问题，建议沉淀高频条款模块并统一审核反馈标准。",
+  "本维度聚焦覆盖兑现、资金效率和产业带动效果。重点企业覆盖较快、资金投向与产业导向总体一致，但条款间边际效果差异明显，企业办理体验不均衡，建议加强条款级投入产出评估与办理链路压缩。",
+  "本维度识别执行尺度不一致、跨部门协同断点、触达结构不均衡及后评价深度不足等问题。建议统一解释口径、强化数据复用，并建立条款级问题画像与整改闭环，为下一轮修订提供证据支撑。",
+  "本维度形成近期、中期与长期分层优化建议，覆盖配套指引、并联审核、条款级KPI、后评价库及监测看板等方向。建议以“精准条款、高效流程、数据复盘、持续迭代”为主线，推动政策从可执行向高质量执行升级。",
+];
+
+/** 全部维度分析完成后的全文总结（只读展示，不进入预览/导出） */
+const FULL_REPORT_SUMMARY =
+  "综合整体情况、内容逐条、实施效果、存在问题及优化建议五个维度的评价结果，本政策总体方向正确、框架完整，对重点企业覆盖与产业带动具备阶段性成效，与区域开放创新导向总体一致。当前主要问题集中在条款执行口径不统一、跨部门协同与材料复用不足、中小外资企业触达偏弱，以及后评价机制深度不够等方面。建议加快配套指引与并联审核落地，建立条款级KPI与后评价闭环，持续优化兑现体验与政策迭代能力。";
+
 
 export default function PolicyAnalysis() {
   const [searchParams] = useSearchParams();
@@ -398,6 +411,12 @@ function PolicyAnalysisFlow() {
           </div>
 
           <div className="space-y-3 p-4">
+            {finished && !stopped && (
+              <div className="rounded-lg border border-primary/15 bg-primary/[0.04] px-3 py-2.5">
+                <p className="mb-1 text-xs font-medium text-primary">全文总结</p>
+                <p className="text-xs leading-6 text-muted-foreground">{FULL_REPORT_SUMMARY}</p>
+              </div>
+            )}
             {STAGES.map((s, i) => {
               const Icon = s.icon;
               const active = !finished && stage === i;
@@ -452,6 +471,12 @@ function PolicyAnalysisFlow() {
                       className="min-h-[180px] w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm leading-7 outline-none focus:ring-2 focus:ring-primary/20"
                     />
                     {!hasResult && !active && !done && <p className="mt-2 text-xs text-muted-foreground">等待执行该维度分析…</p>}
+                    {done && hasResult && STAGE_SUMMARIES[i] && (
+                      <div className="mt-3 rounded-lg border border-primary/15 bg-primary/[0.04] px-3 py-2.5">
+                        <p className="mb-1 text-xs font-medium text-primary">总结</p>
+                        <p className="text-xs leading-6 text-muted-foreground">{STAGE_SUMMARIES[i]}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
