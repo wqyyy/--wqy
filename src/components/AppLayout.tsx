@@ -1,23 +1,37 @@
 import { useEffect, useState } from "react";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
   Database,
   FolderOpen,
   Home,
+  LogOut,
   PenTool,
   Send,
   Sparkles,
+  UserRound,
 } from "lucide-react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { AiAssistant } from "@/components/AiAssistant";
 import { NavLink } from "@/components/NavLink";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import logoImg from "@/assets/logo.png";
+import { toast } from "sonner";
 
 const SIDEBAR_STORAGE_KEY = "policy-brain-sidebar-collapsed";
+
+const CURRENT_USER = {
+  name: "张三",
+};
 
 const sideNavItems = [
   { title: "首页", url: "/home", icon: Sparkles },
@@ -141,23 +155,71 @@ export function AppLayout() {
             </div>
           </nav>
 
-          <div className="border-t border-white/12 p-2">
-            <button
-              type="button"
-              onClick={() => setCollapsed((c) => !c)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm text-white/90 transition-colors hover:bg-white/10 hover:text-white"
-              aria-expanded={!collapsed}
-              aria-label={collapsed ? "展开侧栏" : "折叠侧栏"}
-            >
-              {collapsed ? (
-                <ChevronRight className="h-5 w-5" />
-              ) : (
-                <>
-                  <ChevronLeft className="h-5 w-5 shrink-0" />
-                  <span className="truncate">收起</span>
-                </>
-              )}
-            </button>
+          <div className={cn("mt-auto", collapsed ? "px-2 pb-2" : "px-3 pb-2")}>
+            <div className={cn(collapsed ? "px-0 pb-2" : "px-1 pb-2")}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  {collapsed ? (
+                    <button
+                      type="button"
+                      className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+                      aria-label={CURRENT_USER.name}
+                    >
+                      <UserRound className="h-5 w-5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15 ring-1 ring-white/20">
+                        <UserRound className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-[15px] font-medium">
+                        {CURRENT_USER.name}
+                      </span>
+                      <ChevronDown className="h-4 w-4 shrink-0 text-white/70" />
+                    </button>
+                  )}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  side="top"
+                  align={collapsed ? "center" : "start"}
+                  sideOffset={8}
+                  className="min-w-[160px]"
+                >
+                  <DropdownMenuItem
+                    className="cursor-pointer gap-2"
+                    onSelect={() => {
+                      toast.success("已退出登录");
+                      navigate("/home");
+                    }}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    退出登录
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <div className="border-t border-white/12 pt-2">
+              <button
+                type="button"
+                onClick={() => setCollapsed((c) => !c)}
+                className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm text-white/90 transition-colors hover:bg-white/10 hover:text-white"
+                aria-expanded={!collapsed}
+                aria-label={collapsed ? "展开侧栏" : "折叠侧栏"}
+              >
+                {collapsed ? (
+                  <ChevronRight className="h-5 w-5" />
+                ) : (
+                  <>
+                    <ChevronLeft className="h-5 w-5 shrink-0" />
+                    <span className="truncate">收起</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </aside>
 
