@@ -11,6 +11,8 @@ type TaskListCardProps = {
   icon: LucideIcon;
   createdAt: string;
   updatedAt: string;
+  /** 标题下方的辅助标签，如政策类型、起草方式 */
+  tags?: string[];
   onOpen: () => void;
   actions?: ReactNode;
 };
@@ -21,6 +23,7 @@ export function TaskListCard({
   icon: Icon,
   createdAt,
   updatedAt,
+  tags,
   onOpen,
   actions,
 }: TaskListCardProps) {
@@ -50,6 +53,19 @@ export function TaskListCard({
               </Badge>
             ) : null}
           </div>
+          {tags && tags.length > 0 ? (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {tags.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant="outline"
+                  className="border-border bg-muted/40 px-1.5 py-0 text-[10px] font-normal text-muted-foreground"
+                >
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
       <div className="mt-3 flex items-end justify-between gap-3">

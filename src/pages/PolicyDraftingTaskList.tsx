@@ -135,6 +135,7 @@ export default function PolicyDraftingTaskList() {
                 icon={PenTool}
                 createdAt={task.createdAt}
                 updatedAt={task.updatedAt}
+                tags={[task.policyType, task.draftMode]}
                 onOpen={() => openTask(task)}
                 actions={
                   <>
