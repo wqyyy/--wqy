@@ -47,7 +47,7 @@ const policyTypeOptions = [
   "管理办法",
   "奖励办法",
   "工作方案",
-  "其他",
+  "自定义类型",
 ] as const;
 
 type PolicyTypeOption = (typeof policyTypeOptions)[number];
@@ -86,16 +86,18 @@ const POLICY_TYPE_META: Record<
     scope: "微观政策",
     description: "明确奖励对象、支持标准、兑现方式及申报审核流程。",
   },
-  其他: {
+  自定义类型: {
     scope: "微观政策",
-    description: "适用于无法归入既有类型的政策文件，可按实际内容灵活分类。",
+    description: "可自行填写政策体例名称，适用于无法归入既有类型的文件。",
   },
 };
 
 function inferPolicyTypeFromTitle(title: string): PolicyTypeOption {
   const text = title.trim();
   if (!text) return "若干措施";
-  const matched = policyTypeOptions.find((option) => text.includes(option));
+  const matched = policyTypeOptions
+    .filter((option) => option !== "自定义类型")
+    .find((option) => text.includes(option));
   return matched ?? "若干措施";
 }
 
@@ -121,13 +123,24 @@ function resolveInitialDraftState(resumeTask?: PolicyDraftingTask) {
 }
 
 function resolveInitialPolicyType(resumeTask?: PolicyDraftingTask, title?: string): PolicyTypeOption {
-  if (
-    resumeTask?.policyType &&
-    policyTypeOptions.includes(resumeTask.policyType as PolicyTypeOption)
-  ) {
-    return resumeTask.policyType as PolicyTypeOption;
+  if (resumeTask?.policyType) {
+    if (policyTypeOptions.includes(resumeTask.policyType as PolicyTypeOption)) {
+      return resumeTask.policyType as PolicyTypeOption;
+    }
+    // 历史任务中保存的自定义体例
+    return "自定义类型";
   }
   return inferPolicyTypeFromTitle(title ?? resumeTask?.title ?? "");
+}
+
+function resolveInitialCustomPolicyType(resumeTask?: PolicyDraftingTask): string {
+  if (
+    resumeTask?.policyType &&
+    !policyTypeOptions.includes(resumeTask.policyType as PolicyTypeOption)
+  ) {
+    return resumeTask.policyType;
+  }
+  return "";
 }
 
 export function PolicyDraftingFlow({
@@ -151,6 +164,9 @@ export function PolicyDraftingFlow({
   const [titleGenerating, setTitleGenerating] = useState(false);
   const [policyType, setPolicyType] = useState<PolicyTypeOption>(() =>
     resolveInitialPolicyType(resumeTask, initialTitle ?? resumeTask?.title),
+  );
+  const [customPolicyType, setCustomPolicyType] = useState(() =>
+    resolveInitialCustomPolicyType(resumeTask),
   );
   const [coreElements, setCoreElements] = useState("");
   const [coreItems, setCoreItems] = useState<{ id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[]>([]);
@@ -187,13 +203,23 @@ export function PolicyDraftingFlow({
     if (resumeTask) return;
     const inferredType = inferPolicyTypeFromTitle(direction);
     setPolicyType(inferredType);
+    if (inferredType !== "自定义类型") {
+      setCustomPolicyType("");
+    }
   }, [direction, resumeTask]);
+
+  const effectivePolicyType =
+    policyType === "自定义类型" ? customPolicyType.trim() || "政策" : policyType;
+  const canStartDraft =
+    Boolean(direction.trim()) &&
+    !titleGenerating &&
+    (policyType !== "自定义类型" || Boolean(customPolicyType.trim()));
 
   const expandTitleFromDirection = async () => {
     if (title.trim() && isFullPolicyTitle(title)) return title;
     setTitleGenerating(true);
     try {
-      const { title: expanded } = await expandPolicyTitleFromDirection(direction, policyType);
+      const { title: expanded } = await expandPolicyTitleFromDirection(direction, effectivePolicyType);
       setTitle(expanded);
       return expanded;
     } finally {
@@ -454,15 +480,17 @@ export function PolicyDraftingFlow({
                         >
                           {option}
                         </span>
-                        <span
-                          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none ${
-                            checked
-                              ? "bg-primary/10 text-primary"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {meta.scope}
-                        </span>
+                        {option !== "自定义类型" && (
+                          <span
+                            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none ${
+                              checked
+                                ? "bg-primary/10 text-primary"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {meta.scope}
+                          </span>
+                        )}
                       </div>
                       <p className="text-[10px] leading-relaxed text-foreground">
                         {meta.description}
@@ -471,6 +499,21 @@ export function PolicyDraftingFlow({
                   );
                 })}
               </div>
+              {policyType === "自定义类型" && (
+                <div className="space-y-2">
+                  <Label htmlFor="custom-policy-type" className="text-sm font-medium">
+                    自定义类型名称 <span className="text-primary">*</span>
+                  </Label>
+                  <Input
+                    id="custom-policy-type"
+                    placeholder="请输入自定义政策类型，如：行动计划、指导意见"
+                    value={customPolicyType}
+                    onChange={(e) => setCustomPolicyType(e.target.value)}
+                    className="h-11"
+                    autoFocus
+                  />
+                </div>
+              )}
             </div>
 
             {/* 起草方式选择 */}
@@ -478,13 +521,13 @@ export function PolicyDraftingFlow({
               {/* 快速起草 */}
               <button
                 onClick={async () => {
-                  if (!direction.trim() || titleGenerating) return;
+                  if (!canStartDraft) return;
                   await expandTitleFromDirection();
                   setQuickMode(true);
                 }}
-                disabled={!direction.trim() || titleGenerating}
+                disabled={!canStartDraft}
                 className={`group relative flex flex-col items-start gap-3 rounded-xl border-2 p-5 text-left transition-all
-                  ${direction.trim() && !titleGenerating
+                  ${canStartDraft
                     ? "border-primary/30 hover:border-primary hover:bg-primary/[0.03] cursor-pointer"
                     : "border-border opacity-50 cursor-not-allowed"
                   }`}
@@ -507,12 +550,12 @@ export function PolicyDraftingFlow({
               {/* 分步起草 */}
               <button
                 onClick={async () => {
-                  if (!direction.trim() || titleGenerating) return;
+                  if (!canStartDraft) return;
                   await goNext();
                 }}
-                disabled={!direction.trim() || titleGenerating}
+                disabled={!canStartDraft}
                 className={`group relative flex flex-col items-start gap-3 rounded-xl border-2 p-5 text-left transition-all
-                  ${direction.trim() && !titleGenerating
+                  ${canStartDraft
                     ? "border-primary/30 hover:border-primary hover:bg-primary/[0.03] cursor-pointer"
                     : "border-border opacity-50 cursor-not-allowed"
                   }`}

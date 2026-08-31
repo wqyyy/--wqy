@@ -59,7 +59,8 @@ function mockExpandPolicyTitle(direction: string, policyType: string): string {
     topic = topic.replace(/发展$/, "高质量发展");
   }
 
-  const suffix = policyType === "其他" ? "政策" : policyType;
+  const suffix =
+    !policyType || policyType === "其他" || policyType === "自定义类型" ? "政策" : policyType;
   return `北京经济技术开发区关于加快推进${topic}的${suffix}`;
 }
 
