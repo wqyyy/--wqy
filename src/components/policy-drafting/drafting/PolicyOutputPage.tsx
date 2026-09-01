@@ -11,6 +11,7 @@ import type { OutlineSection, OutlineSubSection } from "./OutlineGenerationStep"
 import { isPolicyStructureHeadingLine } from "@/lib/policyNumbering";
 import { generateContent, type Citation } from "@/lib/policyDraftApi";
 import { isPolicyLlmConfigured, policyLlmChat } from "@/lib/llmClient";
+import { parsePolicyOutlineTemplate } from "@/lib/policyOutlineTemplate";
 
 interface PolicyOutputPageProps {
   policyTitle: string;
@@ -1936,6 +1937,9 @@ export function PolicyOutputPage({
   });
   const [isOutlineRegenerating, setIsOutlineRegenerating] = useState(false);
   const [isContentRegenerating, setIsContentRegenerating] = useState(false);
+  const [isTemplateUploading, setIsTemplateUploading] = useState(false);
+  const [templateMessage, setTemplateMessage] = useState<string | null>(null);
+  const templateInputRef = useRef<HTMLInputElement>(null);
   const typewriterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -1961,6 +1965,30 @@ export function PolicyOutputPage({
       })));
       setIsOutlineRegenerating(false);
     }, 1800);
+  };
+
+  const applyTemplateOutline = (sections: OutlineSection[]) => {
+    setEditableOutline(sections);
+    const exp: Record<string, boolean> = {};
+    sections.forEach((s) => { exp[s.id] = true; });
+    setExpandedChapters(exp);
+  };
+
+  const handleTemplateFileChange = async (files: FileList | null) => {
+    const file = files?.[0];
+    if (!file) return;
+    setIsTemplateUploading(true);
+    setTemplateMessage(null);
+    try {
+      const sections = await parsePolicyOutlineTemplate(file);
+      applyTemplateOutline(sections);
+      setTemplateMessage(null);
+    } catch (err) {
+      setTemplateMessage(err instanceof Error ? err.message : "体例模版解析失败");
+    } finally {
+      setIsTemplateUploading(false);
+      if (templateInputRef.current) templateInputRef.current.value = "";
+    }
   };
 
   const startTypewriter = (content: string) => {
@@ -2679,22 +2707,47 @@ export function PolicyOutputPage({
                 {activePanel === "outline" && (
                   <div className="flex-1 flex flex-col min-h-0">
                     {/* 頭部：固定不滾動 */}
-                    <div className="flex items-center justify-between px-4 pt-4 pb-2 shrink-0">
-                      <div>
-                        <h3 className="text-sm font-semibold text-foreground">大纲编辑</h3>
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">拖动章节可调整顺序</p>
-                      </div>
-                      <div className="flex items-center gap-2">
+                    <div className="space-y-2 px-4 pt-4 pb-2 shrink-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold text-foreground">大纲编辑</h3>
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">拖动章节可调整顺序</p>
+                        </div>
                         <button
+                          type="button"
                           onClick={handleRegenerateOutline}
-                          disabled={isOutlineRegenerating}
-                          className="flex items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+                          disabled={isOutlineRegenerating || isTemplateUploading}
+                          className="flex shrink-0 items-center gap-1 text-[11px] px-2 py-1 rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
                         >
                           {isOutlineRegenerating
                             ? <><Loader2 className="h-3 w-3 animate-spin" />生成中…</>
                             : <><RefreshCw className="h-3 w-3" />重新生成</>}
                         </button>
                       </div>
+                      <input
+                        ref={templateInputRef}
+                        type="file"
+                        accept=".docx,.txt,.md,.text"
+                        className="hidden"
+                        onChange={(e) => void handleTemplateFileChange(e.target.files)}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full h-auto min-h-9 flex items-center justify-center gap-2 whitespace-normal py-2 text-xs leading-snug"
+                        disabled={isTemplateUploading || isOutlineRegenerating}
+                        onClick={() => templateInputRef.current?.click()}
+                      >
+                        {isTemplateUploading ? (
+                          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                        ) : (
+                          <Upload className="h-3.5 w-3.5 shrink-0" />
+                        )}
+                        <span>上传文档提取大纲</span>
+                      </Button>
+                      {templateMessage && (
+                        <p className="text-[11px] leading-relaxed text-destructive">{templateMessage}</p>
+                      )}
                     </div>
 
                     {/* 可滾動的大綱內容 */}

@@ -408,7 +408,7 @@ export function OutlineGenerationStep({
             ) : (
               <Upload className="h-4 w-4 shrink-0" />
             )}
-            <span>上传政策体例模版</span>
+            <span>上传文档提取大纲</span>
           </Button>
           {templateMessage && (
             <p className="text-[11px] leading-relaxed text-destructive">{templateMessage}</p>
