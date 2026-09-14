@@ -182,6 +182,58 @@ evaluationCompanies.push(
     creditCode: '91110108MA11WXY345',
     submitDate: '2025-11-02',
     materials: createMaterials(6)
+  },
+  {
+    id: 9,
+    name: '北京新能源汽车股份有限公司',
+    creditCode: '91110000696364303P',
+    submitDate: '2025-11-04',
+    materials: [
+      { id: 1, name: '4.银行账户信息.pdf', url: 'enterprise-evaluation-materials/beijing-ev/01.pdf', pages: 1, size: '189KB' },
+      { id: 2, name: '5.经开区高质量数据集典型案例认定申报书 - 北京新能源汽车动力电池防护预警项目 v2.0.pdf', url: 'enterprise-evaluation-materials/beijing-ev/02.pdf', pages: 26, size: '3.5MB' },
+      { id: 3, name: '北京新能源汽车股份有限公司-电子营业执照.pdf', url: 'enterprise-evaluation-materials/beijing-ev/03.pdf', pages: 1, size: '258KB' },
+      { id: 4, name: '北京新能源汽车股份有限公司_项目申报.pdf', url: 'enterprise-evaluation-materials/beijing-ev/04.pdf', pages: 4, size: '315KB' },
+      { id: 5, name: '承诺书(1).pdf', url: 'enterprise-evaluation-materials/beijing-ev/05.pdf', pages: 1, size: '150KB' }
+    ]
+  },
+  {
+    id: 10,
+    name: '北京人形机器人创新中心有限公司',
+    creditCode: '91110400MAD3Q0NU7N',
+    submitDate: '2025-11-05',
+    materials: [
+      { id: 1, name: '05、北京人形机器人创新中心有限公司营业执照.pdf', url: 'enterprise-evaluation-materials/humanoid-robot/01.pdf', pages: 1, size: '348KB' },
+      { id: 2, name: '3.承诺书（创新中心）-盖章版.pdf', url: 'enterprise-evaluation-materials/humanoid-robot/02.pdf', pages: 1, size: '344KB' },
+      { id: 3, name: '4.银行账户信息（创新中心）-盖章版.pdf', url: 'enterprise-evaluation-materials/humanoid-robot/03.pdf', pages: 1, size: '200KB' },
+      { id: 4, name: '5.经开区高质量数据集典型案例认定申报书（盖章）.pdf', url: 'enterprise-evaluation-materials/humanoid-robot/04.pdf', pages: 78, size: '5.5MB' },
+      { id: 5, name: '北京人形机器人创新中心有限公司_项目申报.pdf', url: 'enterprise-evaluation-materials/humanoid-robot/05.pdf', pages: 4, size: '318KB' }
+    ]
+  },
+  {
+    id: 11,
+    name: '四维图新智驾（北京）科技有限公司',
+    creditCode: '91110400MADYNFEC56',
+    submitDate: '2025-11-07',
+    materials: [
+      { id: 1, name: '四维图新智驾（北京）科技有限公司-电子营业执照.pdf', url: 'enterprise-evaluation-materials/navinfo-autonomous/01.pdf', pages: 1, size: '285KB' },
+      { id: 2, name: '四维图新智驾（北京）科技有限公司_项目申报.pdf', url: 'enterprise-evaluation-materials/navinfo-autonomous/02.pdf', pages: 4, size: '311KB' },
+      { id: 3, name: '承诺书-四维智驾.pdf', url: 'enterprise-evaluation-materials/navinfo-autonomous/03.pdf', pages: 1, size: '93KB' },
+      { id: 4, name: '经开区高质量数据集典型案例认定申报书-四维智驾1107.pdf', url: 'enterprise-evaluation-materials/navinfo-autonomous/04.pdf', pages: 25, size: '21.3MB' },
+      { id: 5, name: '银行账户信息-四维智驾.pdf', url: 'enterprise-evaluation-materials/navinfo-autonomous/05.pdf', pages: 1, size: '58KB' }
+    ]
+  },
+  {
+    id: 12,
+    name: '北京元宇宙文化有限公司',
+    creditCode: '91110400MABX2NTC3W',
+    submitDate: '2025-11-06',
+    materials: [
+      { id: 1, name: '20251029183729932_1.pdf', url: 'enterprise-evaluation-materials/metaverse-culture/01.pdf', pages: 1, size: '417KB' },
+      { id: 2, name: '20251029183729932_2.pdf', url: 'enterprise-evaluation-materials/metaverse-culture/02.pdf', pages: 1, size: '236KB' },
+      { id: 3, name: '北京元宇宙文化有限公司_项目申报.pdf', url: 'enterprise-evaluation-materials/metaverse-culture/03.pdf', pages: 4, size: '311KB' },
+      { id: 4, name: '盖章-经开区高质量数据集典型案例认定申报书.pdf', url: 'enterprise-evaluation-materials/metaverse-culture/04.pdf', pages: 19, size: '10.1MB' },
+      { id: 5, name: '营业执照.pdf', url: 'enterprise-evaluation-materials/metaverse-culture/05.pdf', pages: 1, size: '398KB' }
+    ]
   }
 );
 
@@ -675,6 +727,30 @@ defaultScoringResults.push(
     '中芯安全数据实验室',
     [3, 3, 3, 2, 5, 4, 3, 4, 3, 4, 0, 3, 0, 3],
     [3, 3, 3, 2, 5, 4, 3, 4, 3, 4, 0, 3, 0, 3]
+  ),
+  createGeneratedScoringResult(
+    9,
+    '北京新能源汽车股份有限公司',
+    [5, 5, 4, 6, 8, 9, 5, 8, 6, 7, 9, 8, 4, 7],
+    [5, 5, 4, 6, 8, 9, 5, 8, 6, 7, 9, 8, 4, 7]
+  ),
+  createGeneratedScoringResult(
+    10,
+    '北京人形机器人创新中心有限公司',
+    [5, 4, 4, 6, 8, 9, 5, 9, 6, 8, 9, 7, 5, 8],
+    [5, 4, 4, 6, 8, 9, 5, 9, 6, 8, 9, 7, 5, 8]
+  ),
+  createGeneratedScoringResult(
+    11,
+    '四维图新智驾（北京）科技有限公司',
+    [5, 5, 4, 6, 8, 10, 5, 9, 6, 8, 10, 8, 5, 8],
+    [5, 5, 4, 6, 8, 10, 5, 9, 6, 8, 10, 8, 5, 8]
+  ),
+  createGeneratedScoringResult(
+    12,
+    '北京元宇宙文化有限公司',
+    [4, 4, 3, 5, 7, 8, 4, 7, 5, 7, 8, 7, 4, 7],
+    [4, 4, 3, 5, 7, 8, 4, 7, 5, 7, 8, 7, 4, 7]
   )
 );
 

@@ -52,7 +52,7 @@ const policyTypeOptions = [
 
 type PolicyTypeOption = (typeof policyTypeOptions)[number];
 
-type PolicyScope = "中观政策" | "微观政策";
+type PolicyScope = "宏观政策" | "中观政策" | "微观政策";
 
 const POLICY_TYPE_META: Record<
   PolicyTypeOption,
@@ -99,6 +99,36 @@ function inferPolicyTypeFromTitle(title: string): PolicyTypeOption {
     .filter((option) => option !== "自定义类型")
     .find((option) => text.includes(option));
   return matched ?? "若干措施";
+}
+
+/**
+ * 根据自定义体例名称自动判断宏观 / 中观 / 微观。
+ * 优先匹配既有政策类型；否则按常见公文体例关键词推断。
+ */
+function inferPolicyScopeFromTypeName(name: string): PolicyScope {
+  const text = name.trim();
+  if (!text) return "微观政策";
+
+  const knownMatch = [...policyTypeOptions]
+    .filter((option) => option !== "自定义类型")
+    .sort((a, b) => b.length - a.length)
+    .find((option) => text.includes(option));
+  if (knownMatch) return POLICY_TYPE_META[knownMatch].scope;
+
+  // 宏观：战略引领、顶层设计类
+  if (/规划|纲要|战略|条例|决定|白皮书|指导意见|发展意见/.test(text)) {
+    return "宏观政策";
+  }
+  // 中观：专项推进、路径安排类
+  if (/工作方案|行动计划|行动方案|专项方案|推进方案|实施方案|实施意见|计划|方案|意见/.test(text)) {
+    return "中观政策";
+  }
+  // 微观：操作落地、标准流程类
+  if (/细则|办法|措施|通知|指南|标准|清单|规则|规程|补贴|奖励/.test(text)) {
+    return "微观政策";
+  }
+
+  return "微观政策";
 }
 
 interface PolicyDraftingFlowProps {
@@ -210,6 +240,7 @@ export function PolicyDraftingFlow({
 
   const effectivePolicyType =
     policyType === "自定义类型" ? customPolicyType.trim() || "政策" : policyType;
+  const inferredCustomScope = inferPolicyScopeFromTypeName(customPolicyType);
   const canStartDraft =
     Boolean(direction.trim()) &&
     !titleGenerating &&
@@ -480,7 +511,7 @@ export function PolicyDraftingFlow({
                         >
                           {option}
                         </span>
-                        {option !== "自定义类型" && (
+                        {option !== "自定义类型" ? (
                           <span
                             className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none ${
                               checked
@@ -490,7 +521,17 @@ export function PolicyDraftingFlow({
                           >
                             {meta.scope}
                           </span>
-                        )}
+                        ) : customPolicyType.trim() ? (
+                          <span
+                            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] leading-none ${
+                              checked
+                                ? "bg-primary/10 text-primary"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {inferredCustomScope}
+                          </span>
+                        ) : null}
                       </div>
                       <p className="text-[10px] leading-relaxed text-foreground">
                         {meta.description}
@@ -512,6 +553,18 @@ export function PolicyDraftingFlow({
                     className="h-11"
                     autoFocus
                   />
+                  {customPolicyType.trim() ? (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>已自动识别政策层级：</span>
+                      <span className="rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                        {inferredCustomScope}
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      输入类型名称后，将自动判断属于宏观、中观或微观政策
+                    </p>
+                  )}
                 </div>
               )}
             </div>

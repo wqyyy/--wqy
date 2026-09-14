@@ -1895,6 +1895,27 @@ function OutlineInlineEditor({
   );
 }
 
+function triggerPolicyDownload(content: BlobPart, mimeType: string, filename: string) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function escapePolicyHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 export function PolicyOutputPage({
   policyTitle,
   coreElements = "",
@@ -2295,6 +2316,65 @@ export function PolicyOutputPage({
     }, 700);
   };
 
+  const handleDownload = () => {
+    const content = (fullContentRef.current || displayedText).trim();
+    if (!content) return;
+    const safeTitle = policyTitle.replace(/[\\/:*?"<>|]/g, "_");
+    triggerPolicyDownload(
+      `\uFEFF${content}`,
+      "text/plain;charset=utf-8",
+      `${safeTitle}.txt`,
+    );
+  };
+
+  const handleFormattedDownload = () => {
+    const content = (fullContentRef.current || displayedText).trim();
+    if (!content) return;
+
+    const safeTitle = policyTitle.replace(/[\\/:*?"<>|]/g, "_");
+    const bodyHtml = content
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean)
+      .filter((block, index) => !(index === 0 && block === policyTitle.trim()))
+      .map((block) => {
+        const escaped = escapePolicyHtml(block).replace(/\n/g, "<br>");
+        const isHeading = isPolicyStructureHeadingLine(block);
+        return isHeading
+          ? `<p class="heading">${escaped}</p>`
+          : `<p class="body">${escaped}</p>`;
+      })
+      .join("");
+
+    const formattedDocument = `\uFEFF<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8">
+  <title>${escapePolicyHtml(policyTitle)}</title>
+  <style>
+    @page { size: A4; margin: 2.8cm 2.6cm; }
+    body { font-family: "仿宋_GB2312", "FangSong", serif; color: #000; font-size: 16pt; line-height: 1.8; }
+    h1 { margin: 0 0 28pt; text-align: center; font-family: "方正小标宋简体", "STZhongsong", serif; font-size: 22pt; font-weight: normal; line-height: 1.5; }
+    p { margin: 0; }
+    .heading { margin: 12pt 0 4pt; font-family: "黑体", "SimHei", sans-serif; font-weight: bold; text-indent: 0; }
+    .body { text-align: justify; text-indent: 2em; }
+  </style>
+</head>
+<body>
+  <h1>${escapePolicyHtml(policyTitle)}</h1>
+  ${bodyHtml}
+</body>
+</html>`;
+
+    triggerPolicyDownload(
+      formattedDocument,
+      "application/msword;charset=utf-8",
+      `${safeTitle}_格式化.doc`,
+    );
+  };
+
   return (
     <div className="flex flex-col -mx-6 -my-6 md:-mx-8 md:-my-8 px-6 py-0 md:px-8" style={{ height: "100vh" }}>
       {/* 快速起草模式：打字机输出进度提示条 */}
@@ -2343,8 +2423,25 @@ export function PolicyOutputPage({
               >
                 政策前评估
               </Button>
-              <Button variant="outline" size="sm" className="text-xs gap-1.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs gap-1.5"
+                onClick={handleDownload}
+              >
                 <Download className="h-3.5 w-3.5" />
+                下载
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs gap-1.5"
+                onClick={handleFormattedDownload}
+              >
+                <Download className="h-3.5 w-3.5" />
+                格式化下载
               </Button>
             </motion.div>
           )}

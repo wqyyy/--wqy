@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { AlertCircle, FileText, BarChart3, Award, Building2, Bot, Wallet, ChevronRight, Eye, Clock, ClipboardList, DollarSign, BadgeCheck, Calendar, PieChart as PieChartIcon } from "lucide-react";
+import { AlertCircle, FileText, FileSearch, Upload, BarChart3, Award, Building2, Bot, Wallet, ChevronRight, Eye, Clock, ClipboardList, DollarSign, BadgeCheck, Calendar, PieChart as PieChartIcon } from "lucide-react";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts";
 import { Card } from "@/components/ui/card";
 import { PageHero } from "@/components/PageHero";
@@ -194,30 +194,30 @@ const Index = () => {
               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                 <div className="flex flex-col items-center gap-1">
                   <div className="w-8 h-8 rounded bg-accent flex items-center justify-center">
-                    <Building2 className="w-4 h-4 text-foreground" />
+                    <Upload className="w-4 h-4 text-foreground" />
                   </div>
-                  <span>申报企业<br/>标签匹配</span>
+                  <span>上传标准</span>
                 </div>
                 <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
                 <div className="flex flex-col items-center gap-1">
                   <div className="w-8 h-8 rounded bg-accent flex items-center justify-center">
-                    <BarChart3 className="w-4 h-4 text-foreground" />
+                    <FileSearch className="w-4 h-4 text-foreground" />
                   </div>
-                  <span>权重配置</span>
+                  <span>解析标准</span>
                 </div>
                 <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
                 <div className="flex flex-col items-center gap-1">
                   <div className="w-8 h-8 rounded bg-accent flex items-center justify-center">
                     <Bot className="w-4 h-4 text-foreground" />
                   </div>
-                  <span>AI自动评分</span>
+                  <span>智能评分</span>
                 </div>
                 <ChevronRight className="w-3 h-3 text-muted-foreground shrink-0" />
                 <div className="flex flex-col items-center gap-1">
                   <div className="w-8 h-8 rounded bg-accent flex items-center justify-center">
-                    <Award className="w-4 h-4 text-foreground" />
+                    <Eye className="w-4 h-4 text-foreground" />
                   </div>
-                  <span>择优筛选列表</span>
+                  <span>结果预览</span>
                 </div>
               </div>
             </div>

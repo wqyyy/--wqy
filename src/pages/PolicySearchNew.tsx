@@ -5,6 +5,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  ExternalLink,
+  Loader2,
   MessageSquare,
   Search,
   Star,
@@ -32,8 +34,16 @@ import {
   loadSearchHistory,
   saveSearchHistory,
   removeSearchHistory,
+  isCommonSearchTag,
+  scoreKeywordSimilarity,
   type SearchHistoryItem,
 } from "@/lib/policySearchHistory";
+import {
+  searchInternetGovPolicies,
+  type InternetPolicyHit,
+} from "@/lib/govPolicyPortals";
+
+type SearchScope = "internet" | "system";
 
 type SearchTarget = "title" | "content";
 type SortMode = "time";
@@ -680,14 +690,22 @@ export default function PolicySearchNew() {
   // 搜索历史相关状态
   const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const historyDropdownRef = useRef<HTMLDivElement>(null);
+  const suggestionDropdownRef = useRef<HTMLDivElement>(null);
 
   // 反馈弹窗状态
   const [showFeedback, setShowFeedback] = useState(false);
 
   // 搜索模式状态：智能检索 or 传统检索
   const [searchMode, setSearchMode] = useState<'intelligent' | 'traditional'>('intelligent');
+  /** 检索范围：互联网官方站 / 系统政策库 */
+  const [searchScope, setSearchScope] = useState<SearchScope>("system");
+  const [internetResults, setInternetResults] = useState<InternetPolicyHit[]>([]);
+  const [internetLoading, setInternetLoading] = useState(false);
+  const [internetQuery, setInternetQuery] = useState("");
+  const internetRequestIdRef = useRef(0);
 
   // 政策主题和产业类型下拉框状态
   const [showPolicyThemeDropdown, setShowPolicyThemeDropdown] = useState(false);
@@ -702,16 +720,18 @@ export default function PolicySearchNew() {
     setSearchHistory(loadSearchHistory());
   }, []);
 
-  // 点击外部关闭历史记录下拉框
+  // 点击外部关闭历史 / 联想下拉框
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (
-        historyDropdownRef.current &&
-        !historyDropdownRef.current.contains(event.target as Node) &&
-        searchInputRef.current &&
-        !searchInputRef.current.contains(event.target as Node)
-      ) {
+      const target = event.target as Node;
+      const inHistory =
+        historyDropdownRef.current && historyDropdownRef.current.contains(target);
+      const inSuggest =
+        suggestionDropdownRef.current && suggestionDropdownRef.current.contains(target);
+      const inInput = searchInputRef.current && searchInputRef.current.contains(target);
+      if (!inHistory && !inSuggest && !inInput) {
         setShowHistory(false);
+        setShowSuggestions(false);
       }
       // 关闭政策主题下拉框
       if (
@@ -747,6 +767,8 @@ export default function PolicySearchNew() {
     setPolicyLevelFilter("all");
     setPolicyThemeFilter("all");
     setIndustryTypeFilter("all");
+    setInternetResults([]);
+    setInternetQuery("");
     // 重置后，如果搜索框获得焦点且为空，显示搜索历史
     if (searchInputRef.current === document.activeElement) {
       setShowHistory(true);
@@ -776,6 +798,13 @@ export default function PolicySearchNew() {
     // 如果搜索框为空，执行重置逻辑
     if (!trimmedKeyword) {
       setSearchQuery("");
+      setInternetResults([]);
+      setInternetQuery("");
+      return;
+    }
+
+    if (searchScope === "internet") {
+      void runInternetSearch(trimmedKeyword);
       return;
     }
 
@@ -801,17 +830,75 @@ export default function PolicySearchNew() {
     saveSearchHistory(trimmedKeyword);
     setSearchHistory(loadSearchHistory());
 
-    // 关闭历史记录下拉框
+    // 关闭历史 / 联想下拉框
     setShowHistory(false);
+    setShowSuggestions(false);
+  };
+
+  const runInternetSearch = async (rawKeyword: string) => {
+    const trimmedKeyword = rawKeyword.trim();
+    if (!trimmedKeyword) {
+      setInternetResults([]);
+      setInternetQuery("");
+      return;
+    }
+
+    const requestId = ++internetRequestIdRef.current;
+    setInternetLoading(true);
+    setInternetQuery(trimmedKeyword);
+    setShowHistory(false);
+    setShowSuggestions(false);
+    saveSearchHistory(trimmedKeyword);
+    setSearchHistory(loadSearchHistory());
+
+    try {
+      const hits = await searchInternetGovPolicies(trimmedKeyword);
+      if (requestId !== internetRequestIdRef.current) return;
+      setInternetResults(hits);
+    } catch {
+      if (requestId !== internetRequestIdRef.current) return;
+      setInternetResults([]);
+    } finally {
+      if (requestId === internetRequestIdRef.current) {
+        setInternetLoading(false);
+      }
+    }
+  };
+
+  const handleSearchScopeChange = (scope: SearchScope) => {
+    setSearchScope(scope);
+    setShowHistory(false);
+    setShowSuggestions(false);
+    if (scope === "internet") {
+      // 切换到互联网：用当前输入词自动检索政府官网政策
+      if (keyword.trim()) {
+        void runInternetSearch(keyword);
+      } else {
+        setInternetResults([]);
+        setInternetQuery("");
+      }
+      return;
+    }
+    // 切换回系统政策库：保留当前系统检索条件与结果，不强制重搜
+  };
+
+  const openInternetPolicy = (url: string) => {
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   // 应用历史记录（点击历史记录项）
   const applyHistoryItem = (item: SearchHistoryItem) => {
     setKeyword(item.keyword);
     setShowHistory(false);
+    setShowSuggestions(false);
+
+    const trimmedKeyword = item.keyword.trim();
+    if (searchScope === "internet") {
+      void runInternetSearch(trimmedKeyword);
+      return;
+    }
 
     // 自动执行搜索
-    const trimmedKeyword = item.keyword.trim();
     const parsed = parseIntelligentQuery(trimmedKeyword);
     setYearFilter(parsed.yearFilter);
     setThemeFilter(parsed.themeFilter);
@@ -827,12 +914,59 @@ export default function PolicySearchNew() {
     setSearchHistory(loadSearchHistory());
   };
 
+  // 应用联想建议（点击政策标题）
+  const applySuggestionItem = (title: string) => {
+    setKeyword(title);
+    setShowHistory(false);
+    setShowSuggestions(false);
+
+    if (searchScope === "internet") {
+      void runInternetSearch(title);
+      return;
+    }
+
+    if (searchMode === "intelligent") {
+      const parsed = parseIntelligentQuery(title);
+      setYearFilter(parsed.yearFilter);
+      setThemeFilter(parsed.themeFilter);
+      setRegionFilter(parsed.regionFilter);
+      setSearchTarget(parsed.searchTarget);
+      setPolicyLevelFilter(parsed.policyLevelFilter);
+      setPolicyThemeFilter(parsed.policyThemeFilter);
+      setIndustryTypeFilter(parsed.industryTypeFilter);
+      setSearchQuery(parsed.cleanedKeyword.trim());
+    } else {
+      setSearchQuery(title.trim());
+    }
+
+    saveSearchHistory(title.trim());
+    setSearchHistory(loadSearchHistory());
+  };
+
   // 删除历史记录
   const deleteHistoryItem = (id: string, event: React.MouseEvent) => {
     event.stopPropagation();
     removeSearchHistory(id);
     setSearchHistory(loadSearchHistory());
   };
+
+  /** 输入时按标题相似度联想，取前 10 条；其中前 3 条标「猜你想搜」 */
+  const keywordSuggestions = useMemo(() => {
+    const q = keyword.trim();
+    if (!q) return [];
+    return policies
+      .map((policy) => ({
+        policy,
+        score: scoreKeywordSimilarity(policy.title, q),
+      }))
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || b.policy.publishDate.localeCompare(a.policy.publishDate))
+      .slice(0, 10)
+      .map((item, index) => ({
+        ...item.policy,
+        guessYouWant: index < 3,
+      }));
+  }, [keyword, policies]);
 
   // 过滤和筛选逻辑
   const pageResults = useMemo(() => {
@@ -1213,20 +1347,25 @@ export default function PolicySearchNew() {
                   onChange={(event) => {
                     const newValue = event.target.value;
                     setKeyword(newValue);
-                    // 当用户清空搜索框时，如果输入框有焦点，显示搜索历史
-                    if (!newValue.trim() && document.activeElement === searchInputRef.current) {
-                      setShowHistory(true);
-                    } else if (newValue.trim()) {
-                      // 有内容时隐藏搜索历史
+                    if (!newValue.trim()) {
+                      setShowSuggestions(false);
+                      if (document.activeElement === searchInputRef.current) {
+                        setShowHistory(true);
+                      }
+                    } else {
                       setShowHistory(false);
+                      setShowSuggestions(searchScope === "system");
                     }
                   }}
                   onFocus={() => {
-                    // 只在搜索框为空时显示搜索历史
                     if (!keyword.trim()) {
                       setShowHistory(true);
+                      setShowSuggestions(false);
+                    } else {
+                      setShowHistory(false);
+                      setShowSuggestions(searchScope === "system");
                     }
-                    }}
+                  }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         handleSearch();
@@ -1294,6 +1433,14 @@ export default function PolicySearchNew() {
                               <span className="truncate text-[15px] text-foreground">
                                 {item.keyword}
                               </span>
+                              {isCommonSearchTag(item) && (
+                                <Badge
+                                  variant="outline"
+                                  className="shrink-0 border-primary/30 bg-primary/5 px-1.5 py-0 text-[10px] font-normal text-primary"
+                                >
+                                  常用
+                                </Badge>
+                              )}
                             </div>
                             <button
                               type="button"
@@ -1307,6 +1454,63 @@ export default function PolicySearchNew() {
                       </div>
                     </div>
                   )}
+
+                  {/* 输入联想下拉：相似度最高的前 3 条标记「猜你想搜」 */}
+                  {searchScope === "system" && showSuggestions && keyword.trim() && keywordSuggestions.length > 0 && (
+                    <div
+                      ref={suggestionDropdownRef}
+                      className="absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-[400px] overflow-y-auto rounded-2xl border border-[#e5e7eb] bg-white shadow-[0_8px_30px_rgba(15,23,42,0.08)]"
+                    >
+                      <div className="py-2">
+                        {keywordSuggestions.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => applySuggestionItem(item.title)}
+                            className="group flex w-full items-center justify-between gap-3 px-5 py-3 text-left transition-colors hover:bg-[#f9fafb]"
+                          >
+                            <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                              <Search className="h-4 w-4 flex-shrink-0 text-[#9ca3af]" />
+                              <span className="truncate text-[15px] text-foreground">
+                                {item.title}
+                              </span>
+                              {item.guessYouWant && (
+                                <Badge
+                                  variant="outline"
+                                  className="shrink-0 border-amber-300 bg-amber-50 px-1.5 py-0 text-[10px] font-normal text-amber-700"
+                                >
+                                  猜你想搜
+                                </Badge>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex h-14 shrink-0 items-center gap-3 rounded-2xl border border-[#e5e7eb] bg-[#fafbfc] px-4">
+                  <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">检索范围：</span>
+                  <label className="flex cursor-pointer items-center gap-1.5 text-sm text-foreground">
+                    <input
+                      type="radio"
+                      name="search-scope"
+                      className="h-3.5 w-3.5 accent-primary"
+                      checked={searchScope === "system"}
+                      onChange={() => handleSearchScopeChange("system")}
+                    />
+                    系统政策库
+                  </label>
+                  <label className="flex cursor-pointer items-center gap-1.5 text-sm text-foreground">
+                    <input
+                      type="radio"
+                      name="search-scope"
+                      className="h-3.5 w-3.5 accent-primary"
+                      checked={searchScope === "internet"}
+                      onChange={() => handleSearchScopeChange("internet")}
+                    />
+                    互联网
+                  </label>
                 </div>
                 <button
                   type="button"
@@ -1318,8 +1522,8 @@ export default function PolicySearchNew() {
                 </button>
               </div>
 
-            {/* 发布时间 + 地区 + 搜索位置 + 更多筛选 - 仅在传统检索模式显示 */}
-            {searchMode === 'traditional' && (
+            {/* 发布时间 + 地区 + 搜索位置 + 更多筛选 - 仅在系统政策库 · 传统检索模式显示 */}
+            {searchScope === "system" && searchMode === 'traditional' && (
             <>
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-6">
@@ -1566,7 +1770,7 @@ export default function PolicySearchNew() {
           </div>
         </Card>
 
-        {searchMode === 'intelligent' && aiSummary && (
+        {searchScope === "system" && searchMode === 'intelligent' && aiSummary && (
             <Card className="rounded-[28px] border-none bg-gradient-to-br from-primary/5 to-primary/10 px-6 py-5 shadow-[0_18px_60px_rgba(15,23,42,0.04)]">
               <div className="flex items-start gap-3">
                 <div className="rounded-full bg-primary/10 p-2">
@@ -1650,6 +1854,73 @@ export default function PolicySearchNew() {
             </Card>
           )}
 
+        {searchScope === "internet" ? (
+          <Card className="overflow-hidden rounded-[28px] border-none bg-white shadow-[0_18px_60px_rgba(15,23,42,0.05)]">
+            <div className="border-b border-[#eef0f3] px-6 py-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-[18px] font-semibold text-foreground">
+                    互联网政策检索结果
+                    {!internetLoading && internetQuery ? (
+                      <span className="mx-1 text-primary">{internetResults.length}</span>
+                    ) : null}
+                    {!internetLoading && internetQuery ? "条" : null}
+                  </h3>
+                  {!internetQuery ? (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      输入关键词并搜索，将在政府官方网站搜索公开政策
+                    </p>
+                  ) : null}
+                </div>
+                {internetLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-primary">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    正在检索政府官网…
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="divide-y divide-[#eef0f3]">
+              {internetLoading ? (
+                <div className="flex items-center justify-center gap-2 px-6 py-16 text-sm text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                  正在从政府官方网站匹配相关政策…
+                </div>
+              ) : !internetQuery ? (
+                <div className="px-6 py-16 text-center text-sm text-muted-foreground">
+                  输入关键词并搜索，将在政府官方网站搜索公开政策
+                </div>
+              ) : internetResults.length === 0 ? (
+                <div className="px-6 py-16 text-center text-sm text-muted-foreground">
+                  未找到与「{internetQuery}」匹配的互联网政策，请尝试其他关键词
+                </div>
+              ) : (
+                internetResults.map((item, index) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => openInternetPolicy(item.url)}
+                    className="flex w-full items-start gap-3 px-6 py-4 text-left transition-colors hover:bg-[#f9fafb]"
+                  >
+                    <span className="mt-0.5 w-6 shrink-0 text-sm font-medium text-muted-foreground">
+                      {index + 1}.
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start gap-2">
+                        <span className="text-[16px] font-semibold leading-7 text-foreground hover:text-primary">
+                          {item.title}
+                        </span>
+                        <ExternalLink className="mt-1.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{item.source}</p>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </Card>
+        ) : (
         <Card className="overflow-hidden rounded-[28px] border-none bg-white shadow-[0_18px_60px_rgba(15,23,42,0.05)]">
           <div className="border-b border-[#eef0f3] px-6 py-5">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
@@ -1916,6 +2187,7 @@ export default function PolicySearchNew() {
               </div>
             )}
           </Card>
+        )}
 
         {/* 意见反馈弹窗 */}
         {showFeedback && (

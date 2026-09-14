@@ -1,9 +1,15 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Search, ChevronDown, ChevronUp, Calendar } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, Calendar, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { mockReportItems, reportDepartments } from "@/components/policy-report/policyReportMockData";
 
 const TIME_PRESETS = ["本 月", "上 月", "近一月", "本 年", "去 年"];
@@ -19,6 +25,14 @@ type ReportItemSelectionStepProps = {
   selectedItems: string[];
   onSelectedItemsChange: (ids: string[]) => void;
   footer: ReactNode;
+};
+
+type ApprovalDetail = {
+  enterpriseName: string;
+  organizationId: string;
+  flowNode: string;
+  actionName: string;
+  auditTime: string;
 };
 
 /** 单选组（以圆形复选框样式呈现，与图片一致） */
@@ -64,6 +78,10 @@ export function ReportItemSelectionStep({
   const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const [isUniversal, setIsUniversal] = useState("不限");
   const [currentPage, setCurrentPage] = useState(1);
+  const [detailItem, setDetailItem] = useState<(typeof mockReportItems)[number] | null>(null);
+  const [approvalDetails, setApprovalDetails] = useState<ApprovalDetail[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
 
   const toggleDept = (dept: string) => {
     setSelectedDepts((prev) =>
@@ -111,6 +129,26 @@ export function ReportItemSelectionStep({
     } else {
       const merged = new Set([...selectedItems, ...pageItems.map((item) => item.id)]);
       onSelectedItemsChange([...merged]);
+    }
+  };
+
+  const openItemDetail = async (item: (typeof mockReportItems)[number]) => {
+    setDetailItem(item);
+    if (approvalDetails.length > 0 || detailLoading) return;
+
+    setDetailLoading(true);
+    setDetailError("");
+    try {
+      const response = await fetch(
+        `${import.meta.env.BASE_URL}data/report-approval-details.json`,
+      );
+      if (!response.ok) throw new Error("审批明细加载失败");
+      const rows = (await response.json()) as ApprovalDetail[];
+      setApprovalDetails(rows);
+    } catch (error) {
+      setDetailError(error instanceof Error ? error.message : "审批明细加载失败");
+    } finally {
+      setDetailLoading(false);
     }
   };
 
@@ -283,12 +321,13 @@ export function ReportItemSelectionStep({
                   <TableHead>主管部门</TableHead>
                   <TableHead>开始申报日期</TableHead>
                   <TableHead>申报截止日期</TableHead>
+                  <TableHead className="w-24 text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {pageItems.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-16 text-center text-sm text-muted-foreground">
+                    <TableCell colSpan={9} className="py-16 text-center text-sm text-muted-foreground">
                       暂无匹配事项，请调整搜索或筛选条件
                     </TableCell>
                   </TableRow>
@@ -309,6 +348,18 @@ export function ReportItemSelectionStep({
                       <TableCell className="text-sm">{item.department}</TableCell>
                       <TableCell className="text-sm">{item.startDate}</TableCell>
                       <TableCell className="text-sm">{item.endDate}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 gap-1 px-2 text-primary hover:bg-primary/5 hover:text-primary"
+                          onClick={() => void openItemDetail(item)}
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                          查看明细
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -345,6 +396,54 @@ export function ReportItemSelectionStep({
       </div>
 
       {footer}
+
+      <Dialog open={Boolean(detailItem)} onOpenChange={(open) => !open && setDetailItem(null)}>
+        <DialogContent className="flex max-h-[85vh] max-w-6xl flex-col overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>事项申报明细</DialogTitle>
+            <p className="text-sm text-muted-foreground">
+              {detailItem?.name}
+              {!detailLoading && !detailError && approvalDetails.length > 0
+                ? ` · 共 ${approvalDetails.length} 条`
+                : ""}
+            </p>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border">
+            {detailLoading ? (
+              <div className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+                正在加载审批明细…
+              </div>
+            ) : detailError ? (
+              <div className="flex h-48 items-center justify-center text-sm text-destructive">
+                {detailError}
+              </div>
+            ) : (
+              <Table>
+                <TableHeader className="sticky top-0 z-10 bg-muted">
+                  <TableRow>
+                    <TableHead>企业名称</TableHead>
+                    <TableHead>组织ID</TableHead>
+                    <TableHead>流程节点</TableHead>
+                    <TableHead>操作名称</TableHead>
+                    <TableHead>操作时间</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {approvalDetails.map((row, index) => (
+                    <TableRow key={`${row.organizationId}-${row.flowNode}-${row.auditTime}-${index}`}>
+                      <TableCell className="min-w-56 font-medium">{row.enterpriseName || "-"}</TableCell>
+                      <TableCell className="min-w-44 font-mono text-xs">{row.organizationId || "-"}</TableCell>
+                      <TableCell className="min-w-48">{row.flowNode || "-"}</TableCell>
+                      <TableCell className="min-w-32">{row.actionName || "-"}</TableCell>
+                      <TableCell className="min-w-40 whitespace-nowrap">{row.auditTime || "-"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+            </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

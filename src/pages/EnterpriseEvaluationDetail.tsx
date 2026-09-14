@@ -110,7 +110,7 @@ export default function EnterpriseEvaluationDetail() {
 
   const filteredCompanies = useMemo(() => {
     const keyword = searchQuery.trim().toLowerCase();
-    let list = evaluationCompanies;
+    let list = [...evaluationCompanies].sort((a, b) => b.submitDate.localeCompare(a.submitDate));
     if (keyword) {
       list = list.filter(
         (company) =>
@@ -175,6 +175,12 @@ export default function EnterpriseEvaluationDetail() {
 
   const scoringCompany = evaluationCompanies.find((company) => company.id === scoringCompanyId) ?? null;
   const scoringResult = results.find((item) => item.companyId === scoringCompanyId) ?? null;
+  const activeMaterial =
+    materialCompany?.materials.find((material) => material.id === activeMaterialId) ?? null;
+  const activeMaterialUrl =
+    activeMaterial && activeMaterial.url !== "#"
+      ? `${import.meta.env.BASE_URL}${activeMaterial.url}`
+      : null;
   const showCompanyPanel = currentView === "upload" || currentView === "preview";
 
   const resetWorkflow = useCallback(() => {
@@ -916,11 +922,6 @@ export default function EnterpriseEvaluationDetail() {
                   </div>
                 </div>
               </div>
-              <div className="action-bar-compact action-bar-preview" aria-label="结果预览操作">
-                <button type="button" className="btn btn-primary" onClick={backToCriteriaEdit}>
-                  返回标准
-                </button>
-              </div>
             </section>
           )}
         </div>
@@ -1086,6 +1087,14 @@ export default function EnterpriseEvaluationDetail() {
             </div>
           </div>
         )}
+
+        {currentView === "preview" && (
+          <div className="action-bar-compact action-bar-preview" aria-label="结果预览操作">
+            <button type="button" className="btn btn-primary" onClick={backToCriteriaEdit}>
+              返回标准
+            </button>
+          </div>
+        )}
       </main>
 
       <div className={`modal-overlay${materialCompany ? " show" : ""}`} id="material-modal">
@@ -1131,10 +1140,18 @@ export default function EnterpriseEvaluationDetail() {
               <div className="material-content">
                 <div className="pdf-viewer-container">
                   <div id="pdf-viewer-content">
-                    <div className="empty-viewer">
-                      {materialCompany?.materials.find((material) => material.id === activeMaterialId)?.name ||
-                        "选择左侧材料以预览"}
-                    </div>
+                    {activeMaterialUrl ? (
+                      <iframe
+                        key={activeMaterialUrl}
+                        className="material-pdf-frame"
+                        src={activeMaterialUrl}
+                        title={`${materialCompany?.name ?? "企业"}-${activeMaterial?.name ?? "申报材料"}`}
+                      />
+                    ) : (
+                      <div className="empty-viewer">
+                        {activeMaterial?.name || "选择左侧材料以预览"}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
