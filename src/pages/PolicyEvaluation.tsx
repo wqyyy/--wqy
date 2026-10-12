@@ -15,6 +15,7 @@ import {
   BookOpen,
   BookMarked,
   List,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,7 @@ const PolicyEvaluation = () => {
   );
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [evalTick, setEvalTick] = useState(0);
+  const [selectedPolicy, setSelectedPolicy] = useState<EvalPolicy | null>(null);
 
   useEffect(() => {
     setKeyword(searchParams.get("policy") ?? searchParams.get("query") ?? "");
@@ -253,6 +255,9 @@ const PolicyEvaluation = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
+                <Button disabled={!selectedPolicy} onClick={() => {
+                  if (selectedPolicy) navigate(`/policy-analysis?policy=${encodeURIComponent(selectedPolicy.title)}`);
+                }}>开始评估</Button>
                 <Badge variant="secondary">共 {filteredPolicies.length} 条</Badge>
                 <Button
                   type="button"
@@ -268,10 +273,19 @@ const PolicyEvaluation = () => {
             </div>
           </CardHeader>
           <CardContent className="space-y-3 px-6 pb-4 pt-3">
+            {selectedPolicy && (
+              <div className="flex items-center gap-3 rounded-xl border-2 border-primary/30 bg-primary/5 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{selectedPolicy.title}</p>
+                  <p className="mt-0.5 text-xs text-[#9b6b73]">已选择，可删除后重新选择</p>
+                </div>
+                <button type="button" aria-label="取消选择政策" onClick={() => setSelectedPolicy(null)}><X className="h-4 w-4" /></button>
+              </div>
+            )}
             {urlPolicyTitle && (
               <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm text-foreground">
                 当前链接已携带政策「<span className="font-medium text-primary">{urlPolicyTitle}</span>
-                」，可在下方列表中定位该政策并点击「开始评估」或「重新评估」。
+                」，可在下方列表中选择该政策。
               </div>
             )}
 
@@ -284,7 +298,7 @@ const PolicyEvaluation = () => {
               <div className="relative sm:col-span-2 lg:col-span-2">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="政策名称 / 部门关键词"
+                  placeholder="请输入政策名称进行搜索"
                   className="pl-9 h-10"
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
@@ -307,51 +321,39 @@ const PolicyEvaluation = () => {
               </Select>
             </div>
 
-            <div className="rounded-xl border border-border divide-y divide-border max-h-[min(520px,55vh)] overflow-y-auto">
+            <div className="max-h-[min(520px,55vh)] overflow-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="sticky top-0 bg-[#faf7f8]">
+                  <tr>
+                    {['选择', '政策名称', '发布部门', '发布时间'].map((label) => <th key={label} className="border-b border-border px-4 py-4 font-semibold">{label}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
               {filteredPolicies.length === 0 ? (
-                <div className="p-8 text-center text-sm text-muted-foreground">
+                <tr><td colSpan={4} className="p-8 text-center text-sm text-muted-foreground">
                   没有符合筛选条件的政策，请调整条件后重试。
-                </div>
+                </td></tr>
               ) : (
                 filteredPolicies.map((p) => {
-                  const active = urlPolicyTitle === p.title;
-                  const done = evaluated(p.title);
+                  const active = selectedPolicy?.id === p.id;
                   return (
-                    <div
+                    <tr
                       key={p.id}
-                      className={`flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between ${
+                      onClick={() => setSelectedPolicy(p)}
+                      className={`cursor-pointer ${
                         active ? "bg-primary/5" : "hover:bg-muted/40"
                       } transition-colors`}
                     >
-                      <div className="min-w-0 flex-1 space-y-1.5">
-                        <p className="text-sm font-semibold text-foreground leading-snug">{p.title}</p>
-                        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                          <span className="line-clamp-1">{p.department}</span>
-                          <span className="text-border">|</span>
-                          <Badge variant="outline" className="font-normal">
-                            {p.domain}
-                          </Badge>
-                          <span>{p.publishDate}</span>
-                          {done && (
-                            <Badge className="bg-emerald-600 hover:bg-emerald-600 text-primary-foreground">
-                              已评估
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                      <Button
-                        className="shrink-0 sm:ml-4"
-                        variant={done ? "outline" : "default"}
-                        onClick={() =>
-                          navigate(`/policy-analysis?policy=${encodeURIComponent(p.title)}`)
-                        }
-                      >
-                        {done ? "重新评估" : "开始评估"}
-                      </Button>
-                    </div>
+                      <td className="border-b border-border px-4 py-5"><input type="radio" name="evaluation-policy" checked={active} onChange={() => setSelectedPolicy(p)} aria-label={`选择${p.title}`} className="accent-primary" /></td>
+                      <td className="w-[45%] border-b border-border px-4 py-5 font-semibold leading-relaxed">{p.title}</td>
+                      <td className="border-b border-border px-4 py-5">{p.department}</td>
+                      <td className="whitespace-nowrap border-b border-border px-4 py-5">{p.publishDate}</td>
+                    </tr>
                   );
                 })
               )}
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
