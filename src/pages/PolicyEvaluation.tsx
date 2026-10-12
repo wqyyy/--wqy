@@ -248,7 +248,7 @@ const PolicyEvaluation = () => {
                   <Building2 className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg font-bold">待评估政策</CardTitle>
+                  <CardTitle className="text-lg font-bold">选择待评估政策</CardTitle>
                   <p className="text-sm text-muted-foreground mt-1">
                     筛选后选择政策，进入政策评价分析流程
                   </p>
