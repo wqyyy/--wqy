@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>政策计算器</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="phone-shell" aria-label="京小亦移动端页面">
+      <section class="screen screen-entry is-active" id="entryScreen">
+        <header class="top-bar top-bar-entry">
+          <button class="icon-button" type="button" aria-label="返回">
+            <span class="chevron-left"></span>
+          </button>
+          <span class="top-title">京小亦</span>
+          <button class="icon-button has-notice" type="button" aria-label="更多">
+            <span class="more-dot"></span>
+          </button>
+        </header>
+
+        <div class="home-page">
+          <div class="side-menu home-menu" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <section class="home-hero" aria-label="京小亦介绍">
+            <div class="assistant-avatar" aria-hidden="true"></div>
+            <div class="home-hero-copy">
+              <h1>您好，我是您的AI政务小助手——京小亦</h1>
+              <p>我能够为您提供超过 1500 项的办事咨询服务，并支持50余项业务在线办理。您可以直接说明需求，或者点击下方问题和卡片进行办理。</p>
+            </div>
+          </section>
+
+          <section class="hot-section" aria-label="热门问题">
+            <h2>热门问题</h2>
+            <div class="hot-scroll">
+              <div class="hot-row">
+                <button type="button">居民养老保险是什么？</button>
+                <button type="button">工作居住证办事指南下载</button>
+              </div>
+              <div class="hot-row offset-left">
+                <button type="button">工作居住证指标如何影响城市居民的生活？</button>
+                <button type="button">外籍人的工作居住证？</button>
+              </div>
+              <div class="hot-row offset-small">
+                <button type="button">工作居住证？</button>
+                <button type="button">工作居住证续签对个人有什么要求？</button>
+                <button type="button">办理流程</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="service-section" aria-label="业务分类">
+            <div class="category-tabs">
+              <button class="is-active" type="button">人力资源</button>
+              <button type="button">准营准办</button>
+              <button type="button">医疗卫生</button>
+              <button type="button">全部 <span>›</span></button>
+            </div>
+            <div class="service-grid">
+              <article>企业实行不定时工作制和综合计算工时工作制审批（设区的市级权限）</article>
+              <article>人力资源服务备案</article>
+            </div>
+          </section>
+        </div>
+
+        <footer class="composer home-composer">
+          <div class="quick-actions" aria-label="快捷入口">
+            <button class="quick-action active" type="button">
+              <span class="atom-icon"></span>
+              深度思考
+            </button>
+            <button class="quick-action" type="button">
+              <span class="calendar-icon"></span>
+              在线预约
+            </button>
+            <button class="quick-action" type="button">
+              <span class="pin-icon"></span>
+              服务地图
+            </button>
+            <button class="quick-action policy-calculator-action" type="button">
+              <span class="calculator-icon"></span>
+              政策计算器
+            </button>
+          </div>
+          <div class="input-row">
+            <button class="plus-button" type="button" aria-label="添加">
+              <span></span>
+            </button>
+            <input type="text" placeholder="请描述您的问题或需求" />
+            <button class="sound-button" type="button" aria-label="语音输入">
+              <svg class="sound-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 5 6 9H2v6h4l5 4z"></path>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+              </svg>
+            </button>
+            <button class="send-button" type="button" aria-label="发送">
+              <span></span>
+            </button>
+          </div>
+        </footer>
+      </section>
+
+      <section class="screen screen-results" id="resultsScreen">
+        <header class="top-bar">
+          <button class="icon-button" type="button" id="backButton" aria-label="返回">
+            <span class="chevron-left"></span>
+          </button>
+          <span class="top-title">政策计算器</span>
+          <button class="icon-button" type="button" aria-label="更多">
+            <span class="more-dot"></span>
+          </button>
+        </header>
+
+        <div class="results-band">
+          <div class="side-menu compact" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+
+        <div class="chat-area">
+          <article class="assistant-card">
+            <p>
+              您好，北京奔驰汽车有限公司，我已经根据您的企业信息，已为您精准匹配到<span id="highMatchCount">0</span>条高契合事项！可获得<span id="highMatchAmount">0-0万元</span>补贴金额，若您希望匹配更多事项，只需简单回答几个问题或直接发送企业信息即可。
+            </p>
+          </article>
+
+          <article class="answer-summary" id="answerSummary" hidden></article>
+
+          <section class="policy-list" aria-label="匹配事项列表">
+            <article class="policy-card">
+              <div class="policy-main">
+                <div class="title-row">
+                  <span class="match-level">高契合</span>
+                  <h2>人工智能行业大模型应用落地支持</h2>
+                </div>
+                <p class="policy-source">经开区 2025 年人工智能行业大模型应用落地支持</p>
+              </div>
+              <div class="amount-box">
+                <span>预计扶持金额</span>
+                <strong>0-500万元</strong>
+              </div>
+              <div class="policy-meta">
+                <span>申报有效期：2027-12-31</span>
+                <button type="button">查看详情</button>
+              </div>
+            </article>
+
+            <article class="policy-card">
+              <div class="policy-main">
+                <div class="title-row">
+                  <span class="match-level">高契合</span>
+                  <h2>AI 原生生产业创新高地建设支持</h2>
+                </div>
+                <p class="policy-source">北京经济技术开发区关于加快打造 AI 原生生产业创新高地的若干政策</p>
+              </div>
+              <div class="amount-box">
+                <span>预计扶持金额</span>
+                <strong>0-300万元</strong>
+              </div>
+              <div class="policy-meta">
+                <span>申报有效期：2027-12-31</span>
+                <button type="button">查看详情</button>
+              </div>
+            </article>
+
+            <article class="policy-card">
+              <div class="policy-main">
+                <div class="title-row">
+                  <span class="match-level medium">中高契合</span>
+                  <h2>智能制造场景应用示范奖励</h2>
+                </div>
+                <p class="policy-source">北京市推动高端制造企业数字化智能化转型相关支持事项</p>
+              </div>
+              <div class="amount-box">
+                <span>预计扶持金额</span>
+                <strong>0-100万元</strong>
+              </div>
+              <div class="policy-meta">
+                <span>申报有效期：2027-12-31</span>
+                <button type="button">查看详情</button>
+              </div>
+            </article>
+          </section>
+
+          <article class="question-card" id="questionPanel" hidden></article>
+        </div>
+
+        <footer class="composer">
+          <div class="quick-actions" aria-label="快捷入口">
+            <button class="quick-action active" type="button">
+              <span class="atom-icon"></span>
+              深度思考
+            </button>
+            <button class="quick-action" type="button">
+              <span class="calendar-icon"></span>
+              在线预约
+            </button>
+            <button class="quick-action" type="button">
+              <span class="pin-icon"></span>
+              服务地图
+            </button>
+            <button class="quick-action policy-calculator-action" type="button">
+              <span class="calculator-icon"></span>
+              政策计算器
+            </button>
+          </div>
+          <div class="input-row">
+            <button class="plus-button" type="button" aria-label="添加">
+              <span></span>
+            </button>
+            <input type="text" placeholder="请描述您的问题或需求" />
+            <button class="sound-button" type="button" aria-label="语音输入">
+              <svg class="sound-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 5 6 9H2v6h4l5 4z"></path>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+              </svg>
+            </button>
+            <button class="send-button" type="button" aria-label="发送">
+              <span></span>
+            </button>
+          </div>
+        </footer>
+      </section>
+    </main>
+
+    <div class="funding-modal" id="rdFundingModal" hidden aria-hidden="true">
+      <section class="funding-modal-panel" role="dialog" aria-modal="true" aria-labelledby="rdFundingModalTitle">
+        <header class="funding-modal-header">
+          <h2 id="rdFundingModalTitle">支持金额测算</h2>
+          <button class="funding-modal-close" type="button" aria-label="关闭">×</button>
+        </header>
+        <p class="funding-rule">（一）2025年第一季度（1-2月）研发费用达到3000万、增速达到8%的企业，给予增量部分1%支持，最高不超过200万元。 （二）补贴金额以万元为单位，保留一位小数，低于1万元不予兑现，不足千元部分舍去。 （三）对于无2024年一季度（1-2月）研发费用数据的企业，增速按100%计算。</p>
+        <label class="funding-field" for="rdExpenseCurrent">
+          <span>1. 2025年一季度（1-2月）研发费用（万元）</span>
+          <input id="rdExpenseCurrent" type="number" min="0" step="0.1" inputmode="decimal" value="3200" />
+        </label>
+        <label class="funding-field" for="rdExpensePrevious">
+          <span>2. 2024年一季度（1-2月）研发费用（万元）</span>
+          <input id="rdExpensePrevious" type="number" min="0" step="0.1" inputmode="decimal" value="2900" />
+        </label>
+        <div class="funding-result" id="rdFundingResult" aria-live="polite" hidden></div>
+        <button class="funding-submit" id="rdFundingSubmit" type="button">测算</button>
+      </section>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
