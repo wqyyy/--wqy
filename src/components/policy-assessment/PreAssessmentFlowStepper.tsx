@@ -4,11 +4,12 @@ import { PRE_ASSESSMENT_FLOW_STEPS, PRE_ASSESSMENT_STAGE_COUNT } from "./preAsse
 
 type PreAssessmentFlowStepperProps = {
   currentStep: number;
+  progressStep?: number;
   archived?: boolean;
   onSelect?: (step: number) => void;
 };
 
-export function PreAssessmentFlowStepper({ currentStep, archived = false, onSelect }: PreAssessmentFlowStepperProps) {
+export function PreAssessmentFlowStepper({ currentStep, progressStep = currentStep, archived = false, onSelect }: PreAssessmentFlowStepperProps) {
   return (
     <div className="rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
       <div className="mb-4 flex items-center justify-between">
@@ -21,11 +22,11 @@ export function PreAssessmentFlowStepper({ currentStep, archived = false, onSele
         {PRE_ASSESSMENT_FLOW_STEPS.map((step, index) => {
           const StepIcon = step.icon;
           const isCurrent = !archived && currentStep === step.id;
-          const isCompleted = archived || currentStep > step.id;
+          const isCompleted = !isCurrent && (archived || progressStep > step.id);
 
           return (
             <div key={step.id} className="flex items-center shrink-0">
-              <button type="button" disabled={!archived && ((currentStep === 1 && step.id !== 1) || (step.id === 8 && currentStep < 8))} onClick={() => onSelect?.(step.id)} aria-current={isCurrent ? "step" : undefined} className="flex flex-col items-center gap-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              <button type="button" disabled={!archived && ((progressStep === 1 && step.id !== 1) || (step.id === 8 && progressStep < 8))} onClick={() => onSelect?.(step.id)} aria-current={isCurrent ? "step" : undefined} className="flex flex-col items-center gap-2 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                 <div
                   className={cn(
                     "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border",

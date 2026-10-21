@@ -63,6 +63,7 @@ export function PolicyAssessmentFlow({
   const [assessmentStage, setAssessmentStage] = useState(0);
   const [assessmentFinished, setAssessmentFinished] = useState(openFinal);
   const [assessmentStarted, setAssessmentStarted] = useState(openFinal || startEvaluation || Boolean(savedTask));
+  const [selectionVisible, setSelectionVisible] = useState(false);
   const persistAssessment = useCallback((reportText: string, editableSections: string[], stage: number, finished: boolean) => {
     if (!selectedPolicy || archived) return;
     try {
@@ -85,21 +86,22 @@ export function PolicyAssessmentFlow({
     } catch { toast.error("归档失败，请检查浏览器存储空间后重试"); }
   };
 
-  const currentFlowStep = !selectedPolicy || !assessmentStarted
+  const progressFlowStep = !selectedPolicy || !assessmentStarted
     ? 1
     : assessmentStageToFlowStep(assessmentStage, assessmentFinished);
+  const currentFlowStep = selectionVisible ? 1 : progressFlowStep;
 
   const handlePolicySelect = (policy: AssessmentPolicy | null) => {
     setSelectedPolicy(policy);
     setAssessmentStarted(false);
-    if (!policy) {
-      setAssessmentStage(0);
-      setAssessmentFinished(false);
-    }
+    setAssessmentStage(0);
+    setAssessmentFinished(false);
   };
 
   const handleStartAssessment = () => {
     if (!selectedPolicy) return;
+    setSelectionVisible(false);
+    if (assessmentStarted) return;
     setAssessmentStage(0);
     setAssessmentFinished(false);
     setAssessmentStarted(true);
@@ -132,10 +134,17 @@ export function PolicyAssessmentFlow({
         </Button>
       </div>
 
-      <PreAssessmentFlowStepper currentStep={currentFlowStep} archived={archived} onSelect={step => setScrollRequest(previous => ({ step, revision: previous.revision + 1 }))} />
+      <PreAssessmentFlowStepper currentStep={currentFlowStep} progressStep={progressFlowStep} archived={archived} onSelect={step => {
+        if (step === 1) {
+          setSelectionVisible(true);
+          return;
+        }
+        setSelectionVisible(false);
+        setScrollRequest(previous => ({ step, revision: previous.revision + 1 }));
+      }} />
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
-        {!selectedPolicy || !assessmentStarted ? (
+        {(!selectedPolicy || !assessmentStarted || selectionVisible) && (
           <div className="h-full overflow-y-auto">
             <div className="mx-auto max-w-5xl px-6 py-8 md:px-8">
               <AssessmentStep1
@@ -145,8 +154,9 @@ export function PolicyAssessmentFlow({
               />
             </div>
           </div>
-        ) : (
-          <div className="flex h-full overflow-hidden">
+        )}
+        {selectedPolicy && assessmentStarted && (
+          <div className={selectionVisible ? "hidden" : "flex h-full overflow-hidden"}>
             <PolicyAssessmentAuto
               policy={selectedPolicy}
               onBack={() => (directOpenFinal || startEvaluation ? onBack() : handlePolicySelect(null))}
