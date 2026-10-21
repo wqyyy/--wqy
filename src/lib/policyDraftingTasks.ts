@@ -4,7 +4,7 @@ export type PolicyDraftingTask = {
   policyType: string;
   policyScope: string;
   draftMode: "快速起草" | "分步起草";
-  status: "生成中" | "已完成";
+  status: "生成中" | "已完成" | "已归档";
   currentStep: number;
   createdAt: string;
   updatedAt: string;
@@ -112,7 +112,7 @@ export function resolveDraftingEntryFromTask(task: PolicyDraftingTask): {
   step: number;
   openOutputPage: boolean;
 } {
-  if (task.status === "已完成" || task.currentStep >= 5) {
+  if (task.status === "已完成" || task.status === "已归档" || task.currentStep >= 5) {
     return { step: 5, openOutputPage: true };
   }
   return { step: task.currentStep, openOutputPage: false };

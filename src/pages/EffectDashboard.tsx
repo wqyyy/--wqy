@@ -241,8 +241,8 @@ function PublishView() {
           <ResponsiveContainer width="100%" height={560}>
             <BarChart data={departmentStats} layout="vertical" margin={{ left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,92%)" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 10 }} />
-              <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
+              <XAxis type="number" tick={{ fontSize: 12 }} />
+              <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={100} />
               <Tooltip />
               <Bar dataKey="items" name="事项发布数" fill="hsl(350,85%,42%)" radius={[0, 3, 3, 0]} barSize={7} />
               <Bar dataKey="published" name="政策发布数" fill="hsl(25,90%,55%)" radius={[0, 3, 3, 0]} barSize={7} />
@@ -386,8 +386,8 @@ function TrendLineChart({ data, label }: { data: { year: string; value: number }
     <ResponsiveContainer width="100%" height="100%">
       <LineChart data={data}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,92%)" />
-        <XAxis dataKey="year" tick={{ fontSize: 11 }} />
-        <YAxis tick={{ fontSize: 11 }} />
+        <XAxis dataKey="year" tick={{ fontSize: 13 }} />
+        <YAxis tick={{ fontSize: 13 }} />
         <Tooltip />
         <Line type="monotone" dataKey="value" name={label} stroke="hsl(350,85%,42%)" strokeWidth={2} dot={{ fill: "hsl(350,85%,42%)", r: 3, stroke: "hsl(350,85%,42%)" }} />
       </LineChart>
@@ -400,8 +400,8 @@ function TrendBarChart({ data, label }: { data: { year: string; value: number }[
     <ResponsiveContainer width="100%" height="100%">
       <BarChart data={data}>
         <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,92%)" />
-        <XAxis dataKey="year" tick={{ fontSize: 11 }} />
-        <YAxis tick={{ fontSize: 11 }} />
+        <XAxis dataKey="year" tick={{ fontSize: 13 }} />
+        <YAxis tick={{ fontSize: 13 }} />
         <Tooltip />
         <Bar dataKey="value" name={label} fill="hsl(350,85%,42%)" radius={[4, 4, 0, 0]} />
       </BarChart>

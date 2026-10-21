@@ -67,7 +67,7 @@ export default function PolicyPreAssessmentTaskList() {
 
   const openTask = (task: PolicyPreAssessmentTask) => {
     navigate(`/policy-writing/pre-evaluation?taskId=${task.id}`, {
-      state: { policyTitle: task.title },
+      state: { policyTitle: task.title, directOpenFinal: task.status === "已归档" || task.status === "已完成" },
     });
   };
 
@@ -92,7 +92,7 @@ export default function PolicyPreAssessmentTaskList() {
   };
 
   const handleDownload = (task: PolicyPreAssessmentTask) => {
-    if (task.status !== "已完成") {
+    if (task.status !== "已完成" && task.status !== "已归档") {
       toast.message("评估完成后才可下载报告");
       return;
     }
@@ -116,7 +116,7 @@ export default function PolicyPreAssessmentTaskList() {
           <h1 className="text-xl font-semibold text-foreground">历史任务列表</h1>
           <Button
             className="h-9 gap-1.5 px-4 gov-gradient text-primary-foreground hover:opacity-90"
-            onClick={() => navigate("/policy-writing/pre-evaluation")}
+            onClick={() => navigate("/policy-writing/pre-evaluation?new=1")}
           >
             <Plus className="h-4 w-4" />
             新建报告
@@ -159,7 +159,7 @@ export default function PolicyPreAssessmentTaskList() {
                     </TaskListIconButton>
                     <TaskListIconButton
                       label={`下载 ${task.title}`}
-                      disabled={task.status !== "已完成"}
+                      disabled={task.status !== "已完成" && task.status !== "已归档"}
                       onClick={(event) => {
                         event.stopPropagation();
                         handleDownload(task);

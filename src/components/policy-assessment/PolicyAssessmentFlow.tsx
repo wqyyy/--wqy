@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { toast } from "sonner";
+import { getPolicyPreAssessmentTaskById, loadPolicyPreAssessmentTasks, savePolicyPreAssessmentTasks, formatPolicyPreAssessmentUpdatedAt } from "@/lib/policyPreAssessmentTasks";
 import { ArrowLeft, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AssessmentStep1, type AssessmentPolicy } from "@/components/policy-assessment/AssessmentStep1";
@@ -24,6 +26,17 @@ export function PolicyAssessmentFlow({
   startEvaluation = false,
 }: Props) {
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const [savedTask] = useState(() => {
+    if (params.get("taskId")) return getPolicyPreAssessmentTaskById(params.get("taskId")!);
+    if (params.has("new") || startEvaluation || initialPolicyTitle || directOpenFinal) return undefined;
+    const latest = [...loadPolicyPreAssessmentTasks()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    return latest?.status === "已归档" ? undefined : latest;
+  });
+  const [taskId] = useState(() => savedTask?.id || `pre-${crypto.randomUUID()}`);
+  const [archived, setArchived] = useState(savedTask?.status === "已归档");
+  const [scrollRequest, setScrollRequest] = useState({ step: 1, revision: 0 });
+  const openFinal = directOpenFinal || savedTask?.status === "已归档" || savedTask?.status === "已完成";
   const [selectedPolicy, setSelectedPolicy] = useState<AssessmentPolicy | null>(() => {
     if (startEvaluation && initialPolicyTitle?.trim()) {
       return {
@@ -33,11 +46,12 @@ export function PolicyAssessmentFlow({
         content: initialPolicyContent?.trim() || undefined,
       };
     }
-    if (directOpenFinal) {
+    if (openFinal || savedTask) {
       return {
         id: "direct-pre-eval-doc",
-        title: initialPolicyTitle || "政策前评估报告",
-        source: "library",
+        title: initialPolicyTitle || savedTask?.title || "政策前评估报告",
+        source: savedTask?.source === "上传文件" ? "upload" : "library",
+        content: savedTask?.policyContent,
       };
     }
     const t = initialPolicyTitle?.trim();
@@ -47,8 +61,29 @@ export function PolicyAssessmentFlow({
     return null;
   });
   const [assessmentStage, setAssessmentStage] = useState(0);
-  const [assessmentFinished, setAssessmentFinished] = useState(directOpenFinal);
-  const [assessmentStarted, setAssessmentStarted] = useState(directOpenFinal || startEvaluation);
+  const [assessmentFinished, setAssessmentFinished] = useState(openFinal);
+  const [assessmentStarted, setAssessmentStarted] = useState(openFinal || startEvaluation || Boolean(savedTask));
+  const persistAssessment = useCallback((reportText: string, editableSections: string[], stage: number, finished: boolean) => {
+    if (!selectedPolicy || archived) return;
+    try {
+      const tasks = loadPolicyPreAssessmentTasks();
+      const previous = tasks.find(task => task.id === taskId);
+      if (previous?.status === "已归档") return;
+      const now = formatPolicyPreAssessmentUpdatedAt();
+      savePolicyPreAssessmentTasks([{ id: taskId, title: selectedPolicy.title, source: selectedPolicy.source === "upload" ? "上传文件" : "起草库", status: finished ? "已完成" : "进行中", currentStep: assessmentStageToFlowStep(stage, finished), riskLevel: previous?.riskLevel || "中", createdAt: previous?.createdAt || now, updatedAt: now, reportText, editableSections, policyContent: selectedPolicy.content }, ...tasks.filter(task => task.id !== taskId)]);
+    } catch { toast.error("评估报告保存失败，请检查浏览器存储空间"); }
+  }, [selectedPolicy, archived, taskId]);
+  const archiveAssessment = (reportText: string, editableSections: string[]) => {
+    if (!assessmentFinished || !selectedPolicy || archived) return;
+    try {
+      const tasks = loadPolicyPreAssessmentTasks();
+      const now = formatPolicyPreAssessmentUpdatedAt();
+      const previous = tasks.find(task => task.id === taskId);
+      savePolicyPreAssessmentTasks([{ id: taskId, title: selectedPolicy.title, source: selectedPolicy.source === "upload" ? "上传文件" : "起草库", status: "已归档", currentStep: 8, riskLevel: previous?.riskLevel || "中", createdAt: previous?.createdAt || now, updatedAt: now, reportText, editableSections, policyContent: selectedPolicy.content }, ...tasks.filter(task => task.id !== taskId)]);
+      setArchived(true);
+      toast.success("前评估任务已归档");
+    } catch { toast.error("归档失败，请检查浏览器存储空间后重试"); }
+  };
 
   const currentFlowStep = !selectedPolicy || !assessmentStarted
     ? 1
@@ -97,7 +132,7 @@ export function PolicyAssessmentFlow({
         </Button>
       </div>
 
-      <PreAssessmentFlowStepper currentStep={currentFlowStep} />
+      <PreAssessmentFlowStepper currentStep={currentFlowStep} archived={archived} onSelect={step => setScrollRequest(previous => ({ step, revision: previous.revision + 1 }))} />
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
         {!selectedPolicy || !assessmentStarted ? (
@@ -115,7 +150,12 @@ export function PolicyAssessmentFlow({
             <PolicyAssessmentAuto
               policy={selectedPolicy}
               onBack={() => (directOpenFinal || startEvaluation ? onBack() : handlePolicySelect(null))}
-              directOpenFinal={directOpenFinal}
+              directOpenFinal={openFinal}
+              archived={archived}
+              initialSections={savedTask?.editableSections}
+              onArchive={archiveAssessment}
+              onProgressSave={persistAssessment}
+              scrollRequest={scrollRequest}
               onStageChange={(stage, finished) => {
                 setAssessmentStage(stage);
                 setAssessmentFinished(finished);

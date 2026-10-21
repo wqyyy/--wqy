@@ -13,7 +13,7 @@ import {
   ASSISTANT_TASK_VIEW_LABEL,
   buildCompletedTaskMessage,
 } from "@/lib/assistantCopy";
-import digitalHumanImg from "@/assets/digital-human-upper.png";
+import digitalHumanImg from "@/assets/digital-human-home.png";
 
 /** 「可以这样问」快捷问题（沿用此前文案） */
 const QUICK_QUESTIONS = [
@@ -195,12 +195,14 @@ export default function HomePage() {
         <div className="flex w-full flex-col items-stretch gap-6 xl:flex-row xl:items-end xl:justify-between">
           {/* 数字人上半身 + 气泡 */}
           <div className="flex min-w-0 flex-1 items-start gap-3">
+            <div className="relative hidden h-[300px] w-[220px] shrink-0 overflow-hidden md:block">
             <img
               src={digitalHumanImg}
               alt="智能助手数字人"
-              className="hidden h-[300px] w-auto shrink-0 select-none object-contain object-bottom md:block"
+              className="pointer-events-none absolute left-[-105px] top-[-130px] w-[430px] max-w-none select-none"
               draggable={false}
             />
+            </div>
             {showGreeting && (
               <div className="relative mt-12 max-w-md animate-[fadeIn_0.6s_ease_both]">
                 <span className="absolute -left-1.5 top-5 hidden h-3.5 w-3.5 rotate-45 rounded-sm bg-white md:block" />

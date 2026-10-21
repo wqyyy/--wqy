@@ -30,6 +30,7 @@ export interface OutlineSection {
 }
 
 interface OutlineGenerationStepProps {
+  initialOutline?: OutlineSection[];
   policyTitle: string;
   coreElements: string;
   coreItems?: { id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[];
@@ -198,7 +199,9 @@ export function OutlineGenerationStep({
   selectedPolicies,
   analysisResult,
   onOutlineComplete,
+  initialOutline,
 }: OutlineGenerationStepProps) {
+  const [restoredOutline] = useState(initialOutline);
   const [isGenerating, setIsGenerating] = useState(true);
   const [outline, setOutline] = useState<OutlineSection[]>([]);
   const [expandedChapters, setExpandedChapters] = useState<Record<string, boolean>>({});
@@ -208,6 +211,12 @@ export function OutlineGenerationStep({
   const templateInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (restoredOutline?.length) {
+      setOutline(restoredOutline);
+      setExpandedChapters(Object.fromEntries(restoredOutline.map(section => [section.id, true])));
+      setIsGenerating(false);
+      return;
+    }
     setIsGenerating(true);
     setError(null);
     generateOutline({ policyTitle, coreElements, selectedPolicies, analysisResult, coreItems })

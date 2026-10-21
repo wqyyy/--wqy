@@ -5,10 +5,10 @@ import { Card } from "@/components/ui/card";
 import { PageHero } from "@/components/PageHero";
 
 const PROJECT_AUDIT_URL =
-  "https://test-bjjkq.zqlian.com/gov/#/audit/progress/shenhe?platformDataType=base";
-const ALLOCATE_RESULT_URL = "https://test-bjjkq.zqlian.com/gov/#/audit/allocateList";
-const PUBLICIZE_URL = "https://test-bjjkq.zqlian.com/gov/#/audit/publicizeList";
-const FUND_DISBURSEMENT_URL = "https://test-bjjkq.zqlian.com/gov/#/appropriate/apply";
+  "https://zcdx.kfqgw.beijing.gov.cn/gov/#/audit/progress/chushenyigang?platformDataType=base";
+const ALLOCATE_RESULT_URL = "https://zcdx.kfqgw.beijing.gov.cn/gov/#/audit/allocateList";
+const PUBLICIZE_URL = "https://zcdx.kfqgw.beijing.gov.cn/gov/#/audit/publicizeList";
+const FUND_DISBURSEMENT_URL = "https://zcdx.kfqgw.beijing.gov.cn/gov/#/appropriate/appropriation";
 
 const POLICY_REPORT_DIMENSIONS = [
   { label: "已兑现事项分析", icon: BarChart3, iconClass: "text-primary", bgClass: "bg-primary/10" },
@@ -33,7 +33,6 @@ const Index = () => {
           <Card className="h-[156px] rounded-2xl border border-border bg-card px-5 py-4 flex items-center">
             <div className="w-full flex items-center justify-between overflow-x-auto">
               {[
-                { label: "企业申报（智能预审）", icon: Building2, highlight: false, iconSoft: true },
                 {
                   label: "项目审核",
                   icon: ClipboardList,
@@ -258,7 +257,7 @@ const Index = () => {
                 <p className="text-[10px] text-muted-foreground text-center mb-1">已兑现资金(亿元)</p>
                 <ResponsiveContainer width="100%" height={80}>
                   <BarChart data={[{ name: "2022", v: 5.2 }, { name: "2023", v: 12.8 }, { name: "2024", v: 45.6 }, { name: "2025", v: 21.7 }]} barSize={14}>
-                    <XAxis dataKey="name" tick={{ fontSize: 8 }} axisLine={false} tickLine={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                     <Bar dataKey="v" fill="hsl(var(--primary))" radius={[2, 2, 0, 0]} />
                     <Tooltip formatter={(v: number) => `${v}亿`} />
                   </BarChart>

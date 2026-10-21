@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ChevronDown,
   ChevronLeft,
@@ -23,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-// Tabs removed - unified search interface
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import {
   loadFavoritePolicies,
@@ -675,6 +677,12 @@ export default function PolicySearchNew() {
     loadFavoritePolicies().map((item) => item.id)
   );
   const [aiSummary, setAiSummary] = useState<string>("");
+  const [isThinking, setIsThinking] = useState(false);
+  const [thinkingOpen, setThinkingOpen] = useState(false);
+  const thinkingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (thinkingTimer.current) clearTimeout(thinkingTimer.current);
+  }, []);
   const [summaryAnswerExpanded, setSummaryAnswerExpanded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10; // 每页显示10条
@@ -776,8 +784,8 @@ export default function PolicySearchNew() {
   };
 
   // 切换搜索模式
-  const toggleSearchMode = () => {
-    const newMode = searchMode === 'intelligent' ? 'traditional' : 'intelligent';
+  const changeSearchMode = (newMode: 'intelligent' | 'traditional') => {
+    if (newMode === searchMode) return;
     setSearchMode(newMode);
 
     // 切换模式时重置筛选条件，但保持搜索结果
@@ -794,6 +802,8 @@ export default function PolicySearchNew() {
   // 搜索按钮处理函数
   const handleSearch = () => {
     const trimmedKeyword = keyword.trim();
+    if (thinkingTimer.current) clearTimeout(thinkingTimer.current);
+    setIsThinking(false);
 
     // 如果搜索框为空，执行重置逻辑
     if (!trimmedKeyword) {
@@ -810,6 +820,13 @@ export default function PolicySearchNew() {
 
     // 智能检索模式：解析自然语言并应用筛选条件
     if (searchMode === 'intelligent') {
+      setIsThinking(true);
+      setThinkingOpen(true);
+      thinkingTimer.current = setTimeout(() => {
+        setIsThinking(false);
+        setThinkingOpen(false);
+        thinkingTimer.current = null;
+      }, 1200);
       const parsed = parseIntelligentQuery(trimmedKeyword);
       setYearFilter(parsed.yearFilter);
       setThemeFilter(parsed.themeFilter);
@@ -1339,6 +1356,16 @@ export default function PolicySearchNew() {
 
         <Card className="rounded-[28px] border-none bg-white px-6 py-6 shadow-[0_18px_60px_rgba(15,23,42,0.06)]">
           <div className="flex flex-col gap-5">
+            <Tabs value={searchMode} onValueChange={(value) => changeSearchMode(value as 'intelligent' | 'traditional')}>
+              <TabsList aria-label="检索模式" className="h-auto justify-start gap-6 rounded-none border-b border-border bg-transparent p-0 w-full">
+                <TabsTrigger value="intelligent" className="gap-2 rounded-none border-b-2 border-transparent px-1 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none">
+                  <Sparkles className="h-4 w-4" />智能检索
+                </TabsTrigger>
+                <TabsTrigger value="traditional" className="gap-2 rounded-none border-b-2 border-transparent px-1 py-3 data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none">
+                  <Search className="h-4 w-4" />传统检索
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
             <div className="flex items-center gap-4">
               <div className="relative flex-1">
                 <Input
@@ -1374,28 +1401,8 @@ export default function PolicySearchNew() {
                     placeholder={searchMode === 'intelligent'
                       ? "请输入自然语言查询，如：2025年人工智能相关政策、2024绿色低碳"
                       : "请输入政策关键词"}
-                    className="h-14 rounded-2xl border-[#d9dce3] bg-white pl-5 pr-32 text-base shadow-none placeholder:text-[#b0b4be] focus-visible:ring-primary"
+                    className="h-14 rounded-2xl border-[#d9dce3] bg-white pl-5 pr-14 text-base shadow-none placeholder:text-[#b0b4be] focus-visible:ring-primary"
                   />
-
-                  {/* 模式切换按钮 - 在搜索图标左侧 */}
-                  <button
-                    type="button"
-                    onClick={toggleSearchMode}
-                    className="absolute right-14 top-1/2 -translate-y-1/2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all hover:bg-primary/5 group"
-                    title={searchMode === 'intelligent' ? '切换到传统检索' : '切换到智能检索'}
-                  >
-                    {searchMode === 'intelligent' ? (
-                      <>
-                        <Sparkles className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                        <span className="text-sm font-medium text-primary">智能检索</span>
-                      </>
-                    ) : (
-                      <>
-                        <Search className="h-4 w-4 text-[#6b7280] group-hover:scale-110 transition-transform" />
-                        <span className="text-sm font-medium text-[#6b7280]">传统检索</span>
-                      </>
-                    )}
-                  </button>
 
                   <button
                     type="button"
@@ -1770,16 +1777,32 @@ export default function PolicySearchNew() {
           </div>
         </Card>
 
-        {searchScope === "system" && searchMode === 'intelligent' && aiSummary && (
+        {searchScope === "system" && searchMode === 'intelligent' && (aiSummary || isThinking) && (
             <Card className="rounded-[28px] border-none bg-gradient-to-br from-primary/5 to-primary/10 px-6 py-5 shadow-[0_18px_60px_rgba(15,23,42,0.04)]">
               <div className="flex items-start gap-3">
-                <div className="rounded-full bg-primary/10 p-2">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                </div>
                 <div className="flex-1 space-y-4">
-                  <h4 className="text-base font-semibold text-foreground">AI 为您总结</h4>
+                  <div>
+                    <button type="button" onClick={() => setThinkingOpen(open => !open)} aria-expanded={thinkingOpen} aria-controls="search-thinking-content" className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
+                      {isThinking ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Sparkles className="h-4 w-4 text-primary" />}
+                      <span role="status">{isThinking ? "思考中…" : "思考完成"}</span>
+                      <ChevronDown className={cn("h-4 w-4 transition-transform", thinkingOpen && "rotate-180")} />
+                    </button>
+                    {thinkingOpen && <ol id="search-thinking-content" className="space-y-2 rounded-lg border border-primary/15 bg-white/70 px-4 py-3 text-sm leading-6 text-muted-foreground">
+                      <li><span className="font-medium text-foreground">查询解析：</span>{keyword.trim()}</li>
+                      <li><span className="font-medium text-foreground">检索关键词：</span>{searchQuery || "按筛选条件检索"}</li>
+                      <li><span className="font-medium text-foreground">条件识别：</span>{[
+                        yearFilter !== "all" ? `${yearFilter}年` : "不限年份",
+                        regionFilter === "all" ? "不限地区" : regionFilter === "national" ? "国家级" : regionFilter === "beijing" ? "北京市" : regionFilter === "yizhuang" ? "经开区" : "其他省市",
+                        themeFilter !== "all" ? themeFilter : "不限主题",
+                        searchTarget === "content" ? "全文匹配" : "标题匹配",
+                      ].join(" · ")}</li>
+                      <li><span className="font-medium text-foreground">结果整理：</span>{isThinking ? "正在整理匹配政策及政策要点…" : `匹配到 ${pageResults.length} 条政策，已汇总政策层级分布、相关主题和政策要点。`}</li>
+                    </ol>}
+                  </div>
+                  {!isThinking && aiSummary && <h4 className="text-base font-semibold text-foreground">AI 为您总结</h4>}
 
                   {(() => {
+                    if (isThinking || !aiSummary) return null;
                     const summary = JSON.parse(aiSummary);
                     return (
                       <>
@@ -1823,16 +1846,16 @@ export default function PolicySearchNew() {
 
                         <div>
                           <h5 className="mb-2 text-sm font-semibold text-foreground">智能简要回答</h5>
-                          <p
+                          <div
                             className={cn(
-                              "text-sm leading-relaxed text-muted-foreground whitespace-pre-line",
+                              "text-sm leading-7 text-muted-foreground break-words [&_p]:my-3 [&_p]:indent-[2em] [&_strong]:font-semibold [&_strong]:text-foreground [&_h1]:my-4 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-3 [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:my-1 [&_a]:text-primary [&_a]:underline [&_table]:w-full [&_th]:border [&_th]:border-border [&_th]:p-2 [&_td]:border [&_td]:border-border [&_td]:p-2",
                               !summaryAnswerExpanded &&
                                 isLongSummaryAnswer(summary.answer) &&
                                 "max-h-[6.5rem] overflow-hidden",
                             )}
                           >
-                            {summary.answer}
-                          </p>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{summary.answer}</ReactMarkdown>
+                          </div>
                           {isLongSummaryAnswer(summary.answer) ? (
                             <button
                               type="button"

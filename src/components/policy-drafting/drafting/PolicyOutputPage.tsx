@@ -5,13 +5,13 @@ import { ArrowLeft, Download, Sparkles, FileText, Search, Upload, Bold, Italic, 
 import { ClauseMaterialPanel } from "./ClauseMaterialPanel";
 import { reorderOutlineById, useOutlineChapterDrag } from "./outlineDrag";
 import { Button } from "@/components/ui/button";
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import type { PolicyItem } from "./PolicySearchStep";
 import type { OutlineSection, OutlineSubSection } from "./OutlineGenerationStep";
 import { isPolicyStructureHeadingLine } from "@/lib/policyNumbering";
 import { generateContent, type Citation } from "@/lib/policyDraftApi";
 import { isPolicyLlmConfigured, policyLlmChat } from "@/lib/llmClient";
 import { parsePolicyOutlineTemplate } from "@/lib/policyOutlineTemplate";
+import { FundingWorkspace } from "@/components/funding/FundingWorkspace";
 
 interface PolicyOutputPageProps {
   policyTitle: string;
@@ -23,6 +23,11 @@ interface PolicyOutputPageProps {
   typewriterMode?: boolean;
   /** 从助手直接传入的完整政策内容，跳过生成直接进入编辑状态 */
   directContent?: string;
+  flowHeader?: import("react").ReactNode;
+  onContentChange?: (content: string) => void;
+  onArchive?: () => void;
+  onRegenerate?: () => void;
+  archived?: boolean;
 }
 
 const editorTools = [
@@ -154,621 +159,8 @@ const PARA_ACTIONS = [
   { id: "reserve",   icon: BookmarkPlus, label: "加入条款储备库", desc: "收藏至条款储备库" },
 ] as const;
 
-type CalculatorTab = "calculator" | "result" | "companies";
-type CalcFieldType = "numeric" | "tag";
-
-type ParsedCalcCondition = {
-  id: string;
-  label: string;
-  fieldType: CalcFieldType;
-  metric?: string;
-  operator?: ">" | ">=" | "<" | "<=";
-  value?: string;
-  unit?: string;
-  tags?: string[];
-};
-
-type CompanyRecord = {
-  id: number;
-  name: string;
-  creditCode: string;
-  capital: number;
-  address: string;
-  establishedAt: string;
-  industry: string;
-  category: string;
-};
-
-const CALCULATOR_COMPANIES: CompanyRecord[] = [
-  { id: 1, name: "北京盛通包装印刷有限公司", creditCode: "91110302582534431E", capital: 6000, address: "北京市北京经济技术开发区兴盛街11号", establishedAt: "2011-09-15", industry: "制造业", category: "有限责任公司（法人独资）" },
-  { id: 2, name: "北京久其政务软件股份有限公司", creditCode: "911103027839538276", capital: 33000, address: "北京市北京经济技术开发区西环中路6号", establishedAt: "2006-01-12", industry: "信息传输、软件和信息技术服务业", category: "其他股份有限公司(非上市)" },
-  { id: 3, name: "北京天润融通科技股份有限公司", creditCode: "91110108785512910D", capital: 5166, address: "北京市北京经济技术开发区荣华南路2号院1号楼2901", establishedAt: "2006-02-23", industry: "科学研究和技术服务业", category: "股份有限公司" },
-  { id: 4, name: "中冶赛迪电气技术有限公司", creditCode: "91110302669901310K", capital: 31000, address: "北京市北京经济技术开发区博兴一路10号", establishedAt: "2007-12-05", industry: "科学研究和技术服务业", category: "有限责任公司" },
-  { id: 5, name: "北京惠达通泰供应链管理有限责任公司", creditCode: "91110112MA01K8TU9X", capital: 3000, address: "北京市北京经济技术开发区（通州）景盛南二街29号2幢", establishedAt: "2019-05-21", industry: "租赁和商务服务业", category: "有限责任公司" },
-  { id: 6, name: "德迈特医学技术（北京）有限公司", creditCode: "9111011266560428X9", capital: 348.377, address: "北京市通州区中关村科技园区通州园金桥科技产业基地环科中路16号68号楼一层、二层A", establishedAt: "2007-08-27", industry: "科学研究和技术服务业", category: "有限责任公司" },
-  { id: 7, name: "北京首创大气环境科技股份有限公司", creditCode: "91110108746132464M", capital: 24640, address: "北京市北京经济技术开发区（通州）兴贸一街7号院4号楼3层302室", establishedAt: "2002-12-27", industry: "科学研究和技术服务业", category: "股份有限公司" },
-  { id: 8, name: "北京天助畅运医疗技术股份有限公司", creditCode: "91110302696331572A", capital: 6800, address: "北京市北京经济技术开发区荣华中路8号院", establishedAt: "2009-11-10", industry: "卫生和社会工作", category: "股份有限公司" },
-  { id: 9, name: "赛诺威盛科技（北京）股份有限公司", creditCode: "91110108784823011A", capital: 12500, address: "北京市北京经济技术开发区科创六街88号", establishedAt: "2005-05-18", industry: "制造业", category: "股份有限公司" },
-  { id: 10, name: "北京互时科技股份有限公司", creditCode: "91110108672844763N", capital: 8200, address: "北京市北京经济技术开发区荣京东街3号", establishedAt: "2008-03-06", industry: "信息传输、软件和信息技术服务业", category: "股份有限公司" },
-];
-
-const CALCULATOR_INDUSTRY_DATA = [
-  { name: "制造业", value: 42, color: "#3b82f6" },
-  { name: "信息传输、软件和信息技术服务业", value: 8, color: "#22c1c3" },
-  { name: "科学研究和技术服务业", value: 143, color: "#fb923c" },
-  { name: "租赁和商务服务业", value: 2, color: "#c084fc" },
-  { name: "文化、体育和娱乐业", value: 1, color: "#8b5cf6" },
-  { name: "建筑业", value: 2, color: "#65a30d" },
-  { name: "批发和零售业", value: 5, color: "#ca8a04" },
-  { name: "交通运输、仓储和邮政业", value: 1, color: "#f472b6" },
-];
-
-const CALCULATOR_CATEGORY_DATA = [
-  { name: "有限责任公司（法人独资）", value: 39 },
-  { name: "其他股份有限公司(非上市)", value: 18 },
-  { name: "有限责任公司", value: 39 },
-  { name: "股份有限公司", value: 26 },
-  { name: "股份合作制", value: 7 },
-  { name: "集体所有制", value: 6 },
-  { name: "有限责任公司（台港澳与境内合资）", value: 3 },
-  { name: "有限责任公司（中外合资）", value: 2 },
-  { name: "有限责任公司（外商投资）", value: 2 },
-  { name: "其他", value: 1 },
-];
-
 function PolicyCalculatorWorkspace({ initialClauseContent }: { initialClauseContent?: string }) {
-  const [activeTab, setActiveTab] = useState<CalculatorTab>("calculator");
-  const [clauseContent, setClauseContent] = useState("年度研发费用增长超过年度目标值的商业航天大中型重点企业、专精特新“小巨人”企业，按照高出部分的20%给予支持，每年最高为300万元");
-  const [supportMode, setSupportMode] = useState<"fixed" | "ratio">("ratio");
-  const [capitalValue, setCapitalValue] = useState("年度目标值");
-  const [ratioValue, setRatioValue] = useState("20.00");
-  const [maxAmount, setMaxAmount] = useState("300.00");
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [resultReady, setResultReady] = useState(false);
-  const [estimateConditions, setEstimateConditions] = useState<string[]>([]);
-  const [calcConditions, setCalcConditions] = useState<ParsedCalcCondition[]>([]);
-  const [modelThinking, setModelThinking] = useState<string[]>([]);
-
-  useEffect(() => {
-    if (initialClauseContent && initialClauseContent.trim()) {
-      setClauseContent(initialClauseContent.trim());
-    }
-  }, [initialClauseContent]);
-
-  const companyCount = 204;
-  const totalSupport = 26706.12;
-  const displayedCompanies = CALCULATOR_COMPANIES;
-
-  const startCalculation = () => {
-    setIsCalculating(true);
-    setResultReady(false);
-    setModelThinking([]);
-    setTimeout(() => {
-      setCalcConditions([
-        {
-          id: "calc-industry",
-          label: "行业领域",
-          fieldType: "tag",
-          tags: ["商业航天"],
-        },
-        {
-          id: "calc-qualification",
-          label: "企业资质类-资质称号",
-          fieldType: "tag",
-          tags: ["大中型重点企业", "专精特新“小巨人”企业"],
-        },
-      ]);
-      setEstimateConditions(["年度研发费用增长超过年度目标值"]);
-      setModelThinking([
-        "识别条款限定对象：行业领域为商业航天，企业类型为大中型重点企业或专精特新“小巨人”企业。",
-        "识别可估算口径：年度研发费用增长需超过年度目标值，但企业年度目标值属于外部变量，需通过历史研发费用、年度目标台账或申报数据估算。",
-        "识别扶持方式：按高出年度目标值部分的20%给予支持，并设置单家企业每年最高300万元上限。",
-        "据此先筛选符合行业和资质标签的企业，再按研发费用增长超额部分进行模型估算并汇总资金需求。",
-      ]);
-      setIsCalculating(false);
-      setResultReady(true);
-    }, 1000);
-  };
-
-  const handleSmartParse = () => {
-    const nextEstimateConditions: string[] = [];
-    const nextCalcConditions: ParsedCalcCondition[] = [];
-    const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
-
-    const metricConfigs = [
-      { keyword: "实缴资本", metric: "实缴资本", unit: "万元" },
-      { keyword: "注册资本", metric: "注册资本", unit: "万元" },
-      { keyword: "营收", metric: "营业收入", unit: "万元" },
-      { keyword: "营业收入", metric: "营业收入", unit: "万元" },
-      { keyword: "研发投入", metric: "研发投入", unit: "万元" },
-    ] as const;
-
-    metricConfigs.forEach((cfg) => {
-      const idx = clauseContent.indexOf(cfg.keyword);
-      if (idx === -1) return;
-      const segment = clauseContent.slice(Math.max(0, idx), Math.min(clauseContent.length, idx + 18));
-      const valueMatch = segment.match(/(\d+(?:\.\d+)?)/);
-      const op =
-        segment.includes("大于等于") || segment.includes("不低于") || segment.includes("不少于")
-          ? ">="
-          : segment.includes("小于等于") || segment.includes("不高于") || segment.includes("不超过")
-          ? "<="
-          : segment.includes("大于")
-          ? ">"
-          : segment.includes("小于")
-          ? "<"
-          : undefined;
-      if (!valueMatch || !op) {
-        nextEstimateConditions.push(`${cfg.metric}条件表述不完整，需按公开数据与历史数据估算。`);
-        return;
-      }
-      nextCalcConditions.push({
-        id: makeId("calc"),
-        label: cfg.metric,
-        fieldType: "numeric",
-        metric: cfg.metric,
-        operator: op,
-        value: valueMatch[1],
-        unit: cfg.unit,
-      });
-    });
-
-    const qualificationTags: string[] = [];
-    if (/小巨人/.test(clauseContent)) {
-      qualificationTags.push("专精特新“小巨人”企业");
-    } else if (/专精特新/.test(clauseContent)) {
-      qualificationTags.push("专精特新");
-    }
-    if (/大中型重点企业/.test(clauseContent)) qualificationTags.push("大中型重点企业");
-    if (/高新/.test(clauseContent)) qualificationTags.push("高新技术企业");
-    if (/瞪羚/.test(clauseContent)) qualificationTags.push("瞪羚企业");
-    if (qualificationTags.length > 0) {
-      nextCalcConditions.push({
-        id: makeId("calc"),
-        label: "企业资质类-资质称号",
-        fieldType: "tag",
-        tags: qualificationTags,
-      });
-    }
-
-    if (/医药健康|自动驾驶|具身智能|工业制造/.test(clauseContent)) {
-      nextEstimateConditions.push("属于医药健康、自动驾驶、具身智能、工业制造四大领域之一");
-    }
-    if (/商业航天/.test(clauseContent)) {
-      nextCalcConditions.push({
-        id: makeId("calc"),
-        label: "行业领域",
-        fieldType: "tag",
-        tags: ["商业航天"],
-      });
-    }
-    if (/年度研发费用增长超过年度目标值|研发费用增长超过年度目标值/.test(clauseContent)) {
-      nextEstimateConditions.push("年度研发费用增长超过年度目标值");
-    }
-    if (/语料库|行业数据库|数据集/.test(clauseContent)) {
-      nextEstimateConditions.push("建设并开放人工智能语料库或行业数据库");
-    }
-    if (nextEstimateConditions.length === 0) {
-      nextEstimateConditions.push("条款含标签库外条件，需基于公开数据与历史兑现数据估算");
-    }
-    if (nextCalcConditions.length === 0) {
-      nextCalcConditions.push({
-        id: makeId("calc"),
-        label: "当前未识别到可判定测算条件",
-        fieldType: "tag",
-        tags: ["请手动添加可测算条件"],
-      });
-    }
-    setCalcConditions(nextCalcConditions);
-    setEstimateConditions(nextEstimateConditions);
-  };
-
-  const renderTabButton = (tab: CalculatorTab, label: string) => (
-    <button
-      type="button"
-      onClick={() => setActiveTab(tab)}
-      className={`border-b-2 px-6 py-4 text-[15px] font-semibold transition-colors ${
-        activeTab === tab ? "border-primary text-primary" : "border-transparent text-foreground/80 hover:text-primary"
-      }`}
-    >
-      {label}
-    </button>
-  );
-
-  return (
-    <div className="flex h-full flex-col rounded-xl border border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-5">
-        <div className="flex items-center">
-          {renderTabButton("calculator", "政策测算")}
-          {renderTabButton("result", "测算结果")}
-          {renderTabButton("companies", "企业名单")}
-        </div>
-        <Button variant="outline" size="sm" className="gap-1.5 rounded-xl">
-          <PenLine className="h-3.5 w-3.5" />
-          意见反馈
-        </Button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-5">
-        {activeTab === "calculator" && (
-          <div className="grid grid-cols-1 gap-5 xl:grid-cols-[1.1fr_1fr]">
-            <div className="rounded-2xl border border-border">
-              <div className="border-b border-border px-5 py-5">
-                <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
-                  <span className="h-8 w-1 rounded-full bg-primary" />
-                  条款内容
-                </h3>
-                <div className="mt-5">
-                  <textarea
-                    value={clauseContent}
-                    onChange={(e) => setClauseContent(e.target.value)}
-                    className="min-h-[88px] w-full resize-none rounded-2xl border border-border bg-background px-5 py-4 text-[14px] leading-7 text-foreground outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                  <div className="mt-2 text-right text-sm text-muted-foreground">{clauseContent.length} / 500</div>
-                </div>
-                <Button onClick={handleSmartParse} className="mt-4 rounded-xl bg-primary px-6 hover:bg-primary/90">智能解析</Button>
-              </div>
-
-              <div className="px-5 py-5">
-                <div className="mb-6 flex items-center justify-between">
-                  <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
-                    <span className="h-8 w-1 rounded-full bg-primary" />
-                    测算条件
-                  </h3>
-                  <div className="flex items-center gap-6 text-primary">
-                    <button
-                      type="button"
-                      className="flex items-center gap-2 text-[15px] font-medium"
-                      onClick={() =>
-                        setCalcConditions((prev) => [
-                          ...prev,
-                          {
-                            id: `calc-manual-${Date.now()}`,
-                            label: "新增测算条件",
-                            fieldType: "numeric",
-                            metric: "实缴资本",
-                            operator: ">",
-                            value: "0",
-                            unit: "万元",
-                          },
-                        ])
-                      }
-                    >
-                      <Plus className="h-4 w-4" />
-                      添加条件
-                    </button>
-                    <button
-                      type="button"
-                      className="flex items-center gap-2 text-[15px] font-medium"
-                      onClick={() => setCalcConditions([])}
-                    >
-                      <X className="h-4 w-4" />
-                      清空条件
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-8">
-                  {calcConditions.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-                      暂无可测算条件，请点击底部「模型估算」后展示模型解析出的标签。
-                    </p>
-                  ) : (
-                    calcConditions.map((condition) => (
-                      <div key={condition.id}>
-                        <p className="mb-3 text-[15px] font-medium text-foreground">{condition.label}</p>
-                        {condition.fieldType === "numeric" ? (
-                          <div className="flex flex-wrap items-center gap-3">
-                            <input
-                              value={condition.metric || "指标"}
-                              readOnly
-                              className="h-12 w-[180px] rounded-xl border border-border bg-muted/20 px-4 text-[15px] text-muted-foreground"
-                            />
-                            <button type="button" className="flex h-12 w-16 items-center justify-center rounded-xl border border-border bg-background text-[24px] text-foreground">
-                              {condition.operator || ">"}
-                            </button>
-                            <input
-                              value={condition.value || ""}
-                              onChange={(e) =>
-                                setCalcConditions((prev) =>
-                                  prev.map((item) =>
-                                    item.id === condition.id ? { ...item, value: e.target.value } : item,
-                                  ),
-                                )
-                              }
-                              className="h-12 w-[140px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-primary/20"
-                            />
-                            <span className="text-[18px] text-foreground">{condition.unit || "万元"}</span>
-                            <button
-                              type="button"
-                              className="rounded-full border border-border p-1 text-muted-foreground"
-                              onClick={() => setCalcConditions((prev) => prev.filter((item) => item.id !== condition.id))}
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex flex-wrap items-center gap-3">
-                            {(condition.tags || []).map((tag, tagIdx) => (
-                              <span key={`${condition.id}-${tagIdx}`} className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2 text-[15px] text-foreground">
-                                {tag}
-                              </span>
-                            ))}
-                            <button
-                              type="button"
-                              className="rounded-full border border-border p-1 text-muted-foreground"
-                              onClick={() => setCalcConditions((prev) => prev.filter((item) => item.id !== condition.id))}
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  )}
-
-                  <div>
-                    <div className="mb-3 flex items-center justify-between">
-                      <p className="text-[15px] font-medium text-foreground">估算条件</p>
-                      <button
-                        type="button"
-                        onClick={() => setEstimateConditions([])}
-                        className="text-sm font-medium text-primary"
-                      >
-                        清空估算条件
-                      </button>
-                    </div>
-                    <div className="space-y-2">
-                      {estimateConditions.length === 0 ? (
-                        <p className="rounded-xl border border-dashed border-border px-4 py-3 text-sm text-muted-foreground">
-                          暂无估算条件，请点击底部「模型估算」后展示模型解析结果。
-                        </p>
-                      ) : (
-                        estimateConditions.map((condition, index) => (
-                          <div key={`${condition}-${index}`} className="flex items-center gap-2">
-                            <input
-                              value={condition}
-                              onChange={(e) =>
-                                setEstimateConditions((prev) =>
-                                  prev.map((item, i) => (i === index ? e.target.value : item)),
-                                )
-                              }
-                              className="h-12 flex-1 rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-primary/20"
-                            />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setEstimateConditions((prev) => prev.filter((_, i) => i !== index))
-                              }
-                              className="rounded-full border border-border p-1 text-muted-foreground"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="flex flex-wrap items-center gap-4 text-[15px] text-foreground">
-                      <span className="font-medium">扶持方式:</span>
-                      <label className="flex items-center gap-2">
-                        <input type="radio" checked={supportMode === "fixed"} onChange={() => setSupportMode("fixed")} />
-                        固定金额
-                      </label>
-                      <label className="flex items-center gap-2">
-                        <input type="radio" checked={supportMode === "ratio"} onChange={() => setSupportMode("ratio")} />
-                        固定比例
-                      </label>
-                    </div>
-
-                    <div className="mt-5 flex flex-wrap items-center gap-4">
-                      <div className="flex items-center gap-3">
-                        <span className="text-[15px] font-medium text-foreground">依据指标:</span>
-                        <select className="h-12 w-[180px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none">
-                          <option>年度研发费用增长</option>
-                          <option>实缴资本</option>
-                          <option>营业收入</option>
-                          <option>研发投入</option>
-                        </select>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-[15px] font-medium text-foreground">支持比例:</span>
-                        <input value={ratioValue} onChange={(e) => setRatioValue(e.target.value)} className="h-12 w-[120px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-primary/20" />
-                        <span className="text-[18px] text-foreground">%</span>
-                      </div>
-                    </div>
-
-                    <div className="mt-5 flex flex-wrap items-center gap-3">
-                      <span className="text-[15px] font-medium text-foreground">最高:</span>
-                      <input value={maxAmount} onChange={(e) => setMaxAmount(e.target.value)} className="h-12 w-[140px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none focus:ring-2 focus:ring-primary/20" />
-                      <select className="h-12 w-[120px] rounded-xl border border-border bg-background px-4 text-[15px] text-foreground outline-none">
-                        <option>万元</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                <Button onClick={startCalculation} className="mt-8 rounded-xl bg-primary px-8 py-6 text-[16px] hover:bg-primary/90" disabled={isCalculating}>
-                  {isCalculating ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />模型估算中...</> : "模型估算"}
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-5">
-              <div className="rounded-2xl border border-border p-5">
-                <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
-                  <span className="h-8 w-1 rounded-full bg-primary" />
-                  测算结果
-                </h3>
-                {!resultReady ? (
-                  <div className="mt-5 rounded-2xl border border-dashed border-border bg-muted/20 p-8 text-center text-sm text-muted-foreground">
-                    点击左侧「模型估算」后，将在此展示模型思考过程与估算结果。
-                  </div>
-                ) : (
-                  <>
-                    <div className="mt-5 rounded-2xl bg-primary/5 p-5">
-                      <p className="text-[16px] font-semibold text-foreground">模型估算思考过程</p>
-                      <ol className="mt-3 space-y-2 text-sm leading-7 text-muted-foreground">
-                        {modelThinking.map((step, index) => (
-                          <li key={`${step}-${index}`} className="flex gap-2">
-                            <span className="font-semibold text-primary">{index + 1}.</span>
-                            <span>{step}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                    <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div className="rounded-2xl bg-blue-50 p-5">
-                        <p className="text-[16px] font-semibold text-foreground">获扶持企业</p>
-                        <p className="mt-3 text-5xl font-bold text-slate-900">{companyCount}<span className="ml-2 text-2xl font-medium">家</span></p>
-                      </div>
-                      <div className="rounded-2xl bg-blue-50 p-5">
-                        <p className="text-[16px] font-semibold text-foreground">总扶持金额</p>
-                        <p className="mt-3 text-5xl font-bold text-slate-900">{totalSupport.toFixed(2)}<span className="ml-2 text-2xl font-medium">万元</span></p>
-                      </div>
-                    </div>
-                    <div className="mt-6 border-t border-border pt-5">
-                      <div className="mb-3 flex items-center justify-between">
-                        <p className="text-[15px] font-semibold text-foreground">以下为符合条件的部分企业名称（最多显示100家企业）</p>
-                        <button type="button" onClick={() => setActiveTab("companies")} className="text-[15px] font-medium text-primary">
-                          查看更多企业信息 &gt;
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-1 gap-x-10 gap-y-3 text-[15px] leading-7 text-foreground md:grid-cols-2">
-                        {displayedCompanies.slice(0, 12).map((company) => (
-                          <div key={company.id} className="flex gap-3">
-                            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground" />
-                            <span>{company.name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "result" && (
-          <div className="space-y-5">
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              <div className="rounded-2xl border border-border bg-card p-6">
-                <div className="rounded-2xl bg-blue-50 px-8 py-10">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-[18px] font-semibold text-foreground">获扶持企业</p>
-                      <p className="mt-4 text-6xl font-bold text-slate-900">{companyCount}<span className="ml-2 text-2xl font-medium">家</span></p>
-                    </div>
-                    <button type="button" onClick={() => setActiveTab("companies")} className="text-[16px] font-medium text-primary">查看企业 &raquo;</button>
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-border bg-card p-6">
-                <div className="rounded-2xl bg-blue-50 px-8 py-10">
-                  <p className="text-[18px] font-semibold text-foreground">总扶持金额</p>
-                  <p className="mt-4 text-6xl font-bold text-slate-900">{totalSupport.toFixed(2)}<span className="ml-2 text-2xl font-medium">万元</span></p>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-              <div className="rounded-2xl border border-border bg-card">
-                <div className="border-b border-border px-6 py-5">
-                  <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
-                    <span className="h-8 w-1 rounded-full bg-primary" />
-                    测算企业行业分布
-                  </h3>
-                </div>
-                <div className="grid min-h-[420px] grid-cols-1 items-center gap-4 px-6 py-6 md:grid-cols-[1fr_1.1fr]">
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={CALCULATOR_INDUSTRY_DATA} dataKey="value" nameKey="name" innerRadius={70} outerRadius={105} paddingAngle={2}>
-                          {CALCULATOR_INDUSTRY_DATA.map((entry) => (
-                            <Cell key={entry.name} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip formatter={(value: number) => `${value} 家`} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="space-y-3">
-                    {CALCULATOR_INDUSTRY_DATA.map((item) => {
-                      const percentage = ((item.value / companyCount) * 100).toFixed(2);
-                      return (
-                        <div key={item.name} className="flex items-center gap-3 text-[14px] text-foreground">
-                          <span className="h-3.5 w-3.5 shrink-0 rounded-sm" style={{ backgroundColor: item.color }} />
-                          <span>{item.name} {percentage}% ({item.value})</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-card">
-                <div className="border-b border-border px-6 py-5">
-                  <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
-                    <span className="h-8 w-1 rounded-full bg-primary" />
-                    测算企业性质分布
-                  </h3>
-                </div>
-                <div className="h-[420px] px-4 py-6">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RechartsBarChart data={CALCULATOR_CATEGORY_DATA} margin={{ top: 10, right: 20, left: 0, bottom: 90 }}>
-                      <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                      <XAxis dataKey="name" angle={-90} textAnchor="end" interval={0} height={120} tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
-                      <Tooltip formatter={(value: number) => `${value} 家`} />
-                      <Bar dataKey="value" fill="#73a4f6" radius={[4, 4, 0, 0]} />
-                    </RechartsBarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "companies" && (
-          <div className="rounded-2xl border border-border bg-card">
-            <div className="border-b border-border px-6 py-5">
-              <h3 className="flex items-center gap-2 text-[18px] font-bold text-foreground">
-                <span className="h-8 w-1 rounded-full bg-primary" />
-                已为您找到<span className="text-primary">{companyCount}</span>家符合条件的企业
-              </h3>
-            </div>
-            <div className="overflow-x-auto px-6 py-5">
-              <table className="min-w-full border-separate border-spacing-0">
-                <thead>
-                  <tr className="bg-muted/30 text-left text-[15px] font-semibold text-foreground">
-                    {["序号", "企业名称", "统一社会信用代码", "注册资本(万元)", "地址", "成立日期", "所属行业"].map((head) => (
-                      <th key={head} className="border-b border-border px-4 py-4">{head}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayedCompanies.map((company) => (
-                    <tr key={company.id} className="text-[15px] text-foreground">
-                      <td className="border-b border-border px-4 py-5">{company.id}</td>
-                      <td className="border-b border-border px-4 py-5 font-medium">{company.name}</td>
-                      <td className="border-b border-border px-4 py-5">{company.creditCode}</td>
-                      <td className="border-b border-border px-4 py-5">{company.capital}</td>
-                      <td className="border-b border-border px-4 py-5">{company.address}</td>
-                      <td className="border-b border-border px-4 py-5">{company.establishedAt}</td>
-                      <td className="border-b border-border px-4 py-5">{company.industry}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return <div className="min-h-0 flex-1 overflow-y-auto p-4"><FundingWorkspace initialClauseContent={initialClauseContent} /></div>;
 }
 
 function PolicyReferenceSourcesPanel({
@@ -1924,12 +1316,20 @@ export function PolicyOutputPage({
   onBack,
   typewriterMode = false,
   directContent,
+  flowHeader,
+  onContentChange,
+  onArchive,
+  onRegenerate,
+  archived = false,
 }: PolicyOutputPageProps) {
   const navigate = useNavigate();
   const [displayedText, setDisplayedText] = useState("");
   const [isComplete, setIsComplete] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    if (isComplete) onContentChange?.(displayedText);
+  }, [isComplete, displayedText, onContentChange]);
   const [activePanel, setActivePanel] = useState<string | null>(null);
   const fullContentRef = useRef("");
 
@@ -1942,7 +1342,7 @@ export function PolicyOutputPage({
   const [paraActionResult, setParaActionResult] = useState<{ idx: number; action: string; text: string } | null>(null);
   const [paraActionLoading, setParaActionLoading] = useState(false);
   const [selectedClauseText, setSelectedClauseText] = useState("");
-  const [calculatorClausePrefill, setCalculatorClausePrefill] = useState("");
+  const [calculatorClausePrefill] = useState("");
   const [selectionActionLoading, setSelectionActionLoading] = useState<string | null>(null);
   const editorBodyRef = useRef<HTMLDivElement | null>(null);
 
@@ -2254,11 +1654,14 @@ export function PolicyOutputPage({
     setActivePanel((prev) => (prev === id ? null : id));
   };
 
-  const handleUseSelectionForCalculation = () => {
-    if (!selectedClauseText.trim()) return;
-    setCalculatorClausePrefill(selectedClauseText.trim());
-    setActivePanel("calculate");
+  const openFundingCalculation = (content: string) => {
+    if (!content.trim()) return;
+    const url = new URL(window.location.href);
+    url.hash = `/policy-writing/model-estimation?${new URLSearchParams({ clause: content.trim() })}`;
+    window.open(url.href, "_blank", "noopener,noreferrer");
   };
+
+  const handleUseSelectionForCalculation = () => openFundingCalculation(selectedClauseText);
 
   const handleAcceptProofreadIssue = (issue: ProofreadIssue) => {
     const current = fullContentRef.current || displayedText;
@@ -2410,6 +1813,7 @@ export function PolicyOutputPage({
           <h2 className="text-base font-semibold text-foreground">政策文件编辑</h2>
         </div>
         <div className="flex items-center gap-2">
+          {isComplete && !archived && onRegenerate && <Button variant="outline" size="sm" onClick={onRegenerate}>重新生成正文</Button>}
           {isComplete && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
@@ -2457,6 +1861,8 @@ export function PolicyOutputPage({
           </Button>
         </div>
       </div>
+
+      {flowHeader}
 
       <div className="flex gap-4 flex-1 min-h-0">
         {/* Left tool sidebar */}
@@ -2645,8 +2051,7 @@ export function PolicyOutputPage({
                                     className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-muted transition-colors text-left"
                                     onClick={() => {
                                       if (action.id === "calculate") {
-                                        setCalculatorClausePrefill(trimmed);
-                                        setActivePanel("calculate");
+                                        openFundingCalculation(trimmed);
                                         setParaMenuIdx(null);
                                         setParaActionLoading(false);
                                         return;
@@ -3068,6 +2473,13 @@ export function PolicyOutputPage({
           )}
         </AnimatePresence>
       </div>
+      {isComplete && onArchive && (
+        <div className="mt-3 flex shrink-0 justify-end border-t border-border bg-background py-3">
+          <Button className="h-11 min-w-32 px-8" disabled={archived} onClick={onArchive}>
+            {archived ? "已归档" : "归档"}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Search, GitCompare, Cpu, Shield, Workflow, FileText, Check, ChevronDown, Square, RotateCcw } from "lucide-react";
+import { Archive, Loader2, Search, GitCompare, Cpu, Shield, Workflow, FileText, Check, ChevronDown, Square, RotateCcw } from "lucide-react";
 import { generateReportText } from "./AssessmentStep7";
 import type { AssessmentPolicy } from "./AssessmentStep1";
 import type { Clause } from "./AssessmentStep2";
@@ -15,6 +15,11 @@ interface Props {
   onBack: () => void;
   directOpenFinal?: boolean;
   onStageChange?: (stage: number, finished: boolean) => void;
+  archived?: boolean;
+  initialSections?: string[];
+  onArchive?: (reportText: string, sections: string[]) => void;
+  scrollRequest?: { step: number; revision: number };
+  onProgressSave?: (reportText: string, sections: string[], stage: number, finished: boolean) => void;
 }
 
 function buildPlainReportPreviewHtml(options: {
@@ -177,7 +182,7 @@ const STAGE_SUMMARIES = [
 const FULL_REPORT_SUMMARY =
   "综合条款拆解、一致性、落地性、合规性、流程管理及其他意见六个维度的评估结果，本政策整体方向清晰，条款结构较为完整，扶持对象和支持方式基本明确，与上位政策及区域产业发展要求总体一致。当前主要问题集中在市区政策衔接边界、部分条款执行口径、资金测算依据、程序合规说明及解读兑现流程安排等方面。建议在正式印发前，进一步细化申报审核流程、资金安排和配套解读材料，并建立动态评估机制，以提升政策可执行性与兑现效果。";
 
-export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, onStageChange }: Props) {
+export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, onStageChange, archived = false, initialSections, onArchive, scrollRequest, onProgressSave }: Props) {
   const [clauses, setClauses] = useState<Clause[]>([]);
   const [step3, setStep3] = useState<Step3Result | null>(null);
   const [step4, setStep4] = useState<Step4Result | null>(null);
@@ -191,6 +196,13 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
 
   /** 每个步骤正在打字输出的文字 */
   const [typingText, setTypingText] = useState("");
+  const generationPositionRef = useRef<HTMLDivElement | null>(null);
+  const resultFieldsRef = useRef<(HTMLTextAreaElement | null)[]>([]);
+  const followedCompletionRef = useRef(false);
+  const stageElementsRef = useRef<(HTMLDivElement | null)[]>([]);
+  const reportTopRef = useRef<HTMLDivElement>(null);
+  const archiveRef = useRef<HTMLDivElement>(null);
+  const pausedFollowStageRef = useRef<number | null>(null);
   const typingCancelRef = useRef<(() => void) | null>(null);
   /** 用于中断流程的 ref */
   const stopRef = useRef(false);
@@ -198,7 +210,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
   const [runKey, setRunKey] = useState(0);
   const [openFinalMode, setOpenFinalMode] = useState(directOpenFinal);
 
-  const [editableResults, setEditableResults] = useState<string[]>(Array(STAGES.length).fill(""));
+  const [editableResults, setEditableResults] = useState<string[]>(initialSections?.length === STAGES.length ? initialSections : Array(STAGES.length).fill(""));
   const [thoughtLogs, setThoughtLogs] = useState<string[]>(Array(STAGES.length).fill(""));
 
   /** 停止生成 */
@@ -269,7 +281,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
       setStep5(defaultStep5);
       setStep6(defaultStep6);
       setThoughtLogs(STAGES.map((item) => item.thoughts.join("\n")));
-      setEditableResults(mapReportToEditableSections(defaultReportText));
+      setEditableResults(initialSections?.length === STAGES.length ? initialSections : mapReportToEditableSections(defaultReportText));
       setFinished(true);
       setStopped(false);
       setStage(STAGES.length);
@@ -295,13 +307,13 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
         next[0] = STAGES[0].thoughts.join("\n");
         return next;
       });
-      await new Promise(r => setTimeout(r, STAGES[0].duration));
+      await new Promise(r => setTimeout(r, runKey === 0 && initialSections?.[0] ? 0 : STAGES[0].duration));
       if (stopped()) return;
       currentClauses = mockExtractClauses(policy.title);
       setClauses(currentClauses);
       setEditableResults((prev) => {
         const next = [...prev];
-        next[0] = buildReportSections({
+        next[0] = (runKey === 0 && initialSections?.[0]) || buildReportSections({
           clauses: currentClauses,
           step3: currentStep3,
           step4: currentStep4,
@@ -319,13 +331,13 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
         next[1] = STAGES[1].thoughts.join("\n");
         return next;
       });
-      await new Promise(r => setTimeout(r, STAGES[1].duration));
+      await new Promise(r => setTimeout(r, runKey === 0 && initialSections?.[1] ? 0 : STAGES[1].duration));
       if (stopped()) return;
       currentStep3 = mockStep3(currentClauses);
       setStep3(currentStep3);
       setEditableResults((prev) => {
         const next = [...prev];
-        next[1] = buildReportSections({
+        next[1] = (runKey === 0 && initialSections?.[1]) || buildReportSections({
           clauses: currentClauses,
           step3: currentStep3,
           step4: currentStep4,
@@ -343,13 +355,13 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
         next[2] = STAGES[2].thoughts.join("\n");
         return next;
       });
-      await new Promise(r => setTimeout(r, STAGES[2].duration));
+      await new Promise(r => setTimeout(r, runKey === 0 && initialSections?.[2] ? 0 : STAGES[2].duration));
       if (stopped()) return;
       currentStep4 = mockStep4(currentClauses);
       setStep4(currentStep4);
       setEditableResults((prev) => {
         const next = [...prev];
-        next[2] = buildReportSections({
+        next[2] = (runKey === 0 && initialSections?.[2]) || buildReportSections({
           clauses: currentClauses,
           step3: currentStep3,
           step4: currentStep4,
@@ -367,13 +379,13 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
         next[3] = STAGES[3].thoughts.join("\n");
         return next;
       });
-      await new Promise(r => setTimeout(r, STAGES[3].duration));
+      await new Promise(r => setTimeout(r, runKey === 0 && initialSections?.[3] ? 0 : STAGES[3].duration));
       if (stopped()) return;
       currentStep5 = mockStep5();
       setStep5(currentStep5);
       setEditableResults((prev) => {
         const next = [...prev];
-        next[3] = buildReportSections({
+        next[3] = (runKey === 0 && initialSections?.[3]) || buildReportSections({
           clauses: currentClauses,
           step3: currentStep3,
           step4: currentStep4,
@@ -391,7 +403,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
         next[4] = STAGES[4].thoughts.join("\n");
         return next;
       });
-      await new Promise(r => setTimeout(r, STAGES[4].duration));
+      await new Promise(r => setTimeout(r, runKey === 0 && initialSections?.[4] ? 0 : STAGES[4].duration));
       if (stopped()) return;
       setEditableResults((prev) => {
         const next = [...prev];
@@ -402,7 +414,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
           step5: currentStep5,
           step6: currentStep6,
         });
-        next[4] = sections[4] || mockProcessManagementOpinions();
+        next[4] = (runKey === 0 && initialSections?.[4]) || sections[4] || mockProcessManagementOpinions();
         return next;
       });
       setExpandedThinking(null);
@@ -414,13 +426,13 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
         next[5] = STAGES[5].thoughts.join("\n");
         return next;
       });
-      await new Promise(r => setTimeout(r, STAGES[5].duration));
+      await new Promise(r => setTimeout(r, runKey === 0 && initialSections?.[5] ? 0 : STAGES[5].duration));
       if (stopped()) return;
       currentStep6 = mockStep6();
       setStep6(currentStep6);
       setEditableResults((prev) => {
         const next = [...prev];
-        next[5] = buildReportSections({
+        next[5] = (runKey === 0 && initialSections?.[5]) || buildReportSections({
           clauses: currentClauses,
           step3: currentStep3,
           step4: currentStep4,
@@ -470,6 +482,29 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, finished]);
 
+  useEffect(() => {
+    if (openFinalMode || stopped) return;
+    if (pausedFollowStageRef.current === stage) return;
+    if (!finished) followedCompletionRef.current = false;
+    if (finished && followedCompletionRef.current) return;
+    const frame = requestAnimationFrame(() => {
+      if (finished) followedCompletionRef.current = true;
+      if (resultFieldsRef.current.includes(document.activeElement as HTMLTextAreaElement)) return;
+      const index = Math.min(stage, STAGES.length - 1);
+      const field = resultFieldsRef.current[index];
+      if (field && editableResults[index]) field.scrollTop = field.scrollHeight;
+      generationPositionRef.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [stage, typingText, editableResults, finished, stopped, openFinalMode]);
+
+  useEffect(() => {
+    if (!scrollRequest?.revision) return;
+    pausedFollowStageRef.current = stage;
+    const target = scrollRequest.step === 1 ? reportTopRef.current : scrollRequest.step === 8 ? archiveRef.current : stageElementsRef.current[scrollRequest.step - 2];
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [scrollRequest]);
+
   // ── 报告随完成数据更新 ────────────────────────────────────
   const currentLabel = finished
     ? "已完成"
@@ -490,9 +525,14 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
     step6: step6 ?? mockStep6(),
   });
   const mergedFinalReportText = mergeEditableSectionsIntoReport(finalReportText, editableResults);
+  useEffect(() => {
+    if (archived) return;
+    onProgressSave?.(mergedFinalReportText, editableResults, stage, finished && !stopped && editableResults.every(section => Boolean(section.trim())));
+  }, [mergedFinalReportText, editableResults, stage, finished, stopped, archived, onProgressSave]);
 
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto">
+      <div ref={reportTopRef} />
       <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -543,7 +583,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
                   导出报告
                 </button>
               )}
-              {finished && (
+              {finished && !archived && (
                 <button
                   onClick={handleRestart}
                   className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
@@ -576,7 +616,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
               const thinkingOpen = expandedThinking === i && (active || done);
 
               return (
-                <div key={s.id} className="rounded-xl border border-border bg-white min-h-[320px]">
+                <div key={s.id} ref={element => { stageElementsRef.current[i] = element; }} className="scroll-mt-4 rounded-xl border border-border bg-white min-h-[320px]">
                   <button
                     className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
                     onClick={() => setExpandedThinking(thinkingOpen ? null : i)}
@@ -585,7 +625,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
                     <span className={`flex-1 text-sm font-medium ${active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground"}`}>
                       {s.label}
                     </span>
-                    {active ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : done ? <Check className="h-3.5 w-3.5 text-primary" /> : null}
+                    {active ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : done ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : null}
                     <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${thinkingOpen ? "rotate-180" : ""}`} />
                   </button>
 
@@ -597,6 +637,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
                           {active ? typingText : thoughtLogs[i] || STAGES[i].thoughts.join("\n")}
                           {active && <span className="inline-block w-0.5 h-3 bg-primary ml-0.5 animate-pulse align-middle" />}
                         </pre>
+                        {active && <div ref={generationPositionRef} className="h-px" aria-hidden="true" />}
                       </div>
                     </div>
                   )}
@@ -609,6 +650,8 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
                   <div className="px-4 pb-4">
                     <p className="mb-2 text-xs font-medium text-muted-foreground">分析结果（可编辑）</p>
                     <textarea
+                      readOnly={archived}
+                      ref={element => { resultFieldsRef.current[i] = element; }}
                       value={editableResults[i]}
                       onChange={(e) =>
                         setEditableResults(prev => {
@@ -621,6 +664,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
                       spellCheck={false}
                       className="min-h-[180px] w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm leading-7 outline-none focus:ring-2 focus:ring-primary/20"
                     />
+                    {finished && !openFinalMode && i === STAGES.length - 1 && <div ref={generationPositionRef} className="h-px" aria-hidden="true" />}
                     {!hasResult && !active && !done && (
                       <p className="mt-2 text-xs text-muted-foreground">等待执行该维度分析…</p>
                     )}
@@ -634,6 +678,11 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
                 </div>
               );
             })}
+            {finished && !stopped && editableResults.every(section => section.trim()) && onArchive && (
+              <div ref={archiveRef} className="flex scroll-mt-4 justify-end border-t border-border pt-5">
+                <button type="button" disabled={archived} onClick={() => onArchive(mergedFinalReportText, editableResults)} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-12 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 sm:w-auto sm:min-w-[200px]"><Archive className="h-5 w-5" />{archived ? "已归档" : "归档"}</button>
+              </div>
+            )}
           </div>
         </div>
       </div>

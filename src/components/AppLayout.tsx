@@ -34,7 +34,8 @@ const CURRENT_USER = {
 };
 
 const sideNavItems = [
-  { title: "首页", url: "/home", icon: Sparkles },
+  { title: "首页", url: "/policy-overview", icon: Database },
+  { title: "智能问答助手", url: "/home", icon: Sparkles },
   { title: "政策制定", url: "/policy-writing", icon: PenTool },
   { title: "政策触达", url: "/policy-reach", icon: Send },
   { title: "政策兑现", url: "/dashboard", icon: Home },
@@ -109,6 +110,7 @@ export function AppLayout() {
     <div className="h-screen bg-[#f7f4f4] text-foreground">
       <div className="relative h-screen">
         <aside
+          style={{ "--page-font-increase": "0px", fontSize: "16px" } as React.CSSProperties}
           className={cn(
             "fixed inset-y-0 left-0 z-30 flex flex-col overflow-hidden bg-gradient-to-b from-[#d21639] via-[#c61033] to-[#b80f2f] text-white shadow-[18px_0_40px_rgba(157,12,38,0.22)] transition-[width] duration-200 ease-out",
             collapsed ? "w-[72px]" : "w-[244px]",

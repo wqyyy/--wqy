@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { TaskListCard } from "@/components/TaskListCard";
 import { TaskListSearchBar } from "@/components/TaskListSearchBar";
 import { POLICY_ESTIMATION_TASKS } from "@/lib/policyEstimationTasks";
+import { readFundingTasks } from "@/lib/fundingTasks";
 import { TaskListPagination } from "@/components/TaskListPagination";
 import { useTaskListPagination } from "@/hooks/useTaskListPagination";
 
@@ -13,17 +14,21 @@ export default function PolicyEstimationTaskList() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [tasks] = useState(() => [
+    ...readFundingTasks().map(task => ({ ...task, scene: task.clause, budgetRange: task.result ? `${task.result.total} 万元` : "", status: task.archived ? "已归档" : task.result ? "已分析完成" : "进行中" })),
+    ...POLICY_ESTIMATION_TASKS.map(task => ({ ...task, status: "已完成" })),
+  ]);
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return POLICY_ESTIMATION_TASKS;
-    return POLICY_ESTIMATION_TASKS.filter(
+    if (!q) return tasks;
+    return tasks.filter(
       (task) =>
         task.title.toLowerCase().includes(q) ||
         task.scene.toLowerCase().includes(q) ||
         task.budgetRange.toLowerCase().includes(q),
     );
-  }, [searchQuery]);
+  }, [searchQuery, tasks]);
 
   const handleSearch = () => {
     setSearchQuery(keyword.trim());
@@ -69,7 +74,7 @@ export default function PolicyEstimationTaskList() {
           extraActions={
             <Button
               className="h-9 gap-1.5 px-4 gov-gradient text-primary-foreground hover:opacity-90"
-              onClick={() => navigate("/policy-writing/model-estimation")}
+              onClick={() => navigate("/policy-writing/model-estimation?new=1")}
             >
               <Plus className="h-4 w-4" />
               新建测算任务
@@ -87,7 +92,7 @@ export default function PolicyEstimationTaskList() {
               <TaskListCard
                 key={task.id}
                 title={task.title}
-                status="已完成"
+                status={task.status}
                 icon={Calculator}
                 createdAt={task.createdAt}
                 updatedAt={task.updatedAt}

@@ -17,6 +17,7 @@ export default function PolicyPreEvaluationPage() {
     <div className="h-full overflow-hidden p-6 md:p-8">
       <div className="h-full min-h-0">
         <PolicyAssessmentFlow
+          key={location.key}
           onBack={() => navigate("/policy-writing")}
           directOpenFinal={!!state?.directOpenFinal}
           initialPolicyTitle={state?.policyTitle}

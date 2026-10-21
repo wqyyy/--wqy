@@ -2,7 +2,10 @@ export type PolicyPreAssessmentTask = {
   id: string;
   title: string;
   source: "起草库" | "上传文件";
-  status: "进行中" | "已完成";
+  status: "进行中" | "已完成" | "已归档";
+  reportText?: string;
+  editableSections?: string[];
+  policyContent?: string;
   currentStep: number;
   riskLevel: "低" | "中" | "高";
   createdAt: string;
@@ -101,7 +104,7 @@ export function getPolicyPreAssessmentTaskById(taskId: string): PolicyPreAssessm
 }
 
 export function downloadPolicyPreAssessmentTask(task: PolicyPreAssessmentTask) {
-  const content = [
+  const content = task.reportText || [
     "政策前评估报告意见书",
     "",
     `评估对象：${task.title}`,

@@ -1,9 +1,11 @@
-import { ChevronLeft } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import { Card } from "@/components/ui/card";
+import { BookOpen, ChevronLeft, ArrowUpRight } from "lucide-react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { PolicyDictionaryEntries } from "@/components/PolicyDictionaryEntries";
+import type { DictionaryKind } from "@/lib/policyDictionary";
+import { PageHero } from "@/components/PageHero";
 
 type DictionaryItem = {
-  id: string;
+  id: DictionaryKind;
   name: string;
   description: string;
 };
@@ -19,7 +21,7 @@ const dictionaryItems: DictionaryItem[] = [
     id: "professional",
     name: "专业词汇释义词典",
     description:
-      "为政策文件中的专业术语提供自然语言解释，使模型能够掌握精准含义进行推理，而非仅字面理解。例如：“高精尖创新中心”是指由北京市政府主导建设、依托属地高校、多创新主体参与、相对独立运行的大型科技创新平台。",
+      "为政策文件中的专业术语提供自然语言解释，使模型能够掌握精准含义进行推理，而非仅字面理解。",
   },
   {
     id: "sensitive",
@@ -42,6 +44,11 @@ const dictionaryItems: DictionaryItem[] = [
 
 export default function PolicyDictionary() {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const selected = dictionaryItems.find(item => item.id === params.get("dictionary"));
+  const covers = ["#a72f42", "#286e64", "#425e85", "#8a6237", "#62547c"];
+
+  if (selected) return <PolicyDictionaryEntries key={selected.id} kind={selected.id} title={selected.name} onBack={() => setParams({})} />;
 
   return (
     <div className="h-full overflow-y-auto bg-background">
@@ -55,32 +62,35 @@ export default function PolicyDictionary() {
           返回政策制定
         </button>
 
-        <Card className="overflow-hidden border border-border bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border bg-[#fafafa]">
-                  <th className="w-[180px] px-6 py-4 text-left font-semibold text-foreground">词典名称</th>
-                  <th className="px-6 py-4 text-left font-semibold text-foreground">词典描述</th>
-                  <th className="w-[100px] px-6 py-4 text-center font-semibold text-foreground">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dictionaryItems.map((item) => (
-                  <tr key={item.id} className="border-b border-border last:border-b-0">
-                    <td className="align-top px-6 py-5 font-medium text-foreground">{item.name}</td>
-                    <td className="align-top px-6 py-5 leading-7 text-muted-foreground">{item.description}</td>
-                    <td className="align-top px-6 py-5 text-center">
-                      <button type="button" className="text-primary transition-colors hover:text-primary/80">
-                        查看
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
+        <PageHero
+          title="政策词典"
+          className="[&_p]:max-w-none"
+          description="统一管理政策同近义词、专业词汇释义、敏感词与禁止词、固定表述及缩略词，为政策起草、语义理解和文本校验提供词汇参考。公共词典提供规范用语，个人词典支持自主新增、编辑和删除，沉淀专属政策用语。"
+        />
+        <header className="flex items-center justify-between border-b border-border pb-5 pt-2">
+          <h2 className="text-base font-semibold">词典目录</h2>
+          <span className="text-sm text-muted-foreground">共 {dictionaryItems.length} 本</span>
+        </header>
+        <div className="grid grid-cols-1 gap-x-8 gap-y-10 py-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {dictionaryItems.map((item, index) => (
+            <article key={item.id} className="min-w-0">
+              <button type="button" aria-label={`查看${item.name}`} onClick={() => setParams({ dictionary: item.id })} className="group block w-full rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4">
+                <div className="relative mx-auto w-full max-w-[240px] pb-3 pr-2 transition-transform duration-200 group-hover:-translate-y-1 group-active:translate-y-0">
+                  <div aria-hidden="true" className="absolute inset-x-1 bottom-0 top-3 rounded-r border border-[#d6d5d1] bg-[#f2f2ef] shadow-[4px_7px_12px_#00000012]" />
+                  <div aria-hidden="true" className="absolute bottom-1 left-3 right-1 h-1 border-y border-[#d9d8d3] bg-white" />
+                  <div style={{ backgroundColor: covers[index] }} className="relative flex aspect-[4/5] flex-col overflow-hidden rounded-r-[5px] rounded-l-sm px-7 py-7 text-white shadow-[2px_3px_5px_#00000018]">
+                    <span aria-hidden="true" className="absolute inset-y-0 left-0 w-3 border-r border-white/15 bg-black/20" />
+                    <span aria-hidden="true" className="absolute inset-y-0 left-4 border-l border-white/15" />
+                    <div className="flex items-center justify-between text-white/70"><BookOpen className="h-6 w-6" /><span className="text-xs tabular-nums">0{index + 1}</span></div>
+                    <div className="mt-7 flex-1 border-t border-white/30 pt-5"><h2 className="break-words text-xl font-semibold leading-relaxed">{item.name}</h2></div>
+                    <div className="flex items-center justify-between border-t border-white/25 pt-3 text-xs text-white/80"><span>政策词典</span><ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" /></div>
+                  </div>
+                </div>
+              </button>
+              <p className="mt-5 text-sm leading-7 text-muted-foreground">{item.description}</p>
+            </article>
+          ))}
+        </div>
       </div>
     </div>
   );

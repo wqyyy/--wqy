@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { PageHero } from "@/components/PageHero";
 
 type ClauseRow = {
   id: number;
@@ -261,6 +262,7 @@ export default function PolicyToolbox() {
           返回政策制定
         </button>
 
+        <PageHero title="政策工具箱" className="[&_p]:max-w-none" description="汇集创新、空间、企业发展、金融、人才和绿色发展等领域的政策工具，通过知识图谱查看工具分类，按政策条款、目标与受众对象检索相关内容，为政策研究和条款设计提供参考。" />
         <Tabs defaultValue="view" className="space-y-4">
           <TabsList className="h-auto w-full justify-start gap-8 rounded-none border-b border-border bg-transparent p-0">
             <TabsTrigger

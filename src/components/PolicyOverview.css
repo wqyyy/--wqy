@@ -1,0 +1,36 @@
+.policy-panorama { width: 100%; height: 100%; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; container-type: size; background: #fff3f0; }
+.policy-panorama-scene { position: relative; flex-shrink: 0; width: min(calc(100cqw / 0.76), calc(100cqh * 1880 / 950)); aspect-ratio: 1880 / 950; overflow: hidden; background: #fff3f0; }
+.policy-panorama-reference { position: absolute; width: 101.65%; max-width: none; height: auto; left: -0.3%; top: -2.15%; pointer-events: none; user-select: none; }
+.policy-panorama-back-mask { position: absolute; top: 0; left: 0.9%; width: 7%; height: 5.5%; background: #fff3f0; }
+.policy-panorama-stat { position: absolute; top: 11%; width: 9.8%; height: 10.3%; background: white; display: flex; flex-direction: column; justify-content: center; color: #111820; }
+.policy-panorama-stat h2 { font-size: 16px; font-weight: 700; line-height: 1.5; white-space: nowrap; }
+.policy-panorama-stat p { display: flex; align-items: baseline; gap: 4px; white-space: nowrap; }
+.policy-panorama-stat strong { font-size: 26px; line-height: 1.4; }
+.policy-panorama-stat span { font-size: 12px; color: #777; }
+.policy-panorama-link { position: absolute; width: 13.7%; height: 16.8%; border: 0; border-radius: 8px; background: transparent; transition: box-shadow 150ms, background-color 150ms; -webkit-tap-highlight-color: transparent; }
+.policy-panorama-link:hover { outline: none; background: rgb(255 255 255 / 10%); box-shadow: 0 6px 18px #49212b18; }
+.policy-panorama-link:focus-visible { outline: none; box-shadow: 0 0 0 3px #64748b50, 0 8px 18px #49212b20; }
+.policy-panorama-link:active { background: rgb(110 40 55 / 7%); box-shadow: inset 0 2px 6px #49212b20; }
+.policy-panorama-writing { left: 15.5%; top: 29.4%; }
+.policy-panorama-reach { left: 71.5%; top: 29.4%; }
+.policy-panorama-redeem { left: 15.5%; top: 65%; }
+.policy-panorama-evaluation { left: 71.5%; top: 65%; }
+.policy-panorama-resources { position: absolute; top: 83.5%; left: 21.8%; width: 55.7%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2.2%; }
+.policy-panorama-resource { text-align: center; background: #fffafa; border-radius: 8px; padding: 12px 10px 10px; color: #111820; }
+.policy-panorama-resource h2 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+.policy-panorama-resource p { background: white; padding: 9px 4px; }
+.policy-panorama-resource strong { font-size: 28px; }
+.policy-panorama-resource span { font-size: 12px; color: #777; margin-left: 3px; }
+@media (max-width: 767px) {
+  .policy-panorama { align-items: flex-start; overflow-y: auto; }
+  .policy-panorama-scene { width: calc(100cqw / 0.76); }
+  .policy-panorama-stat h2 { font-size: 9px; }
+  .policy-panorama-stat strong { font-size: 14px; }
+  .policy-panorama-stat span { font-size: 8px; }
+  .policy-panorama-stat p { gap: 1px; }
+  .policy-panorama-resource { padding: 4px 2px; border-radius: 3px; }
+  .policy-panorama-resource h2 { font-size: 9px; margin-bottom: 3px; }
+  .policy-panorama-resource p { padding: 2px; }
+  .policy-panorama-resource strong { font-size: 14px; }
+  .policy-panorama-resource span { font-size: 8px; margin-left: 1px; }
+}

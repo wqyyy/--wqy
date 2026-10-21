@@ -62,6 +62,7 @@ const reachFlowSteps = [
   { icon: Send, title: "事项推送", tag: "做推送", variant: "light" as const },
   { icon: TrendingUp, title: "触达效果检测", tag: "看反馈", variant: "accent" as const },
 ];
+const THEME_PUSH_URL = "https://zcdx.kfqgw.beijing.gov.cn/gov/#/taskManage/themePush";
 
 const reachOverviewStats = [
   { label: "可推送事项数量", value: "23", unit: "项", note: "已完成企业匹配，可进入推送", icon: Highlighter, color: "text-primary", bg: "bg-primary/10" },
@@ -582,6 +583,7 @@ function PolicyDetail({
 export default function PolicyReach() {
   const [searchParams] = useSearchParams();
   const [selectedItem, setSelectedItem] = useState<PolicyItem | null>(null);
+  const reachResultsRef = useRef<HTMLDivElement>(null);
   const assistantQuery = searchParams.get("q") ?? "";
   const assistantItemId = searchParams.get("itemId");
   useEffect(() => {
@@ -608,12 +610,20 @@ export default function PolicyReach() {
           <div className="space-y-3">
             <Card className="h-[156px] rounded-2xl border border-border bg-card px-5 py-4 flex items-center">
               <div className="w-full flex items-center justify-between gap-2 overflow-x-auto">
-                {reachFlowSteps.map((step, i) => (
+                {reachFlowSteps.map((step, i) => {
+                  const FlowControl: ElementType = i < 3 ? "a" : "button";
+                  return (
                   <div key={step.title} className="flex min-w-[200px] flex-1 items-center">
-                    <div className="flex flex-1 flex-col items-center gap-1.5">
+                    <FlowControl
+                      href={i < 3 ? THEME_PUSH_URL : undefined}
+                      type={i === 3 ? "button" : undefined}
+                      onClick={i === 3 ? () => { reachResultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); reachResultsRef.current?.focus({ preventScroll: true }); } : undefined}
+                      aria-label={step.title}
+                      className="group flex flex-1 flex-col items-center gap-1.5 rounded-lg py-1 transition-transform hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                    >
                       <div
                         className={cn(
-                          "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border transition-colors",
+                          "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border transition-colors group-hover:brightness-95",
                           step.variant === "accent"
                             ? "border-primary bg-primary text-primary-foreground shadow-[0_8px_18px_rgba(230,0,50,0.24)]"
                             : "border-[#e7b8c8] bg-[#fceef2] text-[#c41e3a] shadow-sm",
@@ -630,12 +640,12 @@ export default function PolicyReach() {
                         {step.title}
                       </span>
                       <span className="text-[11px] text-muted-foreground">{step.tag}</span>
-                    </div>
+                    </FlowControl>
                     {i < reachFlowSteps.length - 1 && (
                       <ChevronsRight className="h-6 w-6 shrink-0 text-primary/40" />
                     )}
                   </div>
-                ))}
+                );})}
               </div>
             </Card>
 
@@ -670,7 +680,7 @@ export default function PolicyReach() {
               />
           </div>
         ) : (
-          <div>
+          <div ref={reachResultsRef} tabIndex={-1} className="scroll-mt-4 outline-none">
               <PolicyList onSelect={setSelectedItem} initialSearch={assistantQuery} />
           </div>
         )}

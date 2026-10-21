@@ -55,8 +55,8 @@ const PolicyReportDetail = () => {
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={data.dimensions.items}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,90%)" />
-                <XAxis dataKey="category" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
+                <XAxis dataKey="category" tick={{ fontSize: 14 }} />
+                <YAxis tick={{ fontSize: 14 }} />
                 <Tooltip />
                 <Bar dataKey="count" fill="hsl(350,85%,42%)" radius={[4, 4, 0, 0]} />
               </BarChart>

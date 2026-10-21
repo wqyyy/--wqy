@@ -6,6 +6,7 @@ import {
   Shield,
   Workflow,
   FileText,
+  Archive,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,7 @@ export const PRE_ASSESSMENT_FLOW_STEPS: PreAssessmentFlowStep[] = [
   { id: 5, label: "合规性评估", icon: Shield },
   { id: 6, label: "流程管理评估", icon: Workflow },
   { id: 7, label: "其他意见", icon: FileText },
+  { id: 8, label: "归档", icon: Archive },
 ];
 
 export const PRE_ASSESSMENT_STAGE_COUNT = PRE_ASSESSMENT_FLOW_STEPS.length;

@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
 import HomePage from "./pages/HomePage";
+import PolicyOverviewPage from "./pages/PolicyOverviewPage";
 import BrainChatPage from "./pages/BrainChatPage";
 import Index from "./pages/Index";
 import PolicyReport from "./pages/PolicyReport";
@@ -35,6 +36,7 @@ import SupportResultPage from "./pages/SupportResultPage";
 import ProjectPublicNoticePage from "./pages/ProjectPublicNoticePage";
 import FundDisbursementPage from "./pages/FundDisbursementPage";
 import PolicyModelEstimation from "./pages/PolicyModelEstimation";
+import FundingEnterpriseDetail from "./pages/FundingEnterpriseDetail";
 import PolicyEstimationTaskList from "./pages/PolicyEstimationTaskList";
 import PolicyDictionary from "./pages/PolicyDictionary";
 import PolicyToolbox from "./pages/PolicyToolbox";
@@ -49,10 +51,12 @@ const App = () => (
       <Sonner />
       <HashRouter>
         <Routes>
+          <Route path="/funding-enterprise/:id" element={<FundingEnterpriseDetail />} />
           <Route path="/" element={<Navigate to="/home" replace />} />
 
           {/* 带侧栏的所有页面 */}
           <Route element={<AppLayout />}>
+            <Route path="/policy-overview" element={<PolicyOverviewPage />} />
             <Route path="/home" element={<HomePage />} />
             <Route path="/brain-chat" element={<BrainChatPage />} />
             <Route path="/dashboard" element={<Index />} />

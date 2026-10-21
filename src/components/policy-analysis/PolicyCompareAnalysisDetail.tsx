@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { loadPolicyCompareAnalysisTasks, savePolicyCompareAnalysisTasks, formatPolicyCompareAnalysisUpdatedAt } from "@/lib/policyCompareAnalysisTasks";
 import {
   ArrowLeft,
   CheckCircle2,
@@ -7,7 +8,13 @@ import {
   ClipboardList,
   Eye,
   FilePlus,
+  Library,
+  PenLine,
   List,
+  Loader2,
+  CalendarDays,
+  CirclePause,
+  Info,
   BarChart3,
   SlidersHorizontal,
   Sparkles,
@@ -29,8 +36,8 @@ import type { ContrastType } from "@/components/policy-analysis/compareAnalysisT
 import type { ClauseMaterialItem } from "@/lib/clauseMaterialLibrary";
 
 const FLOW_STEPS = [
-  { id: 1, label: "选择分析条件", icon: SlidersHorizontal },
-  { id: 2, label: "添加分析条款", icon: FilePlus },
+  { id: 1, label: "添加分析条款", icon: FilePlus },
+  { id: 2, label: "选择分析条件", icon: SlidersHorizontal },
   { id: 3, label: "开始AI分析", icon: Sparkles },
   { id: 4, label: "查看分析结果", icon: Eye },
 ] as const;
@@ -53,7 +60,7 @@ const CONTRAST_TYPE_OPTIONS: { id: ContrastType; label: string; description: str
   },
 ];
 
-const OVERLAP_RATE_OPTIONS = ["20%", "40%", "60%", "80%", "100%"];
+const OVERLAP_RATE_OPTIONS = ["60%", "70%", "80%", "90%", "95%"];
 
 function FormRow({
   label,
@@ -123,24 +130,37 @@ type PolicyCompareAnalysisDetailProps = {
   isNew?: boolean;
 };
 
-export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnalysisDetailProps) {
+export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyCompareAnalysisDetailProps) {
   const navigate = useNavigate();
-  const [contrastType, setContrastType] = useState<ContrastType>("horizontal");
+  const [searchParams] = useSearchParams();
+  const [taskId] = useState(() => searchParams.get("taskId") || `compare-${Date.now()}`);
+  const [savedTask] = useState(() => loadPolicyCompareAnalysisTasks().find(task => task.id === taskId));
+  const snapshot = savedTask?.snapshot;
+  const [archived, setArchived] = useState(savedTask?.archived ?? false);
+  const [completedThrough, setCompletedThrough] = useState(isNew ? 0 : 4);
+  const [flowCurrent, setFlowCurrent] = useState(() => isNew ? 1 : 4);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisStartedAt, setAnalysisStartedAt] = useState("");
+  const analysisTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (analysisTimer.current) clearTimeout(analysisTimer.current);
+  }, []);
+  const [contrastType, setContrastType] = useState<ContrastType>(snapshot?.contrastType ?? "horizontal");
   const [conditionsOpen, setConditionsOpen] = useState(true);
   const [optionalFieldsOpen, setOptionalFieldsOpen] = useState(true);
-  const [overlapRate, setOverlapRate] = useState("");
+  const [overlapRate, setOverlapRate] = useState(snapshot?.overlapRate ?? "80%");
   const [selectedClauseIds, setSelectedClauseIds] = useState<string[]>(() =>
-    isNew ? [] : defaultClauses.map((c) => c.id),
+    snapshot?.selectedClauseIds ?? (isNew ? [] : defaultClauses.map((c) => c.id)),
   );
   const [hasAnalyzed, setHasAnalyzed] = useState(() => !isNew);
-  const [clauses, setClauses] = useState<ClauseItem[]>(() => (isNew ? [] : defaultClauses));
+  const [clauses, setClauses] = useState<ClauseItem[]>(() => snapshot?.clauses ?? (isNew ? [] : defaultClauses));
   const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
   const [results, setResults] = useState<AnalysisResultItem[]>(() =>
-    isNew ? [] : buildAnalysisResults("horizontal", defaultClauses, "80%"),
+    snapshot?.results ?? (isNew ? [] : buildAnalysisResults("horizontal", defaultClauses, "80%")),
   );
   const [viewingResultId, setViewingResultId] = useState<string | null>(null);
-  const [publishDateStart, setPublishDateStart] = useState("");
-  const [publishDateEnd, setPublishDateEnd] = useState("");
+  const [publishDateStart, setPublishDateStart] = useState(snapshot?.publishDateStart ?? "");
+  const [publishDateEnd, setPublishDateEnd] = useState(snapshot?.publishDateEnd ?? "");
   const [customInputVisible, setCustomInputVisible] = useState(false);
   const [customInputText, setCustomInputText] = useState("");
   const customInputRef = useRef<HTMLTextAreaElement>(null);
@@ -150,12 +170,6 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
     [results, viewingResultId],
   );
 
-  const flowCurrent = useMemo(() => {
-    if (hasAnalyzed) return 4;
-    if (selectedClauseIds.length > 0) return 3;
-    if (clauses.length > 0) return 2;
-    return 1;
-  }, [hasAnalyzed, selectedClauseIds.length, clauses.length]);
 
   const showOptionalFields = contrastType === "horizontal" || contrastType === "duplicate";
 
@@ -226,11 +240,35 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
   };
 
   const handleAnalyze = () => {
-    if (!canAnalyze) return;
+    if (!canAnalyze || isAnalyzing || archived) return;
+    setCompletedThrough(2);
     const selectedClauses = clauses.filter((clause) => selectedClauseIds.includes(clause.id));
-    setResults(buildAnalysisResults(contrastType, selectedClauses, overlapRate));
-    setHasAnalyzed(true);
+    setIsAnalyzing(true);
+    setAnalysisStartedAt(new Date().toLocaleString('sv-SE'));
+    setFlowCurrent(3);
     setViewingResultId(null);
+    analysisTimer.current = setTimeout(() => {
+      setResults(buildAnalysisResults(contrastType, selectedClauses, overlapRate));
+      setHasAnalyzed(true);
+      setIsAnalyzing(false);
+      setCompletedThrough(3);
+      analysisTimer.current = null;
+    }, 1800);
+  };
+
+  const archiveTask = () => {
+    const now = formatPolicyCompareAnalysisUpdatedAt();
+    const tasks = loadPolicyCompareAnalysisTasks();
+    const task = {
+      id: taskId, title: savedTask?.title ?? taskName,
+      taskType: CONTRAST_TYPE_OPTIONS.find(option => option.id === contrastType)!.label as "横向对比" | "查重" | "异同对比",
+      status: "已归档" as const, createdAt: savedTask?.createdAt ?? now, updatedAt: now, archived: true,
+      snapshot: { clauses, selectedClauseIds, contrastType, overlapRate, results, publishDateStart, publishDateEnd },
+    };
+    savePolicyCompareAnalysisTasks([task, ...tasks.filter(item => item.id !== taskId)]);
+    setArchived(true);
+    setCompletedThrough(4);
+    setFlowCurrent(4);
   };
 
   const handleConfirmMaterialClauses = (items: ClauseMaterialItem[]) => {
@@ -290,10 +328,17 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
             {FLOW_STEPS.map((step, i) => {
               const Icon = step.icon;
               const isCurrent = flowCurrent === step.id;
-              const isPending = flowCurrent < step.id;
+              const isPending = completedThrough + 1 < step.id;
+              const isCompleted = completedThrough >= step.id;
               return (
                 <div key={step.id} className="flex items-center">
-                  <div className="flex flex-col items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={archived || step.id > completedThrough + 1 || isAnalyzing}
+                    onClick={() => setFlowCurrent(step.id)}
+                    aria-current={isCurrent ? "step" : undefined}
+                    className="flex flex-col items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default"
+                  >
                     <div
                       className={cn(
                         "flex h-12 w-12 shrink-0 items-center justify-center rounded-full border",
@@ -301,9 +346,10 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                           "border-primary bg-primary text-primary-foreground shadow-[0_8px_18px_rgba(230,0,50,0.24)]",
                         isPending && "border-[#e7ced8] bg-white text-[#d8b9c6]",
                         !isCurrent && !isPending && "border-primary/30 bg-primary/10 text-primary",
+                        isCompleted && "!border-emerald-200 !bg-emerald-50 !text-emerald-600 !shadow-none",
                       )}
                     >
-                      <Icon className="h-5 w-5" />
+                      {isCompleted ? <CheckCircle2 className="h-6 w-6" /> : <Icon className="h-5 w-5" />}
                     </div>
                     <span
                       className={cn(
@@ -313,7 +359,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                     >
                       {step.label}
                     </span>
-                  </div>
+                  </button>
                   {i < FLOW_STEPS.length - 1 && (
                     <div className="-mt-5 select-none px-4 text-base leading-none text-[#d8b9c6] md:px-6">
                       {">>"}
@@ -326,21 +372,10 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
         </div>
 
         <div className="rounded-xl border border-border bg-card shadow-sm">
-          <div className="flex items-center justify-end gap-4 border-b border-border px-5 py-3">
-            <button
-              type="button"
-              onClick={handleAnalyze}
-              disabled={!canAnalyze}
-              className="shrink-0 rounded bg-primary px-6 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              开始AI分析
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 items-start lg:grid-cols-[minmax(0,1.15fr)_minmax(400px,1fr)]">
+          <div>
             {/* 左侧面板：分析类型 + 分析条款（随页面滚动） */}
-            <section className="border-b border-border lg:border-b-0 lg:border-r">
-              <div className="border-b border-border px-5 py-4">
+            <section className={cn(flowCurrent > 2 && "hidden")}>
+              <div className={cn("border-b border-border px-5 py-4", flowCurrent !== 2 && "hidden")}>
                 <div className="mb-2 flex items-center justify-between">
                   <h3 className="border-l-2 border-primary pl-2 text-sm font-semibold text-foreground">分析条件</h3>
                   <button
@@ -403,7 +438,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                     </div>
 
                     {contrastType === "duplicate" && (
-                      <FormRow label="条款字符重复率" required>
+                      <FormRow label="条款查重相似度阈值" required>
                         <select
                           value={overlapRate}
                           onChange={(e) => setOverlapRate(e.target.value)}
@@ -416,6 +451,10 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                             </option>
                           ))}
                         </select>
+                        <p className="mt-2 flex items-start gap-1 text-xs leading-relaxed text-muted-foreground">
+                          <Info className="mt-0.5 h-3 w-3 shrink-0" />
+                          <span>相似度达到或超过 {overlapRate} 的条款将作为疑似重复结果展示。</span>
+                        </p>
                       </FormRow>
                     )}
 
@@ -426,7 +465,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                           className="mb-1 flex w-full items-center justify-between text-xs text-muted-foreground hover:text-foreground"
                           onClick={() => setOptionalFieldsOpen((v) => !v)}
                         >
-                          <span>选填条件（发文时间、地域省市）</span>
+                          <span>{contrastType === "horizontal" ? "选填条件（对比政策时间范围、对比地区范围）" : "选填条件（查重政策时间范围、查重地区范围）"}</span>
                           <span className="inline-flex items-center gap-1 text-primary">
                             {optionalFieldsOpen ? "收起" : "展开"}
                             <ChevronUp
@@ -437,10 +476,12 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
 
                         {optionalFieldsOpen && (
                           <>
-                            <FormRow label="发文时间">
+                            <FormRow label={contrastType === "horizontal" ? "对比政策时间范围" : "查重政策时间范围"}>
+                              <p className="mb-2 text-xs text-muted-foreground">{contrastType === "horizontal" ? "请选择对比政策的开始日期和结束日期" : "请选择查重政策的开始日期和结束日期"}</p>
                               <div className="flex h-9 w-full items-center rounded border border-border bg-background">
                                 <input
                                   type="date"
+                                  aria-label={contrastType === "horizontal" ? "对比政策开始日期" : "查重政策开始日期"}
                                   value={publishDateStart}
                                   onChange={(e) => setPublishDateStart(e.target.value)}
                                   className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none [color-scheme:light]"
@@ -448,6 +489,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                                 <span className="px-2 text-xs text-muted-foreground">~</span>
                                 <input
                                   type="date"
+                                  aria-label={contrastType === "horizontal" ? "对比政策结束日期" : "查重政策结束日期"}
                                   value={publishDateEnd}
                                   min={publishDateStart || undefined}
                                   onChange={(e) => setPublishDateEnd(e.target.value)}
@@ -456,9 +498,9 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                               </div>
                             </FormRow>
 
-                            <FormRow label="地域省市">
+                            <FormRow label={contrastType === "horizontal" ? "对比地区范围" : "查重地区范围"}>
                               <select className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-muted-foreground outline-none focus:border-primary">
-                                <option>请选择地域省市</option>
+                                <option>{contrastType === "horizontal" ? "请选择对比地区" : "请选择查重地区"}</option>
                                 <option>北京市</option>
                                 <option>上海市</option>
                                 <option>广东省</option>
@@ -476,31 +518,30 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                 )}
               </div>
 
-              <div className="px-5 py-4">
+              <div className={cn("px-5 py-4", flowCurrent !== 1 && contrastType !== "diff" && "hidden")}>
                 <div className="mb-3 flex items-center gap-2">
                   <ClipboardList className="h-4 w-4 text-primary" />
                   <h3 className="text-sm font-semibold text-foreground">添加分析条款</h3>
                 </div>
 
-                <div className="mb-3 flex h-8 items-center justify-center rounded-sm border border-dashed border-primary/50 text-[12px] text-primary/80">
-                  <button
+                <div className="mb-5 flex flex-wrap items-center gap-3 border-b border-border pb-5">
+                  <Button
                     type="button"
                     onClick={() => setMaterialPickerOpen(true)}
-                    className="mx-1 inline-flex items-center gap-1 transition-colors hover:text-primary"
+                    className="gov-gradient h-12 gap-2 px-6 text-sm font-semibold text-primary-foreground shadow-sm"
                   >
-                    <span>从</span>
-                    <span>▣</span>
-                    <span>条款素材库添加</span>
-                  </button>
-                  <span className="mx-3">或</span>
-                  <button
+                    <Library className="h-5 w-5" />
+                    从条款素材库添加
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
                     onClick={openCustomInput}
-                    className="mx-1 inline-flex items-center gap-1 transition-colors hover:text-primary"
+                    className="h-12 gap-2 border-primary/40 bg-primary/5 px-6 text-sm font-semibold text-primary hover:bg-primary/10"
                   >
-                    <span>☰</span>
-                    <span>自定义输入</span>
-                  </button>
+                    <PenLine className="h-5 w-5" />
+                    自定义输入
+                  </Button>
                 </div>
 
                 {customInputVisible && (
@@ -548,9 +589,9 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                 )}
 
                 {clauses.length === 0 && !customInputVisible ? (
-                  <div className="flex min-h-[200px] flex-col items-center justify-center text-muted-foreground/60">
-                    <div className="mb-3 h-12 w-16 rounded-xl bg-muted/40" />
-                    <p className="text-sm">暂无分析条款，请从条款素材库添加或自定义输入</p>
+                  <div className="flex items-center gap-3 rounded-lg bg-muted/30 px-4 py-5 text-muted-foreground">
+                    <ClipboardList className="h-7 w-7 shrink-0 text-primary/60" />
+                    <p className="text-sm">暂无分析条款</p>
                   </div>
                 ) : clauses.length > 0 ? (
                   <div className="space-y-3">
@@ -595,7 +636,28 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
             </section>
 
             {/* 右侧面板：分析结果 */}
-            <section className="px-5 py-4">
+            {flowCurrent === 3 && (
+              <section className="px-5 py-4" aria-live="polite" aria-busy={isAnalyzing}>
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                  <h3 className="border-l-2 border-primary pl-2 text-sm font-semibold">分析结果</h3>
+                  <p className="text-xs text-muted-foreground">如需重新分析，需要重新选择满足需求的条款</p>
+                </div>
+                <div className="space-y-3">
+                  {clauses.filter(clause => selectedClauseIds.includes(clause.id)).map(clause => (
+                    <div key={clause.id} className="rounded-lg border border-border bg-background p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="rounded border border-primary/30 bg-primary/5 px-2 py-0.5 text-xs font-medium text-primary">{clause.label}</span>
+                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><CalendarDays className="h-3 w-3" />{analysisStartedAt}</span>
+                      </div>
+                      <p className="mt-3 text-sm">{CONTRAST_TYPE_OPTIONS.find(option => option.id === contrastType)?.label} - 分析结果</p>
+                      <p className="mt-2 text-sm text-muted-foreground">{isAnalyzing ? "分析中，请稍后查看结果。" : "可返回分析条件重新发起分析。"}</p>
+                      <p className={cn("mt-3 flex items-center gap-1.5 text-xs", isAnalyzing ? "text-amber-500" : "text-emerald-600")} role="status">{isAnalyzing ? <CirclePause className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}{isAnalyzing ? "分析中" : "已分析完成"}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+            <section className={cn("px-5 py-4", flowCurrent !== 4 && "hidden")}>
               <h3 className="mb-4 border-l-2 border-primary pl-2 text-sm font-semibold text-foreground">分析结果</h3>
               {results.length === 0 ? (
                 <div className="flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-gradient-to-b from-muted/10 to-transparent px-6 py-10 text-center">
@@ -688,6 +750,21 @@ export function PolicyCompareAnalysisDetail({ isNew = false }: PolicyCompareAnal
                 </div>
               )}
             </section>
+          </div>
+          <div className="flex items-center gap-3 border-t border-border px-5 py-5">
+            {!archived && <Button className="h-11 shrink-0 px-5" variant="outline" disabled={flowCurrent === 1 || isAnalyzing} onClick={() => setFlowCurrent(step => step - 1)}><ArrowLeft className="mr-1.5 h-4 w-4" />返回上一步</Button>}
+            {flowCurrent === 1 ? (
+              <Button className="gov-gradient h-11 flex-1 font-semibold text-primary-foreground" disabled={selectedClauseIds.length === 0 || customInputVisible} onClick={() => { setCompletedThrough(value => Math.max(value, 1)); setFlowCurrent(2); }}>下一步：选择分析条件（已选 {selectedClauseIds.length} 条）</Button>
+            ) : flowCurrent === 2 ? (
+              <Button className="gov-gradient h-11 flex-1 font-semibold text-primary-foreground" disabled={isAnalyzing || !canAnalyze || Boolean(publishDateStart && publishDateEnd && publishDateStart > publishDateEnd)} onClick={handleAnalyze}>
+                {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isAnalyzing ? "AI分析中…" : "开始AI分析"}
+              </Button>
+            ) : flowCurrent === 3 ? (
+              <Button className="gov-gradient h-11 flex-1 text-primary-foreground" disabled={isAnalyzing || !hasAnalyzed} onClick={() => { setCompletedThrough(4); setFlowCurrent(4); }}>{isAnalyzing ? "AI分析中…" : "查看分析结果"}</Button>
+            ) : (
+              <Button className={cn("h-11 flex-1", archived && "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100")} variant="outline" disabled={archived} onClick={archiveTask}>{archived ? "已归档" : "归档"}</Button>
+            )}
           </div>
         </div>
       </div>

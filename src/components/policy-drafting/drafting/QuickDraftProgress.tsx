@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Check, Loader2, Search, BarChart2, FileText, BookOpen, Sparkles } from "lucide-react";
+import { Check, ChevronDown, Loader2, Search, BarChart2, FileText, BookOpen, Sparkles } from "lucide-react";
 import { searchPolicies, analyzePolicies, generateCoreElementsFromPolicies, generateOutline } from "@/lib/policyDraftApi";
 import type { PolicyItem } from "./PolicySearchStep";
 import type { OutlineSection } from "./OutlineGenerationStep";
@@ -76,6 +76,24 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
   const [currentStep, setCurrentStep] = useState(0);
   const [overallProgress, setOverallProgress] = useState(0);
   const [thoughtVisible, setThoughtVisible] = useState(true);
+  const [expandedSteps, setExpandedSteps] = useState<boolean[]>([true, false, false, false]);
+  const [stepDetails, setStepDetails] = useState<string[][]>([
+    [`起草主题：${policyTitle}`, coreElements ? `补充要求：${coreElements}` : "依据政策标题检索相关参考政策。"], [], [], [],
+  ]);
+  const previousStatuses = useRef(stepStatuses);
+
+  useEffect(() => {
+    const previousStepStatuses = previousStatuses.current;
+    setExpandedSteps(previous => previous.map((open, index) => {
+      if (stepStatuses[index] === previousStepStatuses[index]) return open;
+      return stepStatuses[index] === "running";
+    }));
+    previousStatuses.current = stepStatuses;
+  }, [stepStatuses]);
+
+  const recordStep = (index: number, details: string[]) => {
+    setStepDetails(previous => previous.map((items, itemIndex) => itemIndex === index ? details : items));
+  };
 
   const resultRef = useRef<{ policies: PolicyItem[]; outline: OutlineSection[]; coreElements: string }>({
     policies: [],
@@ -133,6 +151,12 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
       const clearStep0 = runThoughtCycle(0, 1100);
       const { policies } = await searchPolicies(policyTitle, coreElements);
       resultRef.current.policies = policies;
+      recordStep(0, [
+        `起草主题：${policyTitle}`,
+        `检索得到 ${policies.length} 条参考政策，其中 ${policies.filter(policy => policy.selected).length} 条纳入起草。`,
+        ...policies.filter(policy => policy.selected).map(policy => `参考政策：${policy.title}`),
+      ]);
+      recordStep(1, [`基于 ${policies.filter(policy => policy.selected).length} 条参考政策分析适用对象、支持方式和扶持标准。`]);
       clearStep0();
 
       setStepStatuses(["done", "running", "pending", "pending"]);
@@ -144,6 +168,8 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
       await analyzePolicies(policies);
       const { coreElements: generatedCore, items: coreItems } = await generateCoreElementsFromPolicies(policies, policyTitle);
       resultRef.current.coreElements = generatedCore;
+      recordStep(1, [`归纳得到 ${coreItems.length} 项核心要素。`, generatedCore]);
+      recordStep(2, [`起草主题：${policyTitle}`, `依据 ${coreItems.length} 项核心要素组织章节及条款层级。`]);
       clearStep1();
 
       setStepStatuses(["done", "done", "running", "pending"]);
@@ -159,6 +185,8 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
         coreItems,
       });
       resultRef.current.outline = outline;
+      recordStep(2, [`已生成 ${outline.length} 个章节。`, ...outline.map(section => `${section.title}：${section.subSections.map(sub => sub.title).join("、") || "按章节核心要点展开"}`)]);
+      recordStep(3, [`载入 ${policies.length} 条检索记录、${outline.length} 个章节及核心要素，准备政策全文生成。`]);
       clearStep2();
 
       setStepStatuses(["done", "done", "done", "running"]);
@@ -169,6 +197,7 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
       const clearStep3 = runThoughtCycle(3, 700);
       await new Promise(r => setTimeout(r, 750));
       clearStep3();
+      recordStep(3, [`已准备 ${outline.length} 个章节的大纲及参考政策，接下来进入编辑器生成政策全文。`]);
 
       setStepStatuses(["done", "done", "done", "done"]);
       setOverallProgress(100);
@@ -223,15 +252,15 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
             return (
               <div
                 key={step.id}
-                className={`flex items-center gap-3 rounded-lg px-4 py-3 transition-colors
+                className={`rounded-lg px-4 py-3 transition-colors
                   ${status === "running" ? "bg-primary/5 border border-primary/20" : ""}
-                  ${status === "done" ? "opacity-60" : ""}
                   ${status === "pending" ? "opacity-35" : ""}
                 `}
               >
+                <div className="flex items-center gap-3">
                 {/* 状态图标 */}
                 <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors
-                  ${status === "done" ? "bg-primary/10 text-primary" : ""}
+                  ${status === "done" ? "bg-emerald-50 text-emerald-600" : ""}
                   ${status === "running" ? "bg-amber-100 text-amber-600" : ""}
                   ${status === "pending" ? "bg-muted text-muted-foreground" : ""}
                 `}>
@@ -255,7 +284,29 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
                   <span className="text-xs text-muted-foreground tabular-nums shrink-0">{idx + 1}/{STEPS.length}</span>
                 )}
                 {status === "done" && (
-                  <span className="text-xs text-primary font-medium shrink-0">完成</span>
+                  <span className="text-xs text-emerald-600 font-medium shrink-0">完成</span>
+                )}
+                </div>
+                {status !== "pending" && (
+                  <div className="mt-3 pl-11">
+                    <button
+                      type="button"
+                      onClick={() => setExpandedSteps(previous => previous.map((open, index) => index === idx ? !open : open))}
+                      aria-expanded={expandedSteps[idx]}
+                      aria-controls={`quick-draft-thoughts-${step.id}`}
+                      className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+                    >
+                      {status === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                      {status === "running" ? "思考中…" : "思考完成"}
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expandedSteps[idx] ? "rotate-180" : ""}`} />
+                    </button>
+                    {expandedSteps[idx] && (
+                      <div id={`quick-draft-thoughts-${step.id}`} className="mt-2 space-y-2 rounded-md border border-border bg-muted/30 px-3 py-3 text-xs leading-relaxed text-muted-foreground">
+                        {stepDetails[idx].map((detail, index) => <p key={index} className="whitespace-pre-wrap break-words">{detail}</p>)}
+                        {status === "running" && <p role="status" className="text-primary">{currentStep === idx ? activeThought : step.thoughts[0]}</p>}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             );

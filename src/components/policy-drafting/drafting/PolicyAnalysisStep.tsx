@@ -7,6 +7,7 @@ import type { PolicyItem } from "./PolicySearchStep";
 import { generateCoreElementsFromPolicies } from "@/lib/policyDraftApi";
 
 interface PolicyAnalysisStepProps {
+  initialItems?: { id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[];
   selectedPolicies: PolicyItem[];
   /** 与起草标题一致时用于选用数据产业等专项生成模板 */
   policyTitle?: string;
@@ -29,13 +30,19 @@ export interface ClauseComparison {
 }
 
 
-export function PolicyAnalysisStep({ selectedPolicies, policyTitle = "", onAnalysisComplete, onCoreElementsChange, onCoreElementsItemsChange }: PolicyAnalysisStepProps) {
+export function PolicyAnalysisStep({ selectedPolicies, policyTitle = "", onAnalysisComplete, onCoreElementsChange, onCoreElementsItemsChange, initialItems }: PolicyAnalysisStepProps) {
+  const [restoredItems] = useState(initialItems);
   const [isGenerating, setIsGenerating] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<{ id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[]>([]);
   const [newItemText, setNewItemText] = useState("");
 
   useEffect(() => {
+    if (restoredItems?.length) {
+      setItems(restoredItems);
+      setIsGenerating(false);
+      return;
+    }
     setIsGenerating(true);
     setError(null);
     generateCoreElementsFromPolicies(selectedPolicies, policyTitle)

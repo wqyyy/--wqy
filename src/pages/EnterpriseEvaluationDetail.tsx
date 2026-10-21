@@ -1129,8 +1129,8 @@ export default function EnterpriseEvaluationDetail() {
                         color: "inherit",
                       }}
                     >
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{material.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 4 }}>
+                      <div style={{ fontSize: 15, fontWeight: 500 }}>{material.name}</div>
+                      <div style={{ fontSize: 14, color: "var(--color-text-secondary)", marginTop: 4 }}>
                         {material.pages} 页 · {material.size}
                       </div>
                     </button>
@@ -1173,7 +1173,7 @@ export default function EnterpriseEvaluationDetail() {
           <div className="modal-body" style={{ maxHeight: "70vh", overflowY: "auto" }}>
             {scoringResult && (
               <div>
-                <div style={{ marginBottom: 16, fontSize: 14 }}>
+                <div style={{ marginBottom: 16, fontSize: 16 }}>
                   AI 评分：<strong>{formatScoreValue(scoringResult.totalAiScore)}</strong>
                   <span style={{ marginLeft: 16 }}>
                     终评总分：
@@ -1192,7 +1192,7 @@ export default function EnterpriseEvaluationDetail() {
                         background: "#fafafa",
                         borderBottom: "1px solid var(--color-border)",
                         fontWeight: 600,
-                        fontSize: 14,
+                        fontSize: 16,
                       }}
                     >
                       {indicator.code} {indicator.name}
@@ -1221,16 +1221,16 @@ export default function EnterpriseEvaluationDetail() {
                           }}
                         >
                           <div>
-                            <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 6 }}>
+                            <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 6 }}>
                               {child.code} {child.name}
-                              <span style={{ marginLeft: 8, fontSize: 12, color: "var(--color-text-secondary)" }}>
+                              <span style={{ marginLeft: 8, fontSize: 14, color: "var(--color-text-secondary)" }}>
                                 满分 {child.maxScore}
                               </span>
                             </div>
                             <div
                               style={{
                                 whiteSpace: "pre-wrap",
-                                fontSize: 12,
+                                fontSize: 14,
                                 lineHeight: 1.6,
                                 color: "var(--color-text-secondary)",
                               }}
@@ -1239,7 +1239,7 @@ export default function EnterpriseEvaluationDetail() {
                             </div>
                           </div>
                           <div>
-                            <div style={{ fontSize: 11, color: "var(--color-text-secondary)", marginBottom: 4 }}>终评得分</div>
+                            <div style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: 4 }}>终评得分</div>
                             <input
                               type="number"
                               className="score-input-inline"

@@ -20,16 +20,30 @@ import { PolicySearchStep, type PolicyItem } from "@/components/policy-drafting/
 import { PolicyAnalysisStep, type ClauseComparison } from "@/components/policy-drafting/drafting/PolicyAnalysisStep";
 import { OutlineGenerationStep, type OutlineSection } from "@/components/policy-drafting/drafting/OutlineGenerationStep";
 import { PolicyOutputPage } from "@/components/policy-drafting/drafting/PolicyOutputPage";
+import { DraftFlowSteps } from "./DraftFlowSteps";
 import { QuickDraftProgress } from "@/components/policy-drafting/drafting/QuickDraftProgress";
 import { expandPolicyTitleFromDirection, isFullPolicyTitle } from "@/lib/policyDraftApi";
 import { DATA_INDUSTRY_POLICY_TITLE } from "@/lib/samplePolicyDocuments";
 import {
   resolveDraftingEntryFromTask,
+  loadPolicyDraftingTasks,
+  savePolicyDraftingTasks,
+  formatPolicyDraftingUpdatedAt,
   type PolicyDraftingTask,
 } from "@/lib/policyDraftingTasks";
 
 /** 「确定政策方向」输入框默认内容 */
 const DEFAULT_POLICY_DIRECTION = "推进数据产业高质量发展";
+
+type DraftSession = {
+  currentStep: number; maxReachedStep: number; direction: string; title: string;
+  policyType: PolicyTypeOption; customPolicyType: string; coreElements: string;
+  coreItems: { id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[];
+  selectedPolicies: PolicyItem[]; analysisResult: ClauseComparison[]; outlineResult: OutlineSection[];
+  body: string; archived: boolean;
+  stepSignatures?: Record<number, string>;
+};
+const ACTIVE_DRAFT_KEY = "policy-draft-active-session";
 
 const flowSteps = [
   { id: 1, label: "确定政策方向", icon: ClipboardList },
@@ -181,28 +195,36 @@ export function PolicyDraftingFlow({
 }: PolicyDraftingFlowProps) {
   const initialDraft = resolveInitialDraftState(resumeTask);
   const navigate = useNavigate();
-  const [currentStep, setCurrentStep] = useState(initialDraft.step);
+  const [sessionId] = useState(() => resumeTask?.id || ((!initialTitle && !directContent && localStorage.getItem(ACTIVE_DRAFT_KEY)) || `draft-${Date.now()}`));
+  const [saved] = useState<DraftSession | null>(() => {
+    try { return JSON.parse(localStorage.getItem(`policy-draft-session:${sessionId}`) || "null"); } catch { return null; }
+  });
+  const [body, setBody] = useState(saved?.body || directContent || "");
+  const [generationVersion, setGenerationVersion] = useState(0);
+  const [archived, setArchived] = useState(saved?.archived || resumeTask?.status === "已归档");
+  const [currentStep, setCurrentStep] = useState(saved?.currentStep ?? (directContent ? 5 : initialDraft.step));
   /** 已完成（訪問過）的最大步驟，用於控制步驟條可點擊範圍 */
-  const [maxReachedStep, setMaxReachedStep] = useState(initialDraft.maxStep);
+  const [maxReachedStep, setMaxReachedStep] = useState(saved?.maxReachedStep ?? (directContent ? 5 : initialDraft.maxStep));
   const [direction, setDirection] = useState(
-    () => initialTitle?.trim() || resumeTask?.title || DEFAULT_POLICY_DIRECTION,
+    () => saved?.direction || initialTitle?.trim() || resumeTask?.title || DEFAULT_POLICY_DIRECTION,
   );
   const [title, setTitle] = useState(() => {
+    if (saved?.title) return saved.title;
     const t = (initialTitle?.trim() || resumeTask?.title || "").trim();
     return t && isFullPolicyTitle(t) ? t : "";
   });
   const [titleGenerating, setTitleGenerating] = useState(false);
   const [policyType, setPolicyType] = useState<PolicyTypeOption>(() =>
-    resolveInitialPolicyType(resumeTask, initialTitle ?? resumeTask?.title),
+    saved?.policyType ?? resolveInitialPolicyType(resumeTask, initialTitle ?? resumeTask?.title),
   );
   const [customPolicyType, setCustomPolicyType] = useState(() =>
-    resolveInitialCustomPolicyType(resumeTask),
+    saved?.customPolicyType ?? resolveInitialCustomPolicyType(resumeTask),
   );
-  const [coreElements, setCoreElements] = useState("");
-  const [coreItems, setCoreItems] = useState<{ id: string; text: string; refs: { id: string; title: string; url?: string; clause?: string }[] }[]>([]);
-  const [selectedPolicies, setSelectedPolicies] = useState<PolicyItem[]>([]);
-  const [analysisResult, setAnalysisResult] = useState<ClauseComparison[]>([]);
-  const [outlineResult, setOutlineResult] = useState<OutlineSection[]>([]);
+  const [coreElements, setCoreElements] = useState(saved?.coreElements ?? "");
+  const [coreItems, setCoreItems] = useState<DraftSession["coreItems"]>(saved?.coreItems ?? []);
+  const [selectedPolicies, setSelectedPolicies] = useState<PolicyItem[]>(saved?.selectedPolicies ?? []);
+  const [analysisResult, setAnalysisResult] = useState<ClauseComparison[]>(saved?.analysisResult ?? []);
+  const [outlineResult, setOutlineResult] = useState<OutlineSection[]>(saved?.outlineResult ?? []);
   /** 起草是否已完成（进入正文生成页面即算完成） */
   const [draftCompleted, setDraftCompleted] = useState(initialDraft.draftCompleted);
   /** 快速起草模式：显示进度页，完成后直接进入编辑器（打字机模式） */
@@ -214,6 +236,24 @@ export function PolicyDraftingFlow({
     outline: OutlineSection[];
     coreElements?: string;
   }>({ policies: [], outline: [] });
+  const [stepSignatures, setStepSignatures] = useState<Record<number, string>>(saved?.stepSignatures ?? {});
+  const stepSignature = (step: number, nextTitle = title) => JSON.stringify(
+    step === 1 ? { direction, title: nextTitle, policyType, customPolicyType }
+      : step === 2 ? { title, policies: selectedPolicies }
+      : step === 3 ? { coreElements, coreItems }
+      : step === 4 ? outlineResult : body,
+  );
+  useEffect(() => {
+    const signature = stepSignature(currentStep);
+    setStepSignatures(previous => previous[currentStep] === undefined ? { ...previous, [currentStep]: signature } : previous);
+  }, [currentStep]);
+
+  useEffect(() => {
+    const session: DraftSession = { currentStep, maxReachedStep, direction, title, policyType, customPolicyType, coreElements, coreItems, selectedPolicies, analysisResult, outlineResult, body, archived, stepSignatures };
+    localStorage.setItem(`policy-draft-session:${sessionId}`, JSON.stringify(session));
+    if (!archived) localStorage.setItem(ACTIVE_DRAFT_KEY, sessionId);
+    else if (localStorage.getItem(ACTIVE_DRAFT_KEY) === sessionId) localStorage.removeItem(ACTIVE_DRAFT_KEY);
+  }, [sessionId, currentStep, maxReachedStep, direction, title, policyType, customPolicyType, coreElements, coreItems, selectedPolicies, analysisResult, outlineResult, body, archived, stepSignatures]);
 
   useEffect(() => {
     if (initialDraft.draftCompleted) {
@@ -246,8 +286,8 @@ export function PolicyDraftingFlow({
     !titleGenerating &&
     (policyType !== "自定义类型" || Boolean(customPolicyType.trim()));
 
-  const expandTitleFromDirection = async () => {
-    if (title.trim() && isFullPolicyTitle(title)) return title;
+  const expandTitleFromDirection = async (force = false) => {
+    if (!force && title.trim() && isFullPolicyTitle(title)) return title;
     setTitleGenerating(true);
     try {
       const { title: expanded } = await expandPolicyTitleFromDirection(direction, effectivePolicyType);
@@ -259,13 +299,34 @@ export function PolicyDraftingFlow({
   };
 
   const goNext = async () => {
+    if (archived || titleGenerating) return;
+    const changed = stepSignatures[currentStep] !== undefined
+      ? stepSignatures[currentStep] !== stepSignature(currentStep)
+      : maxReachedStep > currentStep;
+    if (changed) {
+      setMaxReachedStep(currentStep);
+      if (currentStep === 1) setSelectedPolicies([]);
+      if (currentStep <= 2) { setCoreElements(""); setCoreItems([]); setAnalysisResult([]); }
+      if (currentStep <= 3) setOutlineResult([]);
+      setBody("");
+      setDraftCompleted(false);
+      setQuickDraftReady(false);
+      setQuickMode(false);
+      setStepSignatures(previous => Object.fromEntries(Object.entries(previous).filter(([step]) => Number(step) <= currentStep)));
+      setGenerationVersion(version => version + 1);
+    }
+    let nextTitle = title;
     if (currentStep === 1) {
-      await expandTitleFromDirection();
+      nextTitle = await expandTitleFromDirection(changed);
     }
     if (currentStep < 5) {
       const next = currentStep + 1;
+      setStepSignatures(previous => ({
+        ...(changed ? Object.fromEntries(Object.entries(previous).filter(([step]) => Number(step) <= currentStep)) : previous),
+        [currentStep]: stepSignature(currentStep, nextTitle),
+      }));
       setCurrentStep(next);
-      setMaxReachedStep(prev => Math.max(prev, next));
+      setMaxReachedStep(prev => changed ? next : Math.max(prev, next));
     }
   };
 
@@ -275,7 +336,9 @@ export function PolicyDraftingFlow({
 
   /** 點擊步驟條跳轉：只允許跳到已訪問過的前序步驟 */
   const handleStepClick = (stepId: number) => {
-    if (stepId < currentStep && stepId <= maxReachedStep) {
+    if (!archived && stepId <= maxReachedStep && stepId < 6) {
+      setQuickDraftReady(false);
+      setQuickMode(false);
       setCurrentStep(stepId);
     }
   };
@@ -283,12 +346,57 @@ export function PolicyDraftingFlow({
   /** 快速起草：后台各步骤完成后直接跳到编辑器（打字机模式） */
   const handleQuickDraftComplete = (result: { policies: PolicyItem[]; outline: OutlineSection[]; coreElements: string }) => {
     setCoreElements(result.coreElements);
+    setSelectedPolicies(result.policies);
+    setOutlineResult(result.outline);
+    setCurrentStep(5);
+    setMaxReachedStep(5);
     setQuickDraftResult(result);
     setQuickDraftReady(true);
   };
 
+  const archiveDraft = () => {
+    if (!body) return;
+    const now = formatPolicyDraftingUpdatedAt();
+    const tasks = loadPolicyDraftingTasks();
+    const existing = tasks.find(task => task.id === sessionId);
+    savePolicyDraftingTasks([{
+      id: sessionId, title: title || direction, policyType: effectivePolicyType, policyScope: inferredCustomScope,
+      draftMode: quickDraftReady ? "快速起草" : "分步起草", status: "已归档", currentStep: 6,
+      createdAt: existing?.createdAt || now, updatedAt: now,
+    }, ...tasks.filter(task => task.id !== sessionId)]);
+    setArchived(true);
+  };
+  const regenerateCurrentStep = () => {
+    if (archived) return;
+    setMaxReachedStep(currentStep);
+    setStepSignatures(previous => Object.fromEntries(Object.entries(previous).filter(([step]) => Number(step) < currentStep)));
+    setBody("");
+    setDraftCompleted(false);
+    setQuickMode(false);
+    setQuickDraftReady(false);
+    if (currentStep <= 1) { setTitle(""); setSelectedPolicies([]); }
+    if (currentStep === 2) setSelectedPolicies([]);
+    if (currentStep <= 2) { setCoreElements(""); setCoreItems([]); setAnalysisResult([]); }
+    if (currentStep === 3) { setCoreElements(""); setCoreItems([]); }
+    if (currentStep <= 4) setOutlineResult([]);
+    setGenerationVersion(version => version + 1);
+  };
+  const completedSteps = [
+    ...(coreItems.length > 0 || coreElements.trim() ? [3] : []),
+    ...(outlineResult.length > 0 ? [4] : []),
+  ];
+  const draftStepper = <DraftFlowSteps current={archived || (currentStep === 5 && Boolean(body)) ? 6 : currentStep} maximum={maxReachedStep} bodyReady={Boolean(body)} completedSteps={completedSteps} archived={Boolean(archived)} onSelect={handleStepClick} />;
+
+  if (currentStep === 5) {
+    return <PolicyOutputPage key={generationVersion} policyTitle={title || direction} coreElements={coreElements} selectedPolicies={selectedPolicies} outline={outlineResult}
+      directContent={body || undefined} typewriterMode={quickDraftReady} flowHeader={draftStepper}
+      onRegenerate={regenerateCurrentStep}
+      onContentChange={setBody} archived={Boolean(archived)} onArchive={archiveDraft}
+      onBack={archived ? onBack : () => handleStepClick(4)} />;
+  }
+
   // 从助手直接传入内容：跳过所有步骤，直接进入编辑器
-  if (directContent) {
+  if (directContent && maxReachedStep < 5) {
     return (
       <div className="flex-1 flex flex-col min-h-0">
         <PolicyOutputPage
@@ -416,50 +524,10 @@ export function PolicyDraftingFlow({
       </div>
 
       {/* Flow stepper — 按截图样式改为卡片式流程条 */}
-      <div className="rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-foreground">起草流程</h3>
-          <span className="text-xs font-medium text-muted-foreground">{`第 ${currentStep} / 5 步`}</span>
-        </div>
-        <div className="flex items-center justify-center gap-0">
-        {flowSteps.map((step, i) => {
-          const isCurrent = currentStep === step.id;
-          const isClickable = step.id < currentStep && step.id <= maxReachedStep;
-          const StepIcon = step.icon;
-
-          return (
-            <div key={step.id} className="flex items-center">
-              <div className="flex flex-col items-center gap-2">
-                <div
-                  onClick={() => handleStepClick(step.id)}
-                  className={`h-12 w-12 rounded-full border flex items-center justify-center shrink-0 transition-all
-                    ${isCurrent ? "bg-primary text-primary-foreground border-primary shadow-[0_8px_18px_rgba(230,0,50,0.24)]" : ""}
-                    ${!isCurrent ? "bg-white text-[#d8b9c6] border-[#e7ced8]" : ""}
-                    ${isClickable ? "cursor-pointer hover:border-primary/50 hover:text-primary" : "cursor-default"}
-                  `}
-                >
-                  <StepIcon className="h-5 w-5" />
-                </div>
-                <span
-                  onClick={() => handleStepClick(step.id)}
-                  className={`text-xs font-medium whitespace-nowrap transition-colors
-                    ${isCurrent ? "text-foreground" : "text-muted-foreground"}
-                    ${isClickable ? "cursor-pointer hover:text-primary" : "cursor-default"}
-                  `}
-                >
-                  {step.label}
-                </span>
-              </div>
-              {i < flowSteps.length - 1 && (
-                <div className="px-6 md:px-8 text-[#d8b9c6] text-base leading-none select-none -mt-5">{" >> "}</div>
-              )}
-            </div>
-          );
-        })}
-        </div>
-      </div>
+      {draftStepper}
 
       {/* Step content */}
+      {currentStep > 1 && !archived && <div className="flex justify-end"><Button variant="outline" onClick={regenerateCurrentStep}>{currentStep === 2 ? "重新检索" : "重新生成"}</Button></div>}
       <motion.div
         key={currentStep}
         initial={{ opacity: 0, x: 16 }}
@@ -642,6 +710,7 @@ export function PolicyDraftingFlow({
         {currentStep === 2 && (
           <div className="space-y-6 rounded-xl border border-border bg-card px-5 py-6 md:px-7">
             <PolicySearchStep
+              key={generationVersion}
               policyTitle={title}
               policyDirection={direction}
               titleGenerating={titleGenerating}
@@ -661,6 +730,8 @@ export function PolicyDraftingFlow({
         {currentStep === 3 && (
           <div className="space-y-6 rounded-xl border border-border bg-card px-5 py-6 md:px-7">
             <PolicyAnalysisStep
+              key={generationVersion}
+              initialItems={coreItems}
               selectedPolicies={selectedPolicies}
               policyTitle={title}
               onAnalysisComplete={setAnalysisResult}
@@ -675,6 +746,8 @@ export function PolicyDraftingFlow({
         {currentStep === 4 && (
           <div className="space-y-6 rounded-xl border border-border bg-card px-5 py-6 md:px-7">
               <OutlineGenerationStep
+                key={generationVersion}
+                initialOutline={outlineResult}
                 policyTitle={title}
                 coreElements={coreElements}
                 selectedPolicies={selectedPolicies}
