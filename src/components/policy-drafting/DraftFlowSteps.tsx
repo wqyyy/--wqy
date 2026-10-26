@@ -9,7 +9,10 @@ export function DraftFlowSteps({ current, maximum, bodyReady, archived, complete
     { label: "生成政策正文", icon: ScrollText }, { label: "归档", icon: Archive },
   ];
   return <section className="mb-3 shrink-0 rounded-lg border border-border bg-card px-4 py-2.5">
-    <h3 className="mb-2 text-sm font-semibold">起草流程</h3>
+    <div className="mb-2 flex items-center justify-between gap-3">
+      <h3 className="text-sm font-semibold">起草流程</h3>
+      <span className="text-xs font-medium text-muted-foreground">第 {archived ? steps.length : Math.min(Math.max(current, 1), steps.length)} / {steps.length} 步</span>
+    </div>
     <div className="flex justify-between gap-3 overflow-x-auto">
       {steps.map(({ label, icon: Icon }, index) => {
         const step = index + 1;

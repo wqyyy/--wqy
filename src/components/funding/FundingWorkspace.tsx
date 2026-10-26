@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Archive, BadgeCheck, Calculator, CheckCircle2, ChevronRight, CirclePlus, ListFilter, Loader2, Plus, Trash2, X } from "lucide-react";
-import { saveFundingTask, type FundingTask } from "@/lib/fundingTasks";
+import { Archive, ArrowLeft, BadgeCheck, CheckCircle2, ChevronRight, CirclePlus, ListFilter, Loader2, Plus, Trash2, X } from "lucide-react";
+import { fundingTaskProgress, saveFundingTask, type FundingTask } from "@/lib/fundingTasks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,14 +9,14 @@ import { FundingResults } from "./FundingResults";
 import { calculateFunding, ENABLED_FIELDS, FUNDING_GROUPS, getFundingField, isValidCondition, makeCondition, parseFundingConditions, validFundingSupport, type FundingCondition, type FundingResult, type FundingSupport, type Operator } from "@/lib/fundingEstimation";
 
 const selectClass = "h-10 min-w-0 rounded-md border border-input bg-white px-3 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
-const steps = [{ title: "添加测算条件", icon: ListFilter }, { title: "确定扶持方式", icon: Calculator }, { title: "查看测算结果", icon: BadgeCheck }, { title: "归档", icon: Archive }];
+const steps = [{ title: "添加测算条件", icon: ListFilter }, { title: "查看测算结果", icon: BadgeCheck }, { title: "归档", icon: Archive }];
 function Heading({ children }: { children: React.ReactNode }) { return <h2 className="border-l-4 border-primary pl-2 text-base font-semibold">{children}</h2>; }
 
 export function FundingWorkspace({ initialClauseContent = "", savedTask, persistent = false }: { initialClauseContent?: string; savedTask?: FundingTask; persistent?: boolean }) {
   const [identity] = useState(() => ({ id: savedTask?.id ?? crypto.randomUUID(), createdAt: savedTask?.createdAt ?? new Date().toISOString() }));
   const [archived, setArchived] = useState(savedTask?.archived ?? false);
-  const [step, setStep] = useState(savedTask?.archived ? 3 : savedTask?.step ?? 1);
-  const [maximum, setMaximum] = useState(savedTask?.maximum ?? 1);
+  const [step, setStep] = useState(() => fundingTaskProgress(savedTask).step);
+  const [maximum, setMaximum] = useState(() => fundingTaskProgress(savedTask).maximum);
   const [clause, setClause] = useState(savedTask?.clause ?? initialClauseContent.slice(0, 250));
   const [conditions, setConditions] = useState<FundingCondition[]>(savedTask?.conditions ?? []);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -27,7 +27,7 @@ export function FundingWorkspace({ initialClauseContent = "", savedTask, persist
   const [result, setResult] = useState<FundingResult | null>(savedTask?.result ?? null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-  const snapshot = (): FundingTask => ({ ...identity, title: clause.trim().slice(0, 30) || "资金测算任务", updatedAt: new Date().toISOString(), clause, conditions, support, result, step, maximum, archived });
+  const snapshot = (): FundingTask => ({ ...identity, flowVersion: 2, title: clause.trim().slice(0, 30) || "资金测算任务", updatedAt: new Date().toISOString(), clause, conditions, support, result, step, maximum, archived });
   useEffect(() => {
     if (!persistent || archived) return;
     try { saveFundingTask(snapshot()); }
@@ -36,14 +36,14 @@ export function FundingWorkspace({ initialClauseContent = "", savedTask, persist
   const archiveTask = () => {
     if (!result || archived) return;
     try {
-      if (persistent) saveFundingTask({ ...snapshot(), archived: true, step: 3, maximum: 4 });
-      setArchived(true); setMaximum(4);
+      if (persistent) saveFundingTask({ ...snapshot(), archived: true, step: 2, maximum: 3 });
+      setArchived(true); setMaximum(3);
     } catch { setMessage("归档失败，请检查浏览器存储空间后重试。"); }
   };
 
   const updateConditions = (next: FundingCondition[]) => { setConditions(next); setResult(null); setMaximum(1); };
   const updateCondition = (id: string, patch: Partial<FundingCondition>) => updateConditions(conditions.map(condition => condition.id === id ? { ...condition, ...patch } : condition));
-  const updateSupport = (patch: Partial<FundingSupport>) => { setSupport(previous => ({ ...previous, ...patch })); setResult(null); setMaximum(2); };
+  const updateSupport = (patch: Partial<FundingSupport>) => { setSupport(previous => ({ ...previous, ...patch })); setResult(null); setMaximum(1); };
   const conditionsValid = conditions.length > 0 && conditions.every(isValidCondition);
   const tagGroups = FUNDING_GROUPS.map(group => ({
     ...group,
@@ -64,7 +64,7 @@ export function FundingWorkspace({ initialClauseContent = "", savedTask, persist
     if (!conditionsValid || !validFundingSupport(support) || calculating) return;
     setCalculating(true); setMessage("");
     timer.current = setTimeout(() => {
-      try { setResult(calculateFunding(conditions, support)); setMaximum(3); setStep(3); }
+      try { setResult(calculateFunding(conditions, support)); setMaximum(2); setStep(2); }
       catch (error) { setMessage(error instanceof Error ? error.message : "测算失败，请重试"); }
       finally { setCalculating(false); timer.current = null; }
     }, 650);
@@ -72,18 +72,21 @@ export function FundingWorkspace({ initialClauseContent = "", savedTask, persist
 
   return <div className="space-y-5">
     <section className="border border-border bg-white px-5 py-4">
-      <h1 className="mb-4 text-base font-semibold">资金测算流程</h1>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h1 className="text-base font-semibold">资金测算流程</h1>
+        <span className="text-xs font-medium text-muted-foreground">第 {archived || (result && step === 2) ? 3 : step} / {steps.length} 步</span>
+      </div>
       <div className="flex justify-between gap-2">
         {steps.map(({ title, icon: Icon }, index) => <div key={title} className="flex min-w-0 flex-1 items-center gap-3">
-          <button type="button" disabled={archived || index + 1 > (result ? 4 : maximum) || calculating || parsing} onClick={() => setStep(Math.min(index + 1, 3))} className="flex flex-1 flex-col items-center gap-2 rounded-md p-1 focus-visible:ring-2 focus-visible:ring-primary" aria-current={!archived && (result && step === 3 ? 4 : step) === index + 1 ? "step" : undefined}>
-            <span className={`flex h-10 w-10 items-center justify-center rounded-full border ${!archived && (result && step === 3 ? 4 : step) === index + 1 ? "border-primary bg-primary text-white" : archived || maximum > index + 1 || (result && index < 3) ? "border-emerald-200 bg-emerald-50 text-emerald-600" : "border-border text-muted-foreground"}`}>{(archived || maximum > index + 1 || (result && index < 3)) && (archived || (result && step === 3 ? 4 : step) !== index + 1) ? <CheckCircle2 className="h-5 w-5" /> : <Icon className="h-5 w-5" />}</span><span className="text-xs font-medium sm:whitespace-nowrap">{title}</span>
+          <button type="button" disabled={archived || index + 1 > (result ? 3 : maximum) || calculating || parsing} onClick={() => setStep(Math.min(index + 1, 2))} className="flex flex-1 flex-col items-center gap-2 rounded-md p-1 focus-visible:ring-2 focus-visible:ring-primary" aria-current={!archived && (result && step === 2 ? 3 : step) === index + 1 ? "step" : undefined}>
+            <span className={`flex h-10 w-10 items-center justify-center rounded-full border ${!archived && (result && step === 2 ? 3 : step) === index + 1 ? "border-primary bg-primary text-white" : archived || maximum > index + 1 || (result && index < 2) ? "border-emerald-200 bg-emerald-50 text-emerald-600" : "border-border text-muted-foreground"}`}>{(archived || maximum > index + 1 || (result && index < 2)) && (archived || (result && step === 2 ? 3 : step) !== index + 1) ? <CheckCircle2 className="h-5 w-5" /> : <Icon className="h-5 w-5" />}</span><span className="text-xs font-medium sm:whitespace-nowrap">{title}</span>
           </button>
           {index < steps.length - 1 && <ChevronRight className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" />}
         </div>)}
       </div>
     </section>
 
-    {step === 1 && <section className="space-y-7 border border-border bg-white p-5 md:p-7">
+    {step === 1 && <fieldset disabled={calculating || parsing} className="min-w-0 space-y-7 border border-border bg-white p-5 md:p-7">
       <div className="space-y-4"><Heading>条款内容</Heading>
         <Textarea aria-label="条款内容" placeholder="请输入条款内容" value={clause} maxLength={250} disabled={parsing} onChange={event => { setClause(event.target.value); setMessage(""); }} className="min-h-[96px] bg-white" />
         <div className="flex items-center justify-between"><Button variant={clause.trim() ? "default" : "outline"} className={clause.trim() ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-muted/40 text-muted-foreground"} disabled={!clause.trim() || parsing} onClick={parseClause}>{parsing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{parsing ? "智能解析中…" : "智能解析"}</Button><span className="text-xs text-muted-foreground">{clause.length}/250</span></div>
@@ -127,10 +130,7 @@ export function FundingWorkspace({ initialClauseContent = "", savedTask, persist
           </div>)}
         </div>}
       </div>
-      <div className="border-t border-border pt-5"><Button className="gov-gradient h-11 w-full text-primary-foreground" disabled={!conditionsValid || parsing} onClick={() => { setMaximum(value => Math.max(value, 2)); setStep(2); setMessage(""); }}>下一步：确定扶持方式</Button></div>
-    </section>}
-
-    {step === 2 && <section className="space-y-8 border border-border bg-white p-5 md:p-7">
+      <div className="space-y-6 border-t border-border pt-6">
       <Heading>确定扶持方式</Heading>
       <div role="radiogroup" aria-label="扶持方式" className="flex flex-wrap items-center gap-5 text-sm"><span>扶持方式：</span>{[{ id: "fixed", label: "固定金额" }, { id: "ratio", label: "固定比例" }].map(option => <label key={option.id} className="flex cursor-pointer items-center gap-2"><input className="h-5 w-5 accent-primary" type="radio" name="funding-support" value={option.id} checked={support.mode === option.id} disabled={calculating} onChange={() => updateSupport({ mode: option.id as FundingSupport["mode"] })} />{option.label}</label>)}</div>
       {support.mode === "fixed" ? <div className="flex flex-wrap items-center gap-3"><label htmlFor="funding-amount" className="text-sm"><span className="text-primary">* </span>扶持金额：</label><Input id="funding-amount" type="number" min={0} step="any" placeholder="请输入金额" className="w-44" disabled={calculating} value={support.amount} onChange={event => updateSupport({ amount: event.target.value })} /><span className="ml-3 text-sm">单位：</span><Input aria-label="扶持金额单位" value="万元/每家" readOnly className="w-44 bg-muted/40 text-muted-foreground" /></div> : <div className="space-y-6">
@@ -139,12 +139,16 @@ export function FundingWorkspace({ initialClauseContent = "", savedTask, persist
       </div>}
       {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
       {calculating && <p role="status" className="flex items-center gap-2 text-sm text-primary"><Loader2 className="h-4 w-4 animate-spin" />正在筛选符合条件的企业并汇总扶持金额…</p>}
-      <div className="flex gap-3 border-t border-border pt-5"><Button variant="outline" className="h-11" disabled={calculating} onClick={() => setStep(1)}>返回上一步</Button><Button className="gov-gradient h-11 flex-1 text-primary-foreground" disabled={!conditionsValid || !validFundingSupport(support) || calculating} onClick={runCalculation}>{calculating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{calculating ? "测算中…" : "开始测算"}</Button></div>
-    </section>}
+      </div>
+      <div className="border-t border-border pt-5"><Button className="gov-gradient h-11 w-full text-primary-foreground" disabled={!conditionsValid || !validFundingSupport(support) || calculating || parsing} onClick={runCalculation}>{calculating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{calculating ? "测算中…" : "开始测算"}</Button></div>
+    </fieldset>}
 
-    {step === 3 && result && <><FundingResults result={result} />
+    {step === 2 && result && <><FundingResults result={result} />
       {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
-      <div className="flex justify-end border-t border-border pt-4"><Button className="h-12 w-full gap-2 px-12 text-base sm:w-auto sm:min-w-[200px]" disabled={archived} onClick={archiveTask}><Archive className="h-5 w-5" />{archived ? "已归档" : "归档"}</Button></div>
+      <div className="flex items-center gap-3 border-t border-border px-5 py-5">
+        {!archived && <Button className="h-11 shrink-0 px-5" variant="outline" onClick={() => setStep(1)}><ArrowLeft className="mr-1.5 h-4 w-4" />返回上一步</Button>}
+        <Button className={`h-11 flex-1 ${archived ? "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100" : "gov-gradient text-primary-foreground hover:opacity-90"}`} variant={archived ? "outline" : "default"} disabled={archived} onClick={archiveTask}>{archived ? "已归档" : "归档"}</Button>
+      </div>
     </>}
     {pickerOpen && <ConditionPicker open selected={[...new Set(conditions.map(condition => condition.field))]} onClose={() => setPickerOpen(false)} onConfirm={fields => { updateConditions([...conditions.filter(condition => fields.includes(condition.field)), ...fields.filter(field => !conditions.some(condition => condition.field === field)).map(makeCondition)]); setPickerOpen(false); }} />}
   </div>;

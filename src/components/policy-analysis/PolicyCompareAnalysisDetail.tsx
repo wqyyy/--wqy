@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { loadPolicyCompareAnalysisTasks, savePolicyCompareAnalysisTasks, formatPolicyCompareAnalysisUpdatedAt } from "@/lib/policyCompareAnalysisTasks";
+import { compareAnalysisTaskStatus, getCompareAnalysisTaskStep, loadPolicyCompareAnalysisTasks, savePolicyCompareAnalysisTasks, formatPolicyCompareAnalysisUpdatedAt } from "@/lib/policyCompareAnalysisTasks";
+import { toast } from "sonner";
 import {
   ArrowLeft,
+  Archive,
   CheckCircle2,
   ChevronUp,
   ClipboardList,
   Eye,
   FilePlus,
   Library,
+  BookOpen,
   PenLine,
   List,
   Loader2,
@@ -17,7 +20,6 @@ import {
   Info,
   BarChart3,
   SlidersHorizontal,
-  Sparkles,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -33,13 +35,13 @@ import {
   type ClauseItem,
 } from "@/components/policy-analysis/compareAnalysisResults";
 import type { ContrastType } from "@/components/policy-analysis/compareAnalysisTypes";
-import type { ClauseMaterialItem } from "@/lib/clauseMaterialLibrary";
+import { CLAUSE_MATERIAL_LIBRARIES, type ClauseMaterialScope, type ClauseMaterialItem } from "@/lib/clauseMaterialLibrary";
 
 const FLOW_STEPS = [
   { id: 1, label: "添加分析条款", icon: FilePlus },
   { id: 2, label: "选择分析条件", icon: SlidersHorizontal },
-  { id: 3, label: "开始AI分析", icon: Sparkles },
-  { id: 4, label: "查看分析结果", icon: Eye },
+  { id: 3, label: "查看分析结果", icon: Eye },
+  { id: 4, label: "归档", icon: Archive },
 ] as const;
 
 const CONTRAST_TYPE_OPTIONS: { id: ContrastType; label: string; description: string }[] = [
@@ -136,12 +138,13 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
   const [taskId] = useState(() => searchParams.get("taskId") || `compare-${Date.now()}`);
   const [savedTask] = useState(() => loadPolicyCompareAnalysisTasks().find(task => task.id === taskId));
   const snapshot = savedTask?.snapshot;
-  const [archived, setArchived] = useState(savedTask?.archived ?? false);
-  const [completedThrough, setCompletedThrough] = useState(isNew ? 0 : 4);
-  const [flowCurrent, setFlowCurrent] = useState(() => isNew ? 1 : 4);
+  const [archived, setArchived] = useState(Boolean(savedTask?.archived || savedTask?.status === "已归档"));
+  const [completedThrough, setCompletedThrough] = useState(savedTask?.completedThrough ?? (savedTask?.archived ? 4 : savedTask && (savedTask.status === "已创建" || savedTask.status === "分析中") ? getCompareAnalysisTaskStep(savedTask) - 1 : isNew ? 0 : 3));
+  const [flowCurrent, setFlowCurrent] = useState(() => savedTask ? Math.min(getCompareAnalysisTaskStep(savedTask), 3) : isNew ? 1 : 3);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisStartedAt, setAnalysisStartedAt] = useState("");
   const analysisTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resumeAnalysisRef = useRef(savedTask?.status === "分析中");
   useEffect(() => () => {
     if (analysisTimer.current) clearTimeout(analysisTimer.current);
   }, []);
@@ -152,11 +155,12 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
   const [selectedClauseIds, setSelectedClauseIds] = useState<string[]>(() =>
     snapshot?.selectedClauseIds ?? (isNew ? [] : defaultClauses.map((c) => c.id)),
   );
-  const [hasAnalyzed, setHasAnalyzed] = useState(() => !isNew);
+  const [hasAnalyzed, setHasAnalyzed] = useState(() => snapshot ? snapshot.results.length > 0 : savedTask && (savedTask.status === "已创建" || savedTask.status === "分析中") ? false : !isNew);
   const [clauses, setClauses] = useState<ClauseItem[]>(() => snapshot?.clauses ?? (isNew ? [] : defaultClauses));
   const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
+  const [materialScope, setMaterialScope] = useState<ClauseMaterialScope>("personal");
   const [results, setResults] = useState<AnalysisResultItem[]>(() =>
-    snapshot?.results ?? (isNew ? [] : buildAnalysisResults("horizontal", defaultClauses, "80%")),
+    snapshot?.results ?? (isNew || savedTask?.status === "已创建" || savedTask?.status === "分析中" ? [] : buildAnalysisResults("horizontal", defaultClauses, "80%")),
   );
   const [viewingResultId, setViewingResultId] = useState<string | null>(null);
   const [publishDateStart, setPublishDateStart] = useState(snapshot?.publishDateStart ?? "");
@@ -164,6 +168,25 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
   const [customInputVisible, setCustomInputVisible] = useState(false);
   const [customInputText, setCustomInputText] = useState("");
   const customInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (archived || resumeAnalysisRef.current) return;
+    try {
+      const tasks = loadPolicyCompareAnalysisTasks();
+      const existing = tasks.find(task => task.id === taskId);
+      if (existing?.archived || existing?.status === "已归档") return;
+      if (!existing && completedThrough < 1 && !isAnalyzing) return;
+      const now = formatPolicyCompareAnalysisUpdatedAt();
+      savePolicyCompareAnalysisTasks([{
+        id: taskId, title: existing?.title ?? taskName,
+        taskType: CONTRAST_TYPE_OPTIONS.find(option => option.id === contrastType)!.label as "横向对比" | "查重" | "异同对比",
+        status: compareAnalysisTaskStatus(false, isAnalyzing, hasAnalyzed),
+        currentStep: flowCurrent === 3 && completedThrough >= 3 ? 4 : flowCurrent,
+        completedThrough, createdAt: existing?.createdAt ?? now, updatedAt: now, archived: false,
+        snapshot: { clauses, selectedClauseIds, contrastType, overlapRate, results, publishDateStart, publishDateEnd },
+      }, ...tasks.filter(task => task.id !== taskId)]);
+    } catch { toast.error("分析任务进度保存失败，请检查浏览器存储空间"); }
+  }, [archived, taskId, taskName, contrastType, flowCurrent, completedThrough, hasAnalyzed, isAnalyzing, clauses, selectedClauseIds, overlapRate, results, publishDateStart, publishDateEnd]);
 
   const viewingResult = useMemo(
     () => results.find((item) => item.id === viewingResultId) ?? null,
@@ -244,6 +267,8 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
     setCompletedThrough(2);
     const selectedClauses = clauses.filter((clause) => selectedClauseIds.includes(clause.id));
     setIsAnalyzing(true);
+    setHasAnalyzed(false);
+    setResults([]);
     setAnalysisStartedAt(new Date().toLocaleString('sv-SE'));
     setFlowCurrent(3);
     setViewingResultId(null);
@@ -256,19 +281,27 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
     }, 1800);
   };
 
+  useEffect(() => {
+    if (!resumeAnalysisRef.current || archived) return;
+    resumeAnalysisRef.current = false;
+    handleAnalyze();
+  }, [archived]);
+
   const archiveTask = () => {
+    if (archived || isAnalyzing || !hasAnalyzed) return;
     const now = formatPolicyCompareAnalysisUpdatedAt();
     const tasks = loadPolicyCompareAnalysisTasks();
     const task = {
       id: taskId, title: savedTask?.title ?? taskName,
       taskType: CONTRAST_TYPE_OPTIONS.find(option => option.id === contrastType)!.label as "横向对比" | "查重" | "异同对比",
       status: "已归档" as const, createdAt: savedTask?.createdAt ?? now, updatedAt: now, archived: true,
+      currentStep: 4, completedThrough: 4,
       snapshot: { clauses, selectedClauseIds, contrastType, overlapRate, results, publishDateStart, publishDateEnd },
     };
     savePolicyCompareAnalysisTasks([task, ...tasks.filter(item => item.id !== taskId)]);
     setArchived(true);
     setCompletedThrough(4);
-    setFlowCurrent(4);
+    setFlowCurrent(3);
   };
 
   const handleConfirmMaterialClauses = (items: ClauseMaterialItem[]) => {
@@ -283,7 +316,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
       id: `clause-${stamp}-${i}`,
       label: "",
       content: item.content,
-      meta: `${item.source} · ${item.department} · 发文 ${item.publishDate}`,
+      meta: `${item.source} · ${item.policyTitle || item.department}${item.publishDate ? ` · 发文 ${item.publishDate}` : ""}`,
     }));
     const merged = [...clauses, ...newItems].map((clause, idx) => ({
       ...clause,
@@ -322,12 +355,12 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
         <div className="shrink-0 rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">对比分析流程</h3>
-            <span className="text-xs font-medium text-muted-foreground">{`第 ${flowCurrent} / ${FLOW_STEPS.length} 步`}</span>
+            <span className="text-xs font-medium text-muted-foreground">{`第 ${flowCurrent === 3 && completedThrough >= 3 ? 4 : flowCurrent} / ${FLOW_STEPS.length} 步`}</span>
           </div>
           <div className="flex items-center justify-center">
             {FLOW_STEPS.map((step, i) => {
               const Icon = step.icon;
-              const isCurrent = flowCurrent === step.id;
+              const isCurrent = !archived && (flowCurrent === 3 && completedThrough >= 3 ? 4 : flowCurrent) === step.id;
               const isPending = completedThrough + 1 < step.id;
               const isCompleted = completedThrough >= step.id;
               return (
@@ -335,7 +368,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
                   <button
                     type="button"
                     disabled={archived || step.id > completedThrough + 1 || isAnalyzing}
-                    onClick={() => setFlowCurrent(step.id)}
+                    onClick={() => setFlowCurrent(Math.min(step.id, 3))}
                     aria-current={isCurrent ? "step" : undefined}
                     className="flex flex-col items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-default"
                   >
@@ -527,11 +560,21 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
                 <div className="mb-5 flex flex-wrap items-center gap-3 border-b border-border pb-5">
                   <Button
                     type="button"
-                    onClick={() => setMaterialPickerOpen(true)}
-                    className="gov-gradient h-12 gap-2 px-6 text-sm font-semibold text-primary-foreground shadow-sm"
+                    onClick={() => { setMaterialScope("personal"); setMaterialPickerOpen(true); }}
+                    variant="outline"
+                    className="h-12 gap-2 border-primary/40 bg-primary/5 px-6 text-sm font-semibold text-primary hover:bg-primary/10"
                   >
                     <Library className="h-5 w-5" />
-                    从条款素材库添加
+                    我的条款素材库
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => { setMaterialScope("public"); setMaterialPickerOpen(true); }}
+                    className="h-12 gap-2 border-primary/40 bg-primary/5 px-6 text-sm font-semibold text-primary hover:bg-primary/10"
+                  >
+                    <BookOpen className="h-5 w-5" />
+                    经开区条款素材
                   </Button>
                   <Button
                     type="button"
@@ -589,9 +632,13 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
                 )}
 
                 {clauses.length === 0 && !customInputVisible ? (
-                  <div className="flex items-center gap-3 rounded-lg bg-muted/30 px-4 py-5 text-muted-foreground">
-                    <ClipboardList className="h-7 w-7 shrink-0 text-primary/60" />
-                    <p className="text-sm">暂无分析条款</p>
+                  <div className="flex flex-col items-center px-4 py-10 text-muted-foreground">
+                    <div className="mb-16 w-full space-y-3 text-sm leading-7">
+                      <p><span className="font-medium">我的条款素材库：</span>{CLAUSE_MATERIAL_LIBRARIES.personal.description}</p>
+                      <p><span className="font-medium">经开区条款素材库：</span>{CLAUSE_MATERIAL_LIBRARIES.public.description}</p>
+                    </div>
+                    <ClipboardList className="mb-3 h-12 w-12 text-muted-foreground/40" />
+                    <p className="text-sm font-medium">暂无分析条款</p>
                   </div>
                 ) : clauses.length > 0 ? (
                   <div className="space-y-3">
@@ -636,7 +683,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
             </section>
 
             {/* 右侧面板：分析结果 */}
-            {flowCurrent === 3 && (
+            {flowCurrent === 3 && isAnalyzing && (
               <section className="px-5 py-4" aria-live="polite" aria-busy={isAnalyzing}>
                 <div className="mb-4 flex flex-wrap items-center gap-3">
                   <h3 className="border-l-2 border-primary pl-2 text-sm font-semibold">分析结果</h3>
@@ -657,7 +704,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
                 </div>
               </section>
             )}
-            <section className={cn("px-5 py-4", flowCurrent !== 4 && "hidden")}>
+            <section className={cn("px-5 py-4", (flowCurrent !== 3 || isAnalyzing) && "hidden")}>
               <h3 className="mb-4 border-l-2 border-primary pl-2 text-sm font-semibold text-foreground">分析结果</h3>
               {results.length === 0 ? (
                 <div className="flex min-h-[320px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-gradient-to-b from-muted/10 to-transparent px-6 py-10 text-center">
@@ -760,16 +807,16 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
                 {isAnalyzing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {isAnalyzing ? "AI分析中…" : "开始AI分析"}
               </Button>
-            ) : flowCurrent === 3 ? (
-              <Button className="gov-gradient h-11 flex-1 text-primary-foreground" disabled={isAnalyzing || !hasAnalyzed} onClick={() => { setCompletedThrough(4); setFlowCurrent(4); }}>{isAnalyzing ? "AI分析中…" : "查看分析结果"}</Button>
             ) : (
-              <Button className={cn("h-11 flex-1", archived && "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100")} variant="outline" disabled={archived} onClick={archiveTask}>{archived ? "已归档" : "归档"}</Button>
+              <Button className={cn("h-11 flex-1", archived ? "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100" : "gov-gradient text-primary-foreground hover:opacity-90")} variant={archived ? "outline" : "default"} disabled={archived || isAnalyzing || !hasAnalyzed} onClick={archiveTask}>{archived ? "已归档" : isAnalyzing ? "AI分析中…" : "归档"}</Button>
             )}
           </div>
         </div>
       </div>
 
       <ClauseMaterialPickerModal
+        key={materialScope}
+        scope={materialScope}
         open={materialPickerOpen}
         onClose={() => setMaterialPickerOpen(false)}
         onConfirm={handleConfirmMaterialClauses}

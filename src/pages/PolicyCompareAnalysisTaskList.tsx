@@ -23,6 +23,7 @@ import {
   NEW_COMPARE_ANALYSIS_PATH,
   type PolicyCompareAnalysisTask,
   savePolicyCompareAnalysisTasks,
+  getCompareAnalysisTaskStep,
 } from "@/lib/policyCompareAnalysisTasks";
 import { TaskListPagination } from "@/components/TaskListPagination";
 import { useTaskListPagination } from "@/hooks/useTaskListPagination";
@@ -138,6 +139,7 @@ export default function PolicyCompareAnalysisTaskList() {
                 icon={BarChart3}
                 createdAt={task.createdAt}
                 updatedAt={task.updatedAt}
+                progress={`第 ${getCompareAnalysisTaskStep(task)} / 4 步`}
                 onOpen={() => openTask(task)}
                 actions={
                   <>

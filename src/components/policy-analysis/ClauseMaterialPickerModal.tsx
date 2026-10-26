@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, ChevronDown, Search, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  CLAUSE_MATERIAL_ITEMS,
+  getClauseMaterialItems,
+  CLAUSE_MATERIAL_LIBRARIES,
+  matchesClauseMaterial,
+  type ClauseMaterialFilters,
+  type ClauseMaterialScope,
   type ClauseMaterialItem,
 } from "@/lib/clauseMaterialLibrary";
 
@@ -16,6 +20,7 @@ type ClauseMaterialPickerModalProps = {
   onClose: () => void;
   onConfirm: (items: ClauseMaterialItem[]) => void;
   existingContents: string[];
+  scope?: ClauseMaterialScope;
 };
 
 export function ClauseMaterialPickerModal({
@@ -23,43 +28,39 @@ export function ClauseMaterialPickerModal({
   onClose,
   onConfirm,
   existingContents,
+  scope = "personal",
 }: ClauseMaterialPickerModalProps) {
   const [keyword, setKeyword] = useState("");
-  const [source, setSource] = useState("");
-  const [region, setRegion] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [filters, setFilters] = useState<ClauseMaterialFilters>({ content: "", department: "", startDate: "", endDate: "" });
+  const invalidDates = Boolean(startDate && endDate && startDate > endDate);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
+  const items = getClauseMaterialItems(scope);
+  const library = CLAUSE_MATERIAL_LIBRARIES[scope];
 
   useEffect(() => {
     if (!open) {
       setKeyword("");
-      setSource("");
-      setRegion("");
+      setStartDate(""); setEndDate("");
+      setFilters({ content: "", department: "", startDate: "", endDate: "" });
       setSelectedKeys(new Set());
     }
-  }, [open]);
-
-  const sourceOptions = useMemo(
-    () => [...new Set(CLAUSE_MATERIAL_ITEMS.map((item) => item.source))],
-    [],
-  );
-  const regionOptions = useMemo(
-    () => [...new Set(CLAUSE_MATERIAL_ITEMS.map((item) => item.region))],
-    [],
-  );
+  }, [open, scope]);
 
   const filteredItems = useMemo(() => {
     const q = keyword.trim();
-    return CLAUSE_MATERIAL_ITEMS.map((item, index) => ({ item, index })).filter(({ item }) => {
+    return items.map((item, index) => ({ item, index })).filter(({ item }) => {
+      if (scope === "public") return matchesClauseMaterial(item, filters);
       const matchKeyword =
         !q ||
         item.content.includes(q) ||
         item.department.includes(q) ||
+        item.policyTitle?.includes(q) ||
         item.tags.some((tag) => tag.includes(q));
-      const matchSource = !source || item.source === source;
-      const matchRegion = !region || item.region === region;
-      return matchKeyword && matchSource && matchRegion;
+      return matchKeyword && matchesClauseMaterial(item, { content: "", department: "", startDate, endDate });
     });
-  }, [keyword, source, region]);
+  }, [keyword, items, scope, filters, startDate, endDate]);
 
   const toggleItem = (key: string) => {
     setSelectedKeys((prev) => {
@@ -72,12 +73,12 @@ export function ClauseMaterialPickerModal({
 
   const handleReset = () => {
     setKeyword("");
-    setSource("");
-    setRegion("");
+    setStartDate(""); setEndDate("");
+    setFilters({ content: "", department: "", startDate: "", endDate: "" });
   };
 
   const handleConfirm = () => {
-    const selected = CLAUSE_MATERIAL_ITEMS.map((item, index) => ({ item, index }))
+    const selected = items.map((item, index) => ({ item, index }))
       .filter(({ item, index }) => selectedKeys.has(getClauseMaterialKey(item, index)))
       .map(({ item }) => item);
     onConfirm(selected);
@@ -95,9 +96,9 @@ export function ClauseMaterialPickerModal({
         aria-label="关闭弹窗"
         onClick={onClose}
       />
-      <div className="relative z-10 flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-labelledby="clause-picker-title" aria-describedby="clause-picker-description" className="relative z-10 flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="text-base font-semibold text-foreground">从条款素材库添加</h2>
+          <h2 id="clause-picker-title" className="text-base font-semibold text-foreground">{library.title}</h2>
           <button
             type="button"
             onClick={onClose}
@@ -109,82 +110,46 @@ export function ClauseMaterialPickerModal({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.2fr_0.8fr_0.8fr_1fr_auto_auto]">
+          <p id="clause-picker-description" className="mb-5 text-sm leading-7 text-muted-foreground">{library.description}</p>
+          <form onSubmit={event => { event.preventDefault(); if (!invalidDates) setFilters({ content: keyword, department: "", startDate, endDate }); }} className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1.5fr_auto_auto]">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">条款搜索</label>
+              <label className="text-sm font-medium text-foreground">{scope === "public" ? "条款内容" : "条款搜索"}</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <input
                   value={keyword}
                   onChange={(e) => setKeyword(e.target.value)}
-                  placeholder="请输入"
+                  aria-label="条款内容搜索"
+                  placeholder="请输入条款内容"
                   className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">来源</label>
-              <div className="relative">
-                <select
-                  value={source}
-                  onChange={(e) => setSource(e.target.value)}
-                  className="h-10 w-full appearance-none rounded-lg border border-border bg-background px-3 pr-8 text-sm text-foreground outline-none focus:border-primary"
-                >
-                  <option value="">请选择</option>
-                  {sourceOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-foreground">地域省市</label>
-              <div className="relative">
-                <select
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
-                  className="h-10 w-full appearance-none rounded-lg border border-border bg-background px-3 pr-8 text-sm text-foreground outline-none focus:border-primary"
-                >
-                  <option value="">请选择地域省市</option>
-                  {regionOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
               <label className="text-sm font-medium text-foreground">发文时间</label>
-              <div className="flex h-10 items-center rounded-lg border border-border bg-background px-3 text-sm text-muted-foreground">
-                <span className="flex-1 truncate">开始日期</span>
-                <span className="px-2">~</span>
-                <span className="flex-1 truncate">结束日期</span>
-                <CalendarDays className="ml-1 h-4 w-4 shrink-0" />
+              <div className="flex min-w-0 items-center gap-1">
+                <input type="date" aria-label="发文开始日期" value={startDate} max={endDate || undefined} onChange={event => setStartDate(event.target.value)} className="h-10 min-w-0 w-1/2 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:border-primary" />
+                <span className="text-muted-foreground">~</span>
+                <input type="date" aria-label="发文结束日期" value={endDate} min={startDate || undefined} onChange={event => setEndDate(event.target.value)} className="h-10 min-w-0 w-1/2 rounded-lg border border-border bg-background px-2 text-xs outline-none focus:border-primary" />
               </div>
             </div>
 
             <Button type="button" variant="outline" className="mt-auto h-10 px-5" onClick={handleReset}>
               重置
             </Button>
-            <Button type="button" className="mt-auto h-10 px-5">
+            <Button type="submit" disabled={invalidDates} className="mt-auto h-10 px-5">
               查询
             </Button>
-          </div>
+          </form>
+          {invalidDates && <p role="alert" className="mt-2 text-xs text-destructive">开始日期不能晚于结束日期。</p>}
 
           <div className="mt-4 flex flex-wrap items-center gap-4 border-b border-border pb-3 text-sm">
             <span className="text-foreground">
               已选 <span className="font-semibold text-primary">{selectedKeys.size}</span> 项
             </span>
-            <span className="text-muted-foreground">按发文时间排序</span>
-            <span className="text-muted-foreground">按添加时间排序</span>
+            {scope !== "public" && <span className="text-muted-foreground">按发文时间排序</span>}
+            {scope !== "public" && <span className="text-muted-foreground">按添加时间排序</span>}
           </div>
 
           <div className="mt-4 space-y-3">
@@ -206,14 +171,16 @@ export function ClauseMaterialPickerModal({
                   >
                     <div className="flex items-start gap-3">
                       <Checkbox
+                        aria-label={`选择条款${index + 1}`}
                         checked={checked}
                         disabled={alreadyAdded}
                         onCheckedChange={() => toggleItem(key)}
                         className="mt-1 border-primary data-[state=checked]:bg-primary"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm leading-7 text-foreground">{item.content}</p>
-                        {item.tags.length > 0 && (
+                        <h3 className="mb-2 text-sm font-semibold leading-7 text-foreground">{item.policyTitle || "未提供"}</h3>
+                        <p className="whitespace-pre-wrap text-sm leading-7 text-foreground">{item.content}</p>
+                        {scope !== "public" && item.tags.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {item.tags.map((tag) => (
                               <span
@@ -225,13 +192,16 @@ export function ClauseMaterialPickerModal({
                             ))}
                           </div>
                         )}
-                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {scope === "public" ? <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                          <span>发文单位：{item.department || "未提供"}</span>
+                          <span>发文时间：{item.publishDate || "未提供"}</span>
+                        </div> : <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                           <span>来源：{item.source}</span>
                           <span>{item.region}</span>
-                          <span>{item.department}</span>
-                          <span>发文时间：{item.publishDate}</span>
-                          <span>添加时间：{item.createdDate}</span>
-                        </div>
+                          <span>发文单位：{item.department}</span>
+                          <span>发文时间：{item.publishDate || "未提供"}</span>
+                          {item.createdDate && <span>添加时间：{item.createdDate}</span>}
+                        </div>}
                         {alreadyAdded && (
                           <p className="mt-2 text-xs text-primary">该条款已添加至分析列表</p>
                         )}

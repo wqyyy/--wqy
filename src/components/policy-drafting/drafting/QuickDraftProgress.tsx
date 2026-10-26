@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { Check, ChevronDown, Loader2, Search, BarChart2, FileText, BookOpen, Sparkles } from "lucide-react";
 import { searchPolicies, analyzePolicies, generateCoreElementsFromPolicies, generateOutline } from "@/lib/policyDraftApi";
 import type { PolicyItem } from "./PolicySearchStep";
@@ -75,7 +75,6 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
   const [thoughtIdx, setThoughtIdx] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
   const [overallProgress, setOverallProgress] = useState(0);
-  const [thoughtVisible, setThoughtVisible] = useState(true);
   const [expandedSteps, setExpandedSteps] = useState<boolean[]>([true, false, false, false]);
   const [stepDetails, setStepDetails] = useState<string[][]>([
     [`起草主题：${policyTitle}`, coreElements ? `补充要求：${coreElements}` : "依据政策标题检索相关参考政策。"], [], [], [],
@@ -104,10 +103,8 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
 
   /** 平滑过渡到新思考文字 */
   const switchThought = (text: string) => {
-    setThoughtVisible(false);
     setTimeout(() => {
       setActiveThought(text);
-      setThoughtVisible(true);
     }, 200);
   };
 
@@ -313,31 +310,6 @@ export function QuickDraftProgress({ policyTitle, coreElements, onComplete }: Qu
           })}
         </div>
 
-        {/* 思考过程气泡 */}
-        <div className="rounded-lg bg-muted/50 border border-border px-4 py-3 min-h-[48px] flex items-center gap-2.5">
-          <div className="flex gap-1 shrink-0">
-            {[0, 1, 2].map(i => (
-              <motion.div
-                key={i}
-                className="h-1.5 w-1.5 rounded-full bg-primary/50"
-                animate={!allDone ? { opacity: [0.3, 1, 0.3], scale: [0.8, 1, 0.8] } : { opacity: 1, scale: 1 }}
-                transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
-              />
-            ))}
-          </div>
-          <AnimatePresence mode="wait">
-            <motion.p
-              key={activeThought}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: thoughtVisible ? 1 : 0, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.2 }}
-              className="text-xs text-muted-foreground"
-            >
-              {allDone ? "所有步骤已完成，正在跳转至政策编辑器…" : activeThought}
-            </motion.p>
-          </AnimatePresence>
-        </div>
       </div>
     </div>
   );

@@ -2474,8 +2474,9 @@ export function PolicyOutputPage({
         </AnimatePresence>
       </div>
       {isComplete && onArchive && (
-        <div className="mt-3 flex shrink-0 justify-end border-t border-border bg-background py-3">
-          <Button className="h-11 min-w-32 px-8" disabled={archived} onClick={onArchive}>
+        <div className="mt-3 flex shrink-0 items-center gap-3 border-t border-border bg-background px-5 py-5">
+          {!archived && <Button className="h-11 shrink-0 px-5" variant="outline" onClick={onBack}><ArrowLeft className="mr-1.5 h-4 w-4" />返回上一步</Button>}
+          <Button className={`h-11 flex-1 ${archived ? "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100" : "gov-gradient text-primary-foreground hover:opacity-90"}`} variant={archived ? "outline" : "default"} disabled={archived} onClick={onArchive}>
             {archived ? "已归档" : "归档"}
           </Button>
         </div>

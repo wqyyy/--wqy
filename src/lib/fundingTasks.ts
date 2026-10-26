@@ -1,6 +1,7 @@
 import type { FundingCondition, FundingResult, FundingSupport } from "./fundingEstimation";
 
 export type FundingTask = {
+  flowVersion?: 2;
   id: string;
   title: string;
   createdAt: string;
@@ -13,6 +14,11 @@ export type FundingTask = {
   maximum: number;
   archived: boolean;
 };
+export function fundingTaskProgress(task?: FundingTask) {
+  if (!task) return { step: 1, maximum: 1 };
+  const step = task.archived ? 2 : task.flowVersion === 2 ? task.step : task.step >= 3 ? 2 : 1;
+  return { step: task.result ? Math.min(step, 2) : 1, maximum: task.archived ? 3 : task.result ? 2 : 1 };
+}
 const storageKey = "funding-estimation-tasks-v1";
 export function readFundingTasks(): FundingTask[] {
   try {

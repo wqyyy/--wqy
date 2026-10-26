@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 type TaskListCardProps = {
   title: string;
   status?: string;
+  progress?: string;
   icon: LucideIcon;
   createdAt: string;
   updatedAt: string;
@@ -20,6 +21,7 @@ type TaskListCardProps = {
 export function TaskListCard({
   title,
   status,
+  progress,
   icon: Icon,
   createdAt,
   updatedAt,
@@ -47,11 +49,14 @@ export function TaskListCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <h3 className="line-clamp-1 text-sm font-semibold text-foreground">{title}</h3>
+            <div className="flex shrink-0 flex-col items-end gap-1">
             {status ? (
               <Badge variant="outline" className={`shrink-0 text-[10px] ${getTaskStatusBadgeClass(status)}`}>
                 {status}
               </Badge>
             ) : null}
+            {progress && <p className="whitespace-nowrap text-[10px] font-normal text-muted-foreground">当前进度：{progress}</p>}
+            </div>
           </div>
           {tags && tags.length > 0 ? (
             <div className="mt-1.5 flex flex-wrap gap-1.5">

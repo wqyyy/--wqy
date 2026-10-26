@@ -70,6 +70,9 @@ export function PolicyDictionaryEntries({ kind, title, onBack }: { kind: Diction
       <Tabs value={scope} onValueChange={value => { setScope(value); setPage(1); setKeyword(""); setQuery(""); setFilter("全部"); setEditing(null); setDeleting(null); }}>
         <TabsList><TabsTrigger value="public">公共词典</TabsTrigger><TabsTrigger value="personal">个人词典</TabsTrigger></TabsList>
       </Tabs>
+      <p className="text-sm leading-7 text-muted-foreground">
+        {isPersonal ? "个人词典：由用户自行维护，补充专业术语和常用词汇，满足个性化使用需求。" : "公共词典：由系统统一维护，提供政策领域标准词汇，供政策起草和内容审核参考。"}
+      </p>
       <div className="flex flex-wrap items-center gap-4">
         <form onSubmit={event => { event.preventDefault(); setQuery(keyword.trim()); setPage(1); }} className="flex w-full max-w-[480px] items-center">
           <div className="min-w-0 flex-1"><CountedField label="搜索词名称" value={keyword} limit={50} placeholder="搜索词名称" onChange={value => { setKeyword(value); if (!value) { setQuery(""); setPage(1); } }} /></div>
