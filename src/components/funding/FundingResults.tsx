@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Building2, Wallet, ChevronsRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
-import type { FundingCompany, FundingResult } from "@/lib/fundingEstimation";
+import { EXTERNAL_ENTERPRISE_DETAIL, type FundingCompany, type FundingResult } from "@/lib/fundingEstimation";
 
 const colors = ["#ce1438", "#e95770", "#f596a6", "#8f2940", "#87919e", "#c8cdd4"];
 const format = (value: number) => value.toLocaleString("zh-CN", { maximumFractionDigits: 6 });
@@ -49,7 +49,7 @@ export function FundingResults({ result }: { result: FundingResult }) {
       <h2 className="mb-4 text-base font-semibold">企业名单</h2>
       <h3 className="mb-6 border-l-4 border-primary pl-2 text-base">已为您找到 <strong className="text-primary">{companies.length}</strong> 家符合条件的企业</h3>
       <div className="overflow-x-auto"><table className="w-full min-w-[1100px] text-left text-sm"><thead className="bg-muted/30"><tr>{["序号", "企业名称", "统一社会信用代码", "注册资本(万元)", "地址", "成立日期", "所属行业"].map(label => <th className="px-3 py-4 font-semibold" key={label}>{label}</th>)}</tr></thead><tbody>
-        {companies.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((company, index) => <tr key={company.id} className="border-b border-border"><td className="px-3 py-5">{(currentPage - 1) * pageSize + index + 1}</td><td className="max-w-[260px] px-3 py-5"><a className="text-primary hover:underline" href={`#/funding-enterprise/${company.id}`} target="_blank" rel="noopener noreferrer">{company.name}</a></td><td className="px-3 py-5">{company.creditCode}</td><td className="px-3 py-5">{format(company.capital)}</td><td className="max-w-[280px] px-3 py-5 leading-7">{company.address}</td><td className="whitespace-nowrap px-3 py-5">{company.establishedAt}</td><td className="px-3 py-5">{company.industry}</td></tr>)}
+        {companies.slice((currentPage - 1) * pageSize, currentPage * pageSize).map((company, index) => <tr key={company.id} className="border-b border-border"><td className="px-3 py-5">{(currentPage - 1) * pageSize + index + 1}</td><td className="max-w-[260px] px-3 py-5"><a className="text-primary hover:underline" href={EXTERNAL_ENTERPRISE_DETAIL} target="_blank" rel="noopener noreferrer">{company.name}</a></td><td className="px-3 py-5">{company.creditCode}</td><td className="px-3 py-5">{format(company.capital)}</td><td className="max-w-[280px] px-3 py-5 leading-7">{company.address}</td><td className="whitespace-nowrap px-3 py-5">{company.establishedAt}</td><td className="px-3 py-5">{company.industry}</td></tr>)}
         {!companies.length && <tr><td colSpan={7} className="py-12 text-center text-muted-foreground">暂无符合条件的企业</td></tr>}
       </tbody></table></div>
       <nav aria-label="企业名单分页" className="mt-5 flex flex-wrap items-center justify-end gap-2 text-sm">

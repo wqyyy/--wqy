@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Archive, Loader2, Search, GitCompare, Cpu, Shield, Workflow, FileText, Check, ChevronDown, Square, RotateCcw } from "lucide-react";
+import { Loader2, Search, GitCompare, Cpu, Shield, Workflow, FileText, Check, ChevronDown, Square, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { generateReportText } from "./AssessmentStep7";
 import type { AssessmentPolicy } from "./AssessmentStep1";
 import type { Clause } from "./AssessmentStep2";
@@ -679,8 +680,8 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
               );
             })}
             {finished && !stopped && editableResults.every(section => section.trim()) && onArchive && (
-              <div ref={archiveRef} className="flex scroll-mt-4 justify-end border-t border-border pt-5">
-                <button type="button" disabled={archived} onClick={() => onArchive(mergedFinalReportText, editableResults)} className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-primary px-12 text-base font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 sm:w-auto sm:min-w-[200px]"><Archive className="h-5 w-5" />{archived ? "已归档" : "归档"}</button>
+              <div ref={archiveRef} className="flex scroll-mt-4 items-center gap-3 border-t border-border px-5 py-5">
+                <Button type="button" disabled={archived} onClick={() => onArchive(mergedFinalReportText, editableResults)} variant={archived ? "outline" : "default"} className={`h-11 flex-1 ${archived ? "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100" : "gov-gradient text-primary-foreground hover:opacity-90"}`}>{archived ? "已归档" : "归档"}</Button>
               </div>
             )}
           </div>
