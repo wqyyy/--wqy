@@ -30,6 +30,7 @@ export default function PolicyDraftingTaskList() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [tasks, setTasks] = useState<PolicyDraftingTask[]>(() => loadPolicyDraftingTasks());
   const [editingTask, setEditingTask] = useState<PolicyDraftingTask | null>(null);
   const [deletingTask, setDeletingTask] = useState<PolicyDraftingTask | null>(null);
@@ -41,9 +42,10 @@ export default function PolicyDraftingTaskList() {
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return tasks;
-    return tasks.filter((task) => task.title.toLowerCase().includes(q));
-  }, [searchQuery, tasks]);
+    const matchingStatus = tasks.filter(task => !statusFilter || task.status === statusFilter);
+    if (!q) return matchingStatus;
+    return matchingStatus.filter((task) => task.title.toLowerCase().includes(q));
+  }, [searchQuery, statusFilter, tasks]);
 
   const handleSearch = () => {
     setSearchQuery(keyword.trim());
@@ -52,6 +54,7 @@ export default function PolicyDraftingTaskList() {
   const handleReset = () => {
     setKeyword("");
     setSearchQuery("");
+    setStatusFilter("");
   };
 
   const {
@@ -62,7 +65,7 @@ export default function PolicyDraftingTaskList() {
     totalItems,
     totalPages,
     pagedItems,
-  } = useTaskListPagination(filteredTasks, searchQuery);
+  } = useTaskListPagination(filteredTasks, JSON.stringify([searchQuery, statusFilter]));
 
   const openTask = (task: PolicyDraftingTask) => {
     navigate(`/policy-writing/drafting?taskId=${task.id}`, {
@@ -118,6 +121,7 @@ export default function PolicyDraftingTaskList() {
           onChange={setKeyword}
           onSearch={handleSearch}
           onReset={handleReset}
+          statusFilter={{ value: statusFilter, onChange: setStatusFilter, options: ["生成中","已完成","已归档"] }}
           placeholder="请输入起草任务名称进行搜索"
         />
 

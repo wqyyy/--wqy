@@ -1,3 +1,4 @@
+import { ArchiveConfirmButton } from "@/components/ArchiveConfirmButton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Search, GitCompare, Cpu, Shield, Workflow, FileText, Check, ChevronDown, Square, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -681,7 +682,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
             })}
             {finished && !stopped && editableResults.every(section => section.trim()) && onArchive && (
               <div ref={archiveRef} className="flex scroll-mt-4 items-center gap-3 border-t border-border px-5 py-5">
-                <Button type="button" disabled={archived} onClick={() => onArchive(mergedFinalReportText, editableResults)} variant={archived ? "outline" : "default"} className={`h-11 flex-1 ${archived ? "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100" : "gov-gradient text-primary-foreground hover:opacity-90"}`}>{archived ? "已归档" : "归档"}</Button>
+                <ArchiveConfirmButton type="button" disabled={archived} onConfirm={() => onArchive(mergedFinalReportText, editableResults)} variant={archived ? "outline" : "default"} className={`h-11 flex-1 ${archived ? "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100" : "gov-gradient text-primary-foreground hover:opacity-90"}`}>{archived ? "已归档" : "归档"}</ArchiveConfirmButton>
               </div>
             )}
           </div>

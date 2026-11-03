@@ -1,425 +1,126 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Calendar, FileText, BookOpen, CheckCircle } from "lucide-react";
+import { Boxes, HandCoins, ListFilter } from "lucide-react";
+import { EffectDetailDrawer } from "@/components/EffectDetailDrawer";
+import { resolveDrill, type DrillDetail as Detail } from "@/lib/effectDrilldown";
+import { EFFECT_DEPARTMENTS as departments, EFFECT_POLICY_LEVELS } from "@/data/effectPublicationCounts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, LabelList } from "recharts";
 import { dashboardData } from "@/data/mockData";
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  LineChart, Line, PieChart, Pie, Cell
-} from "recharts";
+import "./EffectDashboard.css";
 
-const COLORS = [
-  "hsl(210,70%,50%)", "hsl(145,55%,45%)", "hsl(38,90%,55%)",
-  "hsl(350,85%,42%)", "hsl(25,90%,55%)", "hsl(280,60%,50%)"
-];
-
-type TabType = "redeem" | "publish";
-
-const EffectDashboard = () => {
-  const [searchParams] = useSearchParams();
-  const focus = searchParams.get("focus") ?? "items";
-  const [activeTab, setActiveTab] = useState<TabType>(focus === "publish" ? "publish" : "redeem");
-  const focusLabel =
-    focus === "publish" ? "政策发布情况" : focus === "funds" ? "资金兑现情况" : focus === "enterprise" ? "扶持企业分布" : "兑现事项情况";
-
-  useEffect(() => {
-    setActiveTab(focus === "publish" ? "publish" : "redeem");
-  }, [focus]);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-accent/50 to-background relative">
-      {/* Title Banner */}
-      <div className="bg-gradient-to-r from-primary/90 via-primary to-primary/90 py-3 px-6 flex items-center justify-center gap-3">
-        <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-          <FileText className="w-4 h-4 text-primary-foreground" />
-        </div>
-        <h1 className="text-lg font-bold text-primary-foreground tracking-widest">北京市经开区兑现效果检测</h1>
-      </div>
-
-      {/* Tab Switcher - centered */}
-      <div className="flex justify-center py-3">
-        <div className="flex bg-muted rounded-lg overflow-hidden">
-          <button
-            onClick={() => setActiveTab("publish")}
-            className={`flex items-center gap-2 px-8 py-2.5 text-sm font-medium transition-all ${
-              activeTab === "publish"
-                ? "bg-gradient-to-r from-primary/10 to-primary/5 text-primary border-b-2 border-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <div className={`w-6 h-6 rounded flex items-center justify-center ${
-              activeTab === "publish" ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
-            }`}>
-              <FileText className="w-3.5 h-3.5" />
-            </div>
-            政策发布情况
-          </button>
-          <button
-            onClick={() => setActiveTab("redeem")}
-            className={`flex items-center gap-2 px-8 py-2.5 text-sm font-medium transition-all ${
-              activeTab === "redeem"
-                ? "bg-gradient-to-r from-primary/10 to-primary/5 text-primary border-b-2 border-primary"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <div className={`w-6 h-6 rounded flex items-center justify-center ${
-              activeTab === "redeem" ? "bg-primary text-primary-foreground" : "bg-muted-foreground/20 text-muted-foreground"
-            }`}>
-              <CheckCircle className="w-3.5 h-3.5" />
-            </div>
-            政策兑现情况
-          </button>
-        </div>
-      </div>
-
-      {/* Date Picker - left aligned */}
-      <div className="flex items-center gap-3 px-6 pb-3">
-        <span className="text-sm text-muted-foreground font-medium">日期</span>
-        <Button variant="outline" size="sm" className="gap-2 px-4 bg-card">
-          <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-          <span className="text-muted-foreground">请选择月份</span>
-        </Button>
-        <div className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-xs text-primary">
-          当前聚焦：{focusLabel}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="px-6 pb-6">
-        {activeTab === "redeem" ? <RedeemView focus={focus} /> : <PublishView />}
-      </div>
-    </div>
-  );
-};
-
-/* ==================== 政策兑现情况 ==================== */
-function RedeemView({ focus }: { focus: string }) {
-  const [itemSubTab, setItemSubTab] = useState(focus === "items" ? 1 : 0);
-  const [fundSubTab, setFundSubTab] = useState(focus === "funds" ? 1 : 0);
-  const [entSubTab, setEntSubTab] = useState(focus === "enterprise" ? 1 : 0);
-
-  useEffect(() => {
-    setItemSubTab(focus === "items" ? 1 : 0);
-    setFundSubTab(focus === "funds" ? 1 : 0);
-    setEntSubTab(focus === "enterprise" ? 1 : 0);
-  }, [focus]);
-
-  const { redeemedItems, redeemedFunds, supportedEnterprises } = dashboardData;
-
-  const itemTabs = ["近六年兑现事项数量", "所选年度兑现事项数量", "兑现事项扶持领域分布"];
-  const fundTabs = ["近六年兑现资金统计", "所选年度兑资金统计", "兑现资金扶持领域分布"];
-  const entTabs = ["近六年扶持企业数量", "所选年度扶持企业数量", "扶持企业注册资本分布"];
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      {/* ---- 已兑现事项分析 ---- */}
-      <Card className="border-0 shadow-md overflow-hidden">
-        <div className="h-1 bg-primary" />
-        <CardContent className="p-5">
-          <h3 className="text-lg font-bold text-primary mb-4">已兑现事项分析</h3>
-
-          {/* Two donuts side by side */}
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            <LabeledDonut data={redeemedItems.byType} colors={COLORS} />
-            <LabeledDonut data={redeemedItems.byStatus} colors={["hsl(210,70%,50%)", "hsl(145,55%,45%)", "hsl(38,90%,55%)"]} />
-          </div>
-
-          <div className="border-t border-border pt-4">
-            <p className="text-sm font-medium text-foreground mb-2 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-primary" />
-              已兑现事项数量统计
-            </p>
-            <SubTabs tabs={itemTabs} active={itemSubTab} onChange={setItemSubTab} />
-            <div className="h-[200px] mt-3">
-              {itemSubTab === 0 && <TrendLineChart data={redeemedItems.yearlyTrend} label="兑现数量" />}
-              {itemSubTab === 1 && <TrendBarChart data={redeemedItems.yearlyTrend} label="兑现数量" />}
-              {itemSubTab === 2 && <DistPieChart data={redeemedItems.byField} />}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ---- 已兑现资金分析 ---- */}
-      <Card className="border-0 shadow-md overflow-hidden">
-        <div className="h-1 bg-primary" />
-        <CardContent className="p-5">
-          <div className="flex items-start justify-between mb-4">
-            <h3 className="text-lg font-bold text-primary">已兑现资金分析</h3>
-            <div className="text-right">
-              <p className="text-xs text-muted-foreground">本月已拨付资金</p>
-              <p className="text-2xl font-bold text-foreground">{redeemedFunds.totalMonthly.toLocaleString()}<span className="text-sm font-normal text-muted-foreground ml-1">万元</span></p>
-            </div>
-          </div>
-
-          {/* Department bars + Status donut */}
-          <div className="grid grid-cols-[1fr_120px] gap-3 mb-4">
-            <div className="space-y-1.5">
-              {redeemedFunds.byDepartment.map((d) => (
-                <div key={d.name} className="flex items-center gap-1.5 text-[11px]">
-                  <span className="w-28 truncate text-muted-foreground">{d.name}</span>
-                  <div className="flex-1 bg-muted rounded h-2.5 overflow-hidden">
-                    <div className="h-full rounded bg-primary/80" style={{ width: `${(d.amount / 232968) * 100}%` }} />
-                  </div>
-                  <span className="text-muted-foreground w-20 text-right font-mono text-[10px]">{d.amount.toFixed(2)}</span>
-                </div>
-              ))}
-            </div>
-            <LabeledDonut data={redeemedFunds.byStatus} colors={["hsl(210,70%,50%)", "hsl(145,55%,45%)", "hsl(38,90%,55%)"]} />
-          </div>
-
-          <div className="border-t border-border pt-4">
-            <p className="text-sm font-medium text-foreground mb-2 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-primary" />
-              已兑现资金情况统计
-            </p>
-            <SubTabs tabs={fundTabs} active={fundSubTab} onChange={setFundSubTab} />
-            <div className="h-[200px] mt-3">
-              {fundSubTab === 0 && <TrendLineChart data={redeemedFunds.yearlyTrend} label="兑现资金金额" />}
-              {fundSubTab === 1 && <TrendBarChart data={redeemedFunds.yearlyTrend} label="兑现资金" />}
-              {fundSubTab === 2 && <DistPieChart data={redeemedFunds.byField} />}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ---- 扶持企业情况 ---- */}
-      <Card className="border-0 shadow-md overflow-hidden">
-        <div className="h-1 bg-primary" />
-        <CardContent className="p-5">
-          <div className="flex items-start justify-between mb-4">
-            <h3 className="text-lg font-bold text-primary">扶持企业情况</h3>
-            <div className="bg-accent text-primary rounded-lg px-4 py-2 text-right">
-              <p className="text-xs">扶持企业数</p>
-              <p className="text-2xl font-bold">{supportedEnterprises.total.toLocaleString()}<span className="text-sm font-normal ml-1">家</span></p>
-            </div>
-          </div>
-
-          {/* Two donuts */}
-          <div className="grid grid-cols-2 gap-2 mb-4">
-            <LabeledDonut data={supportedEnterprises.byScale} colors={COLORS} />
-            <LabeledDonut data={supportedEnterprises.byIndustry} colors={["hsl(145,55%,45%)", "hsl(210,70%,50%)", "hsl(38,90%,55%)", "hsl(350,85%,42%)"]} />
-          </div>
-
-          <div className="border-t border-border pt-4">
-            <p className="text-sm font-medium text-foreground mb-2 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-primary" />
-              已扶持企业情况统计
-            </p>
-            <SubTabs tabs={entTabs} active={entSubTab} onChange={setEntSubTab} />
-            <div className="h-[200px] mt-3">
-              {entSubTab === 0 && <TrendLineChart data={supportedEnterprises.yearlyTrend} label="年度扶持企业数量" />}
-              {entSubTab === 1 && <TrendBarChart data={supportedEnterprises.yearlyCount} label="企业数量" />}
-              {entSubTab === 2 && <DistPieChart data={supportedEnterprises.capitalDistribution} />}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
+const COLORS = ["#5672c8", "#91ca70", "#ffcb53", "#ef6267", "#65bfd1", "#42a78f"];
+const DrillContext = createContext<(detail: Detail) => void>(() => {});
+const PeriodContext = createContext("");
+function drillTarget(open: () => void, label: string) {
+  return { role: "button", tabIndex: 0, title: `查看${label}明细`, "aria-label": `查看${label}明细`, onClick: open, onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } } };
+}
+function DetailButton({ detail }: { detail: Detail }) {
+  const open = useContext(DrillContext);
+  return <button className="effect-detail-trigger" title={`查看${detail.title}明细`} aria-label={`查看${detail.title}明细`} onClick={() => open(detail)}><ListFilter size={14} /></button>;
 }
 
-/* ==================== 政策发布情况 ==================== */
+const status = [{ name: "未知", value: 50 }, { name: "免申即享", value: 14 }, { name: "即申即享", value: 3 }, { name: "标准兑现", value: 27 }, { name: "预兑现", value: 6 }];
+const funds = [
+  ["市双智办", 13452.05], ["宣传文化部", 18880.9015], ["城市运行局", 1754.55], ["商务金融局", 759940.471731],
+  ["北京市集成电路产业局", 5847.87], ["信息技术产业局", 45039.48], ["人力资源和社会保障局", 9111.228973], ["None", 2392933.603485],
+].map(([name, amount]) => ({ name: String(name), amount: Number(amount) }));
+
+// Display original artwork through a clipped viewport; all dashboard data stays live DOM/charts.
+function Artwork({ x, y, width, height, className = "" }: { x: number; y: number; width: number; height: number; className?: string }) {
+  return <div aria-hidden="true" className={`effect-art ${className}`} style={{ aspectRatio: `${width}/${height}` }}><img alt="" src="/effect-publish-reference.png" style={{ width: `${1654 / width * 100}%`, maxWidth: "none", left: `${-x / width * 100}%`, top: `${-y / height * 100}%` }} /></div>;
+}
+function PanelTitle({ children }: { children: React.ReactNode }) { return <h2 className="effect-panel-title">{children}</h2>; }
+
+export default function EffectDashboard() {
+  const [params, setParams] = useSearchParams();
+  const [detail, setDetail] = useState<Detail | null>(null);
+  const [month, setMonth] = useState("");
+  const active = params.get("focus") === "publish" ? "publish" : "redeem";
+  return <PeriodContext.Provider value={month}><DrillContext.Provider value={request => { const scope = resolveDrill(request); setDetail({ ...request, kind: scope.kind, filters: { ...(month ? { month } : {}), ...scope.filters } }); }}><main className="effect-board">
+    <header className="effect-header">
+      <Artwork x={490} y={0} width={700} height={100} className="effect-heading-art" />
+      <h1 className="sr-only">北京市经开区政策兑现效果看板</h1>
+      <label className="effect-date">日期<input aria-label="选择月份" type="month" value={month} onChange={e => setMonth(e.target.value)} /></label>
+    </header>
+    {active === "publish" ? <PublishView /> : <RedeemView />}
+    <nav className="effect-main-tabs" aria-label="看板视图">
+      <button aria-pressed={active === "publish"} onClick={() => setParams({ focus: "publish" })}><Boxes />政策发布情况</button>
+      <span className="effect-tab-divider" />
+      <button aria-pressed={active === "redeem"} onClick={() => setParams({ focus: "items" })}><HandCoins />政策兑现情况</button>
+    </nav>
+    <footer className="effect-footer">Hi~我是亦智政务大模型平台服务助手小亦</footer>
+  </main><EffectDetailDrawer key={detail ? JSON.stringify([detail.title, detail.selected, detail.filters]) : "closed"} detail={detail} onClose={() => setDetail(null)} /></DrillContext.Provider></PeriodContext.Provider>;
+}
+
 function PublishView() {
-  const { departmentStats, policyPublished, policyInterpreted, itemsPublished, policyByLevel, itemFlow } = dashboardData;
-
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_200px] gap-4">
-      {/* Left: Department horizontal bar chart */}
-      <Card className="border-0 shadow-md overflow-hidden row-span-2">
-        <div className="h-1 bg-primary" />
-        <CardContent className="p-5">
-          <h3 className="text-lg font-bold text-primary mb-3">部门发布情况</h3>
-          <div className="flex items-center gap-5 mb-3 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-primary" /> 各部门事项发布数量
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded-full bg-gov-orange" /> 各部门政策发布数量
-            </span>
-          </div>
-          <ResponsiveContainer width="100%" height={560}>
-            <BarChart data={departmentStats} layout="vertical" margin={{ left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,92%)" horizontal={false} />
-              <XAxis type="number" tick={{ fontSize: 12 }} />
-              <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={100} />
-              <Tooltip />
-              <Bar dataKey="items" name="事项发布数" fill="hsl(350,85%,42%)" radius={[0, 3, 3, 0]} barSize={7} />
-              <Bar dataKey="published" name="政策发布数" fill="hsl(25,90%,55%)" radius={[0, 3, 3, 0]} barSize={7} />
-            </BarChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
-
-      {/* Middle top: 3 stat cards */}
-      <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "政策发布", value: policyPublished, unit: "条", icon: FileText, color: "text-primary" },
-            { label: "政策解读", value: policyInterpreted, unit: "条", icon: BookOpen, color: "text-primary" },
-            { label: "事项发布", value: itemsPublished, unit: "项", icon: CheckCircle, color: "text-primary" },
-          ].map((s) => (
-            <Card key={s.label} className="border-0 shadow-md">
-              <CardContent className="p-5 text-center">
-                <div className="w-12 h-12 mx-auto mb-3 bg-accent rounded-lg flex items-center justify-center">
-                  <s.icon className={`w-6 h-6 ${s.color}`} />
-                </div>
-                <p className="text-sm text-muted-foreground mb-1">{s.label}</p>
-                <p className="text-3xl font-bold text-foreground">{s.value}<span className="text-base font-normal text-muted-foreground ml-1">{s.unit}</span></p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Policy by level */}
-        <Card className="border-0 shadow-md overflow-hidden">
-          <div className="h-1 bg-primary" />
-          <CardContent className="p-5">
-            <h3 className="text-lg font-bold text-primary mb-5">兑现相关政策发布数量</h3>
-            <div className="grid grid-cols-3 gap-4">
-              {policyByLevel.map((p) => (
-                <div key={p.level} className="text-center">
-                  <div className="flex items-center justify-center gap-1.5 mb-4">
-                    <span className="w-2 h-2 bg-primary rounded-sm" />
-                    <span className="text-2xl font-bold text-foreground">{p.count}</span>
-                    <span className="text-sm text-muted-foreground">条</span>
-                  </div>
-                  <div className="w-20 h-20 mx-auto mb-4 rounded-xl bg-gradient-to-br from-accent to-accent/50 flex items-center justify-center">
-                    <FileText className="w-10 h-10 text-primary/50" />
-                  </div>
-                  <div className="inline-block bg-gradient-to-r from-primary/80 to-primary text-primary-foreground rounded-md px-6 py-1.5 text-sm font-medium">
-                    {p.level}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Right: Item flow */}
-      <Card className="border-0 shadow-md overflow-hidden row-span-2">
-        <div className="h-1 bg-primary" />
-        <CardContent className="p-4">
-          <h3 className="text-lg font-bold text-primary mb-4">事项流转情况</h3>
-          <div className="space-y-3">
-            {[
-              { label: "申报中", value: itemFlow.applying, unit: "项", highlight: false },
-              { label: "申报已截止", value: itemFlow.expired, unit: "项", highlight: true },
-              { label: "已确认扶持结果", value: itemFlow.confirmed, unit: "项", highlight: true },
-              { label: "已兑现", value: itemFlow.redeemed, unit: "项", highlight: true },
-            ].map((f) => (
-              <div key={f.label} className="rounded-xl border border-border p-4 text-center bg-card">
-                <p className="text-sm text-muted-foreground mb-2">{f.label}</p>
-                <p className={`text-2xl font-bold ${f.highlight ? "text-primary" : "text-foreground"}`}>
-                  {f.value}
-                  <span className="text-sm font-normal text-muted-foreground ml-1">{f.unit}</span>
-                </p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+  const open = useContext(DrillContext);
+  const departmentDetail: Detail = { title: "部门发布情况", dimension: "发文单位", rows: departments.flatMap(d => [{ name: d.name, value: d.items, unit: "项", metric: "事项发布数量" }, { name: d.name, value: d.published, unit: "条", metric: "政策发布数量" }]) };
+  const departmentClick = (metric: "items" | "published") => (d: { name: string }) => open({ ...departmentDetail, title: `${d.name}${metric === "items" ? "事项" : "政策"}发布情况`, selected: d.name, rows: departmentDetail.rows.filter(r => r.name === d.name && r.unit === (metric === "items" ? "项" : "条")) });
+  return <div className="effect-content effect-publish">
+    <section className="effect-panel effect-departments">
+      <PanelTitle>部门发布情况</PanelTitle>
+      <DetailButton detail={departmentDetail} />
+      <div className="effect-legend"><span>各部门事项发布数量</span><span>各部门政策发布数量</span></div>
+      <div className="effect-department-chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={departments} layout="vertical" margin={{ top: 8, right: 21, bottom: 8, left: 0 }} barGap={2}>
+        <CartesianGrid horizontal={false} stroke="#dce3f0" /><XAxis type="number" hide domain={[0, 100]} /><YAxis type="category" dataKey="name" width={96} axisLine={false} tickLine={false} interval={0} tick={{ fontSize: 10, fill: "#686877" }} tickFormatter={v => v.length > 8 ? `${v.slice(0, 7)}...` : v} />
+        <Tooltip /><Bar dataKey="items" name="各部门事项发布数量" fill="#eb3f59" barSize={9} isAnimationActive={false} onClick={departmentClick("items")}><LabelList dataKey="items" content={({ x, y, width, height, value, index }) => <text x={Number(x) + Number(width) + 4} y={Number(y) + Number(height) / 2} dominantBaseline="central" fontSize={9} {...drillTarget(() => departmentClick("items")(departments[index]), `${departments[index].name}事项发布数量`)}>{value}</text>} /></Bar><Bar dataKey="published" name="各部门政策发布数量" fill="#ffa47d" barSize={9} isAnimationActive={false} onClick={departmentClick("published")}><LabelList dataKey="published" content={({ x, y, width, height, value, index }) => <text x={Number(x) + Number(width) + 4} y={Number(y) + Number(height) / 2} dominantBaseline="central" fontSize={9} {...drillTarget(() => departmentClick("published")(departments[index]), `${departments[index].name}政策发布数量`)}>{value}</text>} /></Bar>
+      </BarChart></ResponsiveContainer></div>
+    </section>
+    <div className="effect-publish-middle">
+      <div className="effect-stats">{[{ title: "政策发布", value: 375, unit: "条", x: 484 }, { title: "政策解读", value: 209, unit: "条", x: 740 }, { title: "事项发布", value: 606, unit: "项", x: 995 }].map(s => <div className="effect-stat" key={s.title} {...drillTarget(() => open({ title: s.title, dimension: "统计范围", rows: [{ name: "全部", value: s.value, unit: s.unit, metric: s.title }] }), s.title)}><Artwork x={s.x} y={145} width={65} height={72} /><div><h3>{s.title}</h3><strong>{s.value}</strong><small>{s.unit}</small></div></div>)}</div>
+      <section className="effect-panel effect-level-panel"><PanelTitle>兑现相关政策发布数量</PanelTitle><div className="effect-levels">{EFFECT_POLICY_LEVELS.map(s => <div key={s.name} className="effect-level" {...drillTarget(() => open({ title: `${s.name}政策发布数量`, dimension: "政策层级", rows: [{ name: s.name, value: s.count, unit: "条", metric: "兑现相关政策发布数量" }] }), `${s.name}政策发布数量`)}><p><i /><strong>{s.count}</strong><small>条</small></p><Artwork x={s.x} y={478} width={190} height={165} /><div className="effect-level-label">{s.name}</div></div>)}</div></section>
     </div>
-  );
+    <section className="effect-panel effect-flow"><PanelTitle>事项流转情况</PanelTitle><div className="effect-flow-items">{[{ title: "申报中", value: 16, color: "#5295ff" }, { title: "申报已截止", value: 590, color: "#ff783d" }, { title: "已确认扶持结果", value: 16, color: "#f33f61" }, { title: "已兑现", value: 424, color: "#2eb89f" }].map(s => <div key={s.title} {...drillTarget(() => open({ title: `${s.title}事项`, dimension: "事项状态", rows: [{ name: s.title, value: s.value, unit: "项", metric: "事项数量" }] }), `${s.title}事项`)}><h3>{s.title}</h3><p><strong style={{ color: s.color }}>{s.value}</strong><small>项</small></p></div>)}</div></section>
+  </div>;
 }
 
-/* ==================== Shared Chart Components ==================== */
-function SubTabs({ tabs, active, onChange }: { tabs: string[]; active: number; onChange: (i: number) => void }) {
-  return (
-    <div className="flex gap-1 flex-wrap">
-      {tabs.map((t, i) => (
-        <button
-          key={t}
-          onClick={() => onChange(i)}
-          className={`px-3 py-1 rounded text-xs font-medium transition-colors border ${
-            active === i
-              ? "bg-primary text-primary-foreground border-primary"
-              : "bg-card text-muted-foreground border-border hover:border-primary/30"
-          }`}
-        >
-          {t}
-        </button>
-      ))}
-    </div>
-  );
+function Donut({ data, title, dimension = "分类" }: { data: { name: string; value: number }[]; title: string; dimension?: string }) {
+  const open = useContext(DrillContext);
+  const detail: Detail = { title, dimension, rows: data.map(d => ({ name: d.name.trim() || "未标注分类", value: d.value, unit: "%", metric: "占比" })) };
+  const select = (d: { name: string }) => { const name = d.name.trim() || "未标注分类"; open({ ...detail, selected: name, rows: detail.rows.filter(r => r.name === name) }); };
+  return <div className="effect-donut"><DetailButton detail={detail} /><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={data} dataKey="value" nameKey="name" onClick={select} startAngle={90} endAngle={-270} innerRadius="28%" outerRadius="50%" stroke="none" isAnimationActive={false} labelLine={false} label={({ cx, cy, midAngle, outerRadius, name, fill }) => {
+    if (!name.trim() || name === "大型企业") return null;
+    const angle = -Number(midAngle) * Math.PI / 180;
+    const radius = Number(outerRadius);
+    const centerX = Number(cx), centerY = Number(cy);
+    const right = Math.cos(angle) >= 0;
+    const x = Math.max(30, Math.min(centerX * 2 - 30, centerX + (radius + 23) * Math.cos(angle)));
+    const y = centerY + (radius + 28) * Math.sin(angle);
+    const lines = name.length > 3 ? (name.replace(/ /g, "").match(/.{1,2}/g) ?? [name]) : [name];
+    return <g {...drillTarget(() => select({ name }), `${title}${name}`)}><path d={`M${centerX + radius * Math.cos(angle)},${centerY + radius * Math.sin(angle)} L${x},${y}`} fill="none" stroke={fill} strokeWidth={0.7} /><text x={x + (right ? 2 : -2)} y={y - (lines.length - 1) * 5} textAnchor={right ? "start" : "end"} dominantBaseline="central" fill="#333" fontSize={10}>{lines.map((line, i) => <tspan key={i} x={x + (right ? 2 : -2)} dy={i ? 11 : 0}>{line}</tspan>)}</text></g>;
+  }}>
+    {data.map((d, i) => <Cell key={d.name} fill={COLORS[i % COLORS.length]} />)}
+  </Pie><Tooltip /></PieChart></ResponsiveContainer></div>;
 }
 
-function LabeledDonut({ data, colors }: { data: { name: string; value: number }[]; colors: string[] }) {
-  return (
-    <div className="h-[140px] relative">
-      <ResponsiveContainer width="100%" height="100%">
-        <PieChart>
-          <Pie
-            data={data}
-            cx="50%"
-            cy="50%"
-            innerRadius={28}
-            outerRadius={50}
-            dataKey="value"
-            nameKey="name"
-            strokeWidth={1}
-            stroke="hsl(0,0%,100%)"
-            label={({ name, cx, cy, midAngle, outerRadius: or }) => {
-              const RADIAN = Math.PI / 180;
-              const radius = (or as number) + 18;
-              const x = (cx as number) + radius * Math.cos(-midAngle * RADIAN);
-              const y = (cy as number) + radius * Math.sin(-midAngle * RADIAN);
-              return (
-                <text x={x} y={y} textAnchor={x > (cx as number) ? "start" : "end"} dominantBaseline="central" fontSize={10} fill="hsl(0,0%,45%)">
-                  {name}
-                </text>
-              );
-            }}
-          >
-            {data.map((_, i) => <Cell key={i} fill={colors[i % colors.length]} />)}
-          </Pie>
-          <Tooltip />
-        </PieChart>
-      </ResponsiveContainer>
-    </div>
-  );
+function AnalysisPanel({ title, index, children, tabs, values, label, max, distribution }: { title: string; index: number; children: React.ReactNode; tabs: string[]; values: number[]; label: string; max: number; distribution: { name: string; value: number }[] }) {
+  const [tab, setTab] = useState(0);
+  const open = useContext(DrillContext);
+  const month = useContext(PeriodContext);
+  const data = values.map((value, i) => ({ year: String(2021 + i), value }));
+  const trendDetail: Detail = { title: `${title}年度统计`, dimension: "年度", rows: data.map(d => ({ name: d.year, value: d.value, unit: ["项", "万元", "家"][index], metric: label })) };
+  const selectYear = (d: { year: string }) => { if (d?.year) open({ ...trendDetail, selected: d.year, rows: trendDetail.rows.filter(r => r.name === d.year) }); };
+  const totalDetail: Detail = index === 1 ? { title: "已拨付资金", dimension: "拨付单位", rows: funds.map(d => ({ name: d.name, value: d.amount, unit: "万元", metric: "已拨付资金" })) } : { title: "扶持企业数", dimension: "统计范围", rows: [{ name: "全部", value: 8020, unit: "家", metric: "扶持企业数" }] };
+  return <section className="effect-panel effect-analysis-panel"><div className="effect-analysis-heading"><PanelTitle>{title}</PanelTitle>{index > 0 && <div className={`effect-total effect-total-${index}`} {...drillTarget(() => open(totalDetail), totalDetail.title)}><HandCoins /><div>{index === 1 ? "已拨付资金" : "扶持企业数"}<p>{index === 2 && <strong>8020</strong>}<small>{index === 1 ? "万元" : "家"}</small></p></div></div>}</div>
+    <div className="effect-top-charts">{children}</div>
+    <p className="effect-chart-caption">{["已兑现事项数量统计", "已兑现资金情况统计", "已扶持企业情况统计"][index]}</p>
+    <div className="effect-subtabs" role="tablist">{tabs.map((t, i) => <button key={t} role="tab" aria-selected={tab === i} onClick={() => setTab(i)}>{t}</button>)}</div>
+    {tab === 1 && <div className="flex-1 min-h-52 p-3 bg-white"><p className="text-xs text-muted-foreground mb-3">{month.slice(0, 4) || "2026"} 年 · 月度统计尚未接入，选择月份查看明细</p><div className="grid grid-cols-4 gap-2">{Array.from({ length: 12 }, (_, i) => { const selectedMonth = `${month.slice(0, 4) || "2026"}-${String(i + 1).padStart(2, "0")}`; return <button className="rounded border border-red-100 p-2 text-xs text-primary hover:bg-red-50" key={i} onClick={() => open({ ...trendDetail, title: `${title}月度统计`, dimension: "月份", selected: selectedMonth, filters: { month: selectedMonth, ...(index === 0 ? { fulfillment: "已兑现" } : {}) }, rows: [] })}>{i + 1} 月</button>; })}</div></div>}
+    {tab !== 1 && <div className="effect-bottom-chart">{tab === 2 ? <Donut title={tabs[2]} data={distribution} /> : <><DetailButton detail={trendDetail} /><div className="effect-line-legend">{label}</div><ResponsiveContainer width="100%" height="90%"><LineChart data={data} onClick={state => { const d = state?.activePayload?.[0]?.payload; if (d) selectYear(d); }} margin={{ top: 10, right: 20, bottom: 5, left: index === 1 ? 14 : 0 }}><CartesianGrid vertical={false} stroke="#dce3f0" /><XAxis dataKey="year" tick={{ fontSize: 11 }} axisLine={{ stroke: "#7b7b86" }} tickLine={false} /><YAxis domain={[0, max]} tick={{ fontSize: 11 }} width={index === 1 ? 62 : 46} axisLine={{ stroke: "#7b7b86" }} tickLine={false} tickFormatter={v => v.toLocaleString()} /><Tooltip /><Line type="linear" dataKey="value" name={label} stroke="#ff3555" strokeWidth={1.6} dot={{ r: 2, fill: "white", strokeWidth: 1.5 }} activeDot={{ r: 5 }} isAnimationActive={false} /></LineChart></ResponsiveContainer></>}</div>}
+  </section>;
 }
 
-function TrendLineChart({ data, label }: { data: { year: string; value: number }[]; label: string }) {
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <LineChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,92%)" />
-        <XAxis dataKey="year" tick={{ fontSize: 13 }} />
-        <YAxis tick={{ fontSize: 13 }} />
-        <Tooltip />
-        <Line type="monotone" dataKey="value" name={label} stroke="hsl(350,85%,42%)" strokeWidth={2} dot={{ fill: "hsl(350,85%,42%)", r: 3, stroke: "hsl(350,85%,42%)" }} />
-      </LineChart>
-    </ResponsiveContainer>
-  );
+function RedeemView() {
+  const open = useContext(DrillContext);
+  return <div className="effect-content effect-redeem">
+    <AnalysisPanel title="已兑现事项分析" index={0} tabs={["近六年兑现事项数量", "所选年度兑现事项数量", "兑现事项扶持领域分布"]} values={[98, 131, 130, 144, 216, 111]} label="兑现数量" max={250} distribution={dashboardData.redeemedItems.byField}>
+      <Donut title="已兑现事项类型分布" data={[{ name: "资金类", value: 49 }, { name: "非资金类", value: 2 }, { name: "未知", value: 49 }]} /><Donut title="已兑现事项兑现方式分布" data={status} />
+    </AnalysisPanel>
+    <AnalysisPanel title="已兑现资金分析" index={1} tabs={["近六年兑现资金统计", "所选年度兑资金统计", "兑现资金扶持领域分布"]} values={[380000, 650000, 850000, 735000, 925000, 475000]} label="兑现资金金额" max={1000000} distribution={dashboardData.redeemedFunds.byField}>
+      <div className="effect-fund-bars">{funds.map(d => <div key={d.name} {...drillTarget(() => open({ title: `${d.name}已拨付资金`, dimension: "拨付单位", rows: [{ name: d.name, value: d.amount, unit: "万元", metric: "已拨付资金" }] }), `${d.name}已拨付资金`)}><span title={d.name}>{d.name === "None" ? "未提供部门" : d.name}</span><b>{d.amount.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b><i style={{ width: `${d.amount / 2392933.603485 * 100}%` }} /></div>)}</div><Donut title="已兑现资金兑现方式分布" data={status} />
+    </AnalysisPanel>
+    <AnalysisPanel title="扶持企业情况" index={2} tabs={["近六年扶持企业数量", "所选年度扶持企业数量", "扶持企业注册资本分布"]} values={[1500, 3000, 3380, 3210, 3950, 1640]} label="年度扶持企业数量" max={4000} distribution={dashboardData.supportedEnterprises.capitalDistribution}>
+      <Donut title="扶持企业规模分布" data={[{ name: "其他", value: 5 }, { name: "1 个体工商户", value: 2 }, { name: "2 微型企业", value: 32 }, { name: "3 小型企业", value: 44 }, { name: "4 中型企业", value: 14 }, { name: "大型企业", value: 3 }]} /><Donut title="扶持企业行业分布" data={[{ name: "其他", value: 51 }, { name: "新一代信息技术领域", value: 14 }, { name: "", value: 5 }, { name: "生物医药和大健康领域", value: 13 }, { name: " ", value: 13 }, { name: "  ", value: 4 }]} />
+    </AnalysisPanel>
+  </div>;
 }
-
-function TrendBarChart({ data, label }: { data: { year: string; value: number }[]; label: string }) {
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,92%)" />
-        <XAxis dataKey="year" tick={{ fontSize: 13 }} />
-        <YAxis tick={{ fontSize: 13 }} />
-        <Tooltip />
-        <Bar dataKey="value" name={label} fill="hsl(350,85%,42%)" radius={[4, 4, 0, 0]} />
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
-function DistPieChart({ data }: { data: { name: string; value: number }[] }) {
-  return (
-    <ResponsiveContainer width="100%" height="100%">
-      <PieChart>
-        <Pie data={data} cx="50%" cy="50%" innerRadius={35} outerRadius={65} dataKey="value" nameKey="name" label={({ name }) => name}>
-          {data.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-        </Pie>
-        <Tooltip />
-      </PieChart>
-    </ResponsiveContainer>
-  );
-}
-
-export default EffectDashboard;

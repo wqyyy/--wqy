@@ -32,6 +32,7 @@ export default function PolicyEvaluationTaskList() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [tasks, setTasks] = useState<PolicyEvaluationTask[]>(() => loadPolicyEvaluationTasks());
   const [editingTask, setEditingTask] = useState<PolicyEvaluationTask | null>(null);
   const [deletingTask, setDeletingTask] = useState<PolicyEvaluationTask | null>(null);
@@ -43,15 +44,16 @@ export default function PolicyEvaluationTaskList() {
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return tasks;
-    return tasks.filter(
+    const matchingStatus = tasks.filter(task => !statusFilter || task.status === statusFilter);
+    if (!q) return matchingStatus;
+    return matchingStatus.filter(
       (task) =>
         task.title.toLowerCase().includes(q) ||
         task.department.toLowerCase().includes(q) ||
         task.domain.toLowerCase().includes(q) ||
         task.status.toLowerCase().includes(q),
     );
-  }, [searchQuery, tasks]);
+  }, [searchQuery, statusFilter, tasks]);
 
   const handleSearch = () => {
     setSearchQuery(keyword.trim());
@@ -60,6 +62,7 @@ export default function PolicyEvaluationTaskList() {
   const handleReset = () => {
     setKeyword("");
     setSearchQuery("");
+    setStatusFilter("");
   };
 
   const {
@@ -70,7 +73,7 @@ export default function PolicyEvaluationTaskList() {
     totalItems,
     totalPages,
     pagedItems,
-  } = useTaskListPagination(filteredTasks, searchQuery);
+  } = useTaskListPagination(filteredTasks, JSON.stringify([searchQuery, statusFilter]));
 
   const openTask = (task: PolicyEvaluationTask) => {
     const { directFinal } = resolveEvaluationEntryFromTask(task);
@@ -105,7 +108,7 @@ export default function PolicyEvaluationTaskList() {
   };
 
   const handleDownload = (task: PolicyEvaluationTask) => {
-    if (task.status !== "已完成") {
+    if (task.status !== "已完成" && task.status !== "已归档") {
       toast.message("评价完成后才可下载报告");
       return;
     }
@@ -141,6 +144,7 @@ export default function PolicyEvaluationTaskList() {
           onChange={setKeyword}
           onSearch={handleSearch}
           onReset={handleReset}
+          statusFilter={{ value: statusFilter, onChange: setStatusFilter, options: ["进行中","已完成","已归档"] }}
           placeholder="请输入评价任务名称进行搜索"
         />
 
@@ -158,10 +162,11 @@ export default function PolicyEvaluationTaskList() {
                 icon={BarChart3}
                 createdAt={task.createdAt}
                 updatedAt={task.updatedAt}
+                progress={`第 ${task.currentStep} / 6 步`}
                 onOpen={() => openTask(task)}
                 actions={
                   <>
-                    <TaskListIconButton
+                    {task.status !== "已归档" && <TaskListIconButton
                       label={`编辑 ${task.title}`}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -169,10 +174,10 @@ export default function PolicyEvaluationTaskList() {
                       }}
                     >
                       <Pencil className="h-4 w-4" />
-                    </TaskListIconButton>
+                    </TaskListIconButton>}
                     <TaskListIconButton
                       label={`下载 ${task.title}`}
-                      disabled={task.status !== "已完成"}
+                      disabled={task.status !== "已完成" && task.status !== "已归档"}
                       onClick={(event) => {
                         event.stopPropagation();
                         handleDownload(task);

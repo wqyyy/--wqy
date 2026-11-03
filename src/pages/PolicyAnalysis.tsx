@@ -1,5 +1,6 @@
+import { ArchiveConfirmButton } from "@/components/ArchiveConfirmButton";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Loader2,
   CheckCircle2,
@@ -13,11 +14,14 @@ import {
   BarChart3,
   CircleAlert,
   Lightbulb,
+  Archive,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { markPolicyEvaluated } from "@/lib/policyEvaluationCompleted";
 import { buildGovReportPreviewHtml } from "@/lib/govReportHeaderHtml";
 import { PolicyCompareAnalysisDetail } from "@/components/policy-analysis/PolicyCompareAnalysisDetail";
+import { toast } from "sonner";
+import { formatPolicyEvaluationUpdatedAt, getPolicyEvaluationTaskById, loadPolicyEvaluationTasks, savePolicyEvaluationTasks, type PolicyEvaluationTask } from "@/lib/policyEvaluationTasks";
 
 const STAGES = [
   {
@@ -160,19 +164,33 @@ export default function PolicyAnalysis() {
 
 function PolicyAnalysisFlow() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const policyName = searchParams.get("policy") || "北京经开区产业发展促进办法";
   const directFinal = searchParams.get("directFinal") === "1";
 
-  const [stage, setStage] = useState(0);
-  const [finished, setFinished] = useState(false);
-  const [stopped, setStopped] = useState(false);
-  const [expandedThinking, setExpandedThinking] = useState<number | null>(0);
+  const [savedTask] = useState(() => getPolicyEvaluationTaskById(searchParams.get("taskId") ?? ""));
+  const [taskId] = useState(() => savedTask?.id ?? searchParams.get("taskId") ?? crypto.randomUUID());
+  const initialCount = savedTask?.completedCount ?? ((directFinal || savedTask?.status === "已归档") ? STAGES.length : Math.max(0, (savedTask?.currentStep ?? 1) - 1));
+  const initialResults = savedTask?.results ?? STAGE_OUTPUTS.map((text, i) => i < initialCount ? text : "");
+  const [stage, setStage] = useState(initialCount);
+  const [completedCount, setCompletedCount] = useState(initialCount);
+  const [currentNode, setCurrentNode] = useState(Math.min((savedTask?.currentStep ?? initialCount + 1) - 1, STAGES.length));
+  const [archived, setArchived] = useState(savedTask?.status === "已归档");
+  const [finished, setFinished] = useState(initialCount === STAGES.length || !!savedTask?.stopped);
+  const [stopped, setStopped] = useState(!!savedTask?.stopped);
+  const [expandedThinking, setExpandedThinking] = useState<number | null>(initialCount < STAGES.length ? initialCount : null);
   const [typingText, setTypingText] = useState("");
-  const [editableResults, setEditableResults] = useState<string[]>(Array(STAGES.length).fill(""));
-  const [thoughtLogs, setThoughtLogs] = useState<string[]>(Array(STAGES.length).fill(""));
+  const [editableResults, setEditableResults] = useState<string[]>(initialResults);
+  const [thoughtLogs, setThoughtLogs] = useState<string[]>(savedTask?.thoughtLogs ?? STAGES.map((s, i) => i < initialCount ? s.thoughts.join("\n") : ""));
   const [runKey, setRunKey] = useState(0);
-  const [openFinalMode, setOpenFinalMode] = useState(directFinal);
+  const [openFinalMode, setOpenFinalMode] = useState(initialCount === STAGES.length);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const nodeRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const thinkingEndRef = useRef<HTMLSpanElement>(null);
+  const followRef = useRef(true);
+  const viewingHistoryRef = useRef(false);
+  const [followPaused, setFollowPaused] = useState(false);
+  const completedRef = useRef(initialCount);
   const typingCancelRef = useRef<(() => void) | null>(null);
   const stopRef = useRef(false);
 
@@ -180,7 +198,7 @@ function PolicyAnalysisFlow() {
     stopRef.current = true;
     setStopped(true);
     setFinished(true);
-    setStage(STAGES.length);
+    setExpandedThinking(null);
   }, []);
 
   const handleRestart = useCallback(() => {
@@ -189,6 +207,12 @@ function PolicyAnalysisFlow() {
     setStopped(false);
     setFinished(false);
     setStage(0);
+    completedRef.current = 0;
+    setCompletedCount(0);
+    setCurrentNode(0);
+    followRef.current = true;
+    viewingHistoryRef.current = false;
+    setFollowPaused(false);
     setExpandedThinking(0);
     setTypingText("");
     setEditableResults(Array(STAGES.length).fill(""));
@@ -198,8 +222,6 @@ function PolicyAnalysisFlow() {
 
   useEffect(() => {
     if (openFinalMode) {
-      setThoughtLogs(STAGES.map((item) => item.thoughts.join("\n")));
-      setEditableResults([...STAGE_OUTPUTS]);
       setFinished(true);
       setStopped(false);
       setStage(STAGES.length);
@@ -207,13 +229,15 @@ function PolicyAnalysisFlow() {
       return;
     }
 
+    if (savedTask?.stopped && runKey === 0) return;
     stopRef.current = false;
     let mounted = true;
     const stoppedNow = () => !mounted || stopRef.current;
 
     const run = async () => {
-      for (let i = 0; i < STAGES.length; i++) {
+      for (let i = completedRef.current; i < STAGES.length; i++) {
         setStage(i);
+        if (!viewingHistoryRef.current) setCurrentNode(i);
         setExpandedThinking(i);
         setThoughtLogs((prev) => {
           const next = [...prev];
@@ -228,10 +252,13 @@ function PolicyAnalysisFlow() {
           return next;
         });
         setExpandedThinking(null);
+        completedRef.current = i + 1;
+        setCompletedCount(i + 1);
       }
 
       setFinished(true);
       setStage(STAGES.length);
+      if (!viewingHistoryRef.current) setCurrentNode(STAGES.length);
       window.dispatchEvent(
         new CustomEvent("assistant:eval-report-done", {
           detail: { title: policyName },
@@ -274,8 +301,79 @@ function PolicyAnalysisFlow() {
     markPolicyEvaluated(policyName);
   }, [finished, stopped, policyName]);
 
-  const flowCurrent = Math.min(stage + 1, STAGES.length);
-  const statusLabel = stopped ? "已停止" : finished ? "已完成" : STAGES[stage]?.label || "执行中";
+  const allComplete = completedCount === STAGES.length && !stopped;
+  const pauseFollow = useCallback(() => {
+    followRef.current = false;
+    setFollowPaused(true);
+  }, []);
+  const locateNode = useCallback((index: number) => {
+    const target = nodeRefs.current[index];
+    const container = containerRef.current;
+    if (target && container) container.scrollTo({ top: container.scrollTop + target.getBoundingClientRect().top - container.getBoundingClientRect().top - 16, behavior: "auto" });
+  }, []);
+
+  useEffect(() => {
+    if (!followRef.current) return;
+    if (!finished || allComplete) locateNode(finished ? currentNode : stage);
+  }, [stage, finished, allComplete, currentNode, locateNode]);
+
+  useEffect(() => {
+    if (!followRef.current || finished) return;
+    const end = thinkingEndRef.current;
+    const container = containerRef.current;
+    if (end && container && end.getBoundingClientRect().bottom > container.getBoundingClientRect().bottom - 32) {
+      container.scrollBy({ top: end.getBoundingClientRect().bottom - container.getBoundingClientRect().bottom + 48, behavior: "auto" });
+    }
+  }, [typingText, finished]);
+
+  const persistTask = useCallback((isArchived: boolean) => {
+    const tasks = loadPolicyEvaluationTasks();
+    const previous = tasks.find(task => task.id === taskId);
+    if (previous?.status === "已归档") return;
+    const timestamp = formatPolicyEvaluationUpdatedAt();
+    const task: PolicyEvaluationTask = {
+      ...previous,
+      id: taskId, title: previous?.title ?? policyName, department: previous?.department ?? "", domain: previous?.domain ?? "",
+      createdAt: previous?.createdAt ?? timestamp, updatedAt: timestamp,
+      status: isArchived ? "已归档" : allComplete ? "已完成" : "进行中",
+      currentStep: isArchived ? STAGES.length + 1 : currentNode + 1, completedCount, results: editableResults, thoughtLogs, stopped,
+    };
+    savePolicyEvaluationTasks(previous ? tasks.map(item => item.id === taskId ? task : item) : [task, ...tasks]);
+  }, [taskId, policyName, allComplete, currentNode, completedCount, editableResults, thoughtLogs, stopped]);
+
+  useEffect(() => {
+    try {
+      persistTask(archived);
+      if (!searchParams.get("taskId")) {
+        const params = new URLSearchParams(searchParams);
+        params.set("taskId", taskId);
+        setSearchParams(params, { replace: true });
+      }
+    } catch {
+      toast.error("评价任务保存失败，请检查浏览器存储空间");
+    }
+  }, [persistTask, archived, searchParams, setSearchParams, taskId]);
+
+  const selectNode = (index: number) => {
+    if (index > completedCount) return;
+    viewingHistoryRef.current = true;
+    pauseFollow();
+    setCurrentNode(index);
+    locateNode(index);
+  };
+  const archiveTask = () => {
+    if (!allComplete || archived) return;
+    try {
+      persistTask(true);
+      setArchived(true);
+      setCurrentNode(STAGES.length);
+      setExpandedThinking(null);
+      toast.success("归档成功");
+      locateNode(STAGES.length);
+    } catch { toast.error("归档失败，请重试"); }
+  };
+  const flowCurrent = currentNode + 1;
+  const statusLabel = archived ? "已归档" : stopped ? "已停止" : finished ? "已完成" : STAGES[stage]?.label || "执行中";
   const finalReportText = [
     "政策评价报告",
     `评估对象：${policyName}`,
@@ -285,9 +383,9 @@ function PolicyAnalysisFlow() {
   ].join("\n\n");
 
   return (
-    <div className="h-full min-h-0 w-full overflow-y-auto">
+    <div ref={containerRef} className="h-full min-h-0 w-full overflow-y-auto" onWheelCapture={pauseFollow} onTouchMoveCapture={pauseFollow} onPointerDownCapture={e => { if (e.target === e.currentTarget) pauseFollow(); }} onKeyDownCapture={e => { if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(e.key)) pauseFollow(); }}>
       <div className="mx-auto w-full max-w-7xl space-y-4 p-4 md:p-6">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
             onClick={() => navigate("/policy-evaluation")}
@@ -311,30 +409,31 @@ function PolicyAnalysisFlow() {
         <div className="rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">政策评价流程</h3>
-            <span className="text-xs font-medium text-muted-foreground">{`第 ${flowCurrent} / ${STAGES.length} 步`}</span>
+            <span className="text-xs font-medium text-muted-foreground">{`第 ${flowCurrent} / ${STAGES.length + 1} 步`}</span>
           </div>
-          <div className="flex items-center justify-center">
-            {STAGES.map((s, i) => {
+          <div className="grid grid-cols-2 gap-y-4 sm:flex sm:items-center sm:justify-center sm:flex-wrap">
+            {[...STAGES, { id: STAGES.length, label: "归档", icon: Archive }].map((s, i) => {
               const Icon = s.icon;
-              const isCurrent = flowCurrent === s.id + 1;
-              const isPending = flowCurrent < s.id + 1;
+              const isCurrent = !archived && currentNode === i;
+              const isDone = archived || i < completedCount;
+              const isPending = !isCurrent && !isDone;
               return (
-                <div key={s.id} className="flex items-center">
-                  <div className="flex flex-col items-center gap-2">
+                <div key={s.id} className="flex items-center justify-center">
+                  <button type="button" aria-label={s.label} aria-current={isCurrent ? "step" : undefined} disabled={i > completedCount} onClick={() => selectNode(i)} className="flex flex-col items-center gap-2 disabled:cursor-not-allowed">
                     <div
                       className={`h-12 w-12 rounded-full border flex items-center justify-center shrink-0
                       ${isCurrent ? "bg-primary text-primary-foreground border-primary shadow-[0_8px_18px_rgba(230,0,50,0.24)]" : ""}
-                      ${isPending ? "bg-white text-[#d8b9c6] border-[#e7ced8]" : ""}
-                      ${!isCurrent && !isPending ? "bg-primary/10 text-primary border-primary/30" : ""}`}
+                      ${isPending ? "bg-gray-50 text-gray-400 border-gray-200" : ""}
+                      ${!isCurrent && isDone ? "bg-emerald-50 text-emerald-600 border-emerald-200" : ""}`}
                     >
-                      <Icon className="h-5 w-5" />
+                      {!isCurrent && isDone ? <CheckCircle2 className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
                     </div>
                     <span className={`text-xs font-medium whitespace-nowrap ${isPending ? "text-muted-foreground" : "text-foreground"}`}>
                       {s.label}
                     </span>
-                  </div>
-                  {i < STAGES.length - 1 && (
-                    <div className="px-6 md:px-8 text-[#d8b9c6] text-base leading-none select-none -mt-5">{">>"}</div>
+                  </button>
+                  {i < STAGES.length && (
+                    <div className="hidden sm:block px-3 md:px-5 text-[#d8b9c6] text-base leading-none select-none -mt-5">{">>"}</div>
                   )}
                 </div>
               );
@@ -343,13 +442,14 @@ function PolicyAnalysisFlow() {
         </div>
 
         <div className="rounded-xl border border-border bg-card">
-          <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border">
             <div className="flex items-center gap-1.5">
               {!finished ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <CheckCircle2 className="h-4 w-4 text-primary" />}
               <span className="text-sm text-muted-foreground">{statusLabel}</span>
             </div>
-            <div className="flex items-center gap-2">
-              {finished && (
+            <div className="flex flex-wrap items-center gap-2 [&_button]:whitespace-nowrap">
+              {!finished && followPaused && <Button size="sm" variant="outline" onClick={() => { followRef.current = true; viewingHistoryRef.current = false; setFollowPaused(false); setCurrentNode(stage); locateNode(stage); }}>跟随生成进度</Button>}
+              {allComplete && (
                 <button
                   onClick={() => {
                     const html = buildGovReportPreviewHtml({
@@ -367,7 +467,7 @@ function PolicyAnalysisFlow() {
                   预览报告
                 </button>
               )}
-              {finished && (
+              {allComplete && (
                 <button
                   onClick={() => {
                     const blob = new Blob([finalReportText], { type: "text/plain;charset=utf-8" });
@@ -392,7 +492,7 @@ function PolicyAnalysisFlow() {
                   停止生成
                 </button>
               )}
-              {finished && (
+              {finished && !archived && (
                 <button
                   onClick={handleRestart}
                   className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg border border-border text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
@@ -420,21 +520,24 @@ function PolicyAnalysisFlow() {
             {STAGES.map((s, i) => {
               const Icon = s.icon;
               const active = !finished && stage === i;
-              const done = finished || stage > i;
+              const done = i < completedCount;
               const hasResult = !!editableResults[i];
               const thinkingOpen = expandedThinking === i && (active || done);
 
               return (
-                <div key={s.id} className="rounded-xl border border-border bg-white min-h-[320px]">
+                <div ref={el => { nodeRefs.current[i] = el; }} key={s.id} className={`rounded-xl border bg-white min-h-[320px] ${currentNode === i && !archived ? "border-primary/40" : "border-border"}`}>
                   <button
                     className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
+                    disabled={!done && !active}
+                    aria-label={`${s.label}思考过程`}
+                    aria-expanded={thinkingOpen}
                     onClick={() => setExpandedThinking(thinkingOpen ? null : i)}
                   >
                     <Icon className={`h-4 w-4 shrink-0 ${active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground/50"}`} />
                     <span className={`flex-1 text-sm font-medium ${active ? "text-primary" : done ? "text-foreground" : "text-muted-foreground"}`}>
                       {s.label}
                     </span>
-                    {active ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : done ? <CheckCircle2 className="h-3.5 w-3.5 text-primary" /> : null}
+                    {active ? <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" /> : done ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> : null}
                     <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${thinkingOpen ? "rotate-180" : ""}`} />
                   </button>
 
@@ -444,7 +547,7 @@ function PolicyAnalysisFlow() {
                         <p className="mb-2 text-xs font-medium text-muted-foreground">思考过程</p>
                         <pre className="whitespace-pre-wrap text-xs text-muted-foreground leading-relaxed">
                           {active ? typingText : thoughtLogs[i] || STAGES[i].thoughts.join("\n")}
-                          {active && <span className="inline-block w-0.5 h-3 bg-primary ml-0.5 animate-pulse align-middle" />}
+                          {active && <span ref={thinkingEndRef} className="inline-block w-0.5 h-3 bg-primary ml-0.5 animate-pulse align-middle" />}
                         </pre>
                       </div>
                     </div>
@@ -456,8 +559,10 @@ function PolicyAnalysisFlow() {
                   )}
 
                   <div className="px-4 pb-4">
-                    <p className="mb-2 text-xs font-medium text-muted-foreground">分析结果（可编辑）</p>
+                    <p className="mb-2 text-xs font-medium text-muted-foreground">{archived ? "分析结果" : "分析结果（可编辑）"}</p>
                     <textarea
+                      aria-label={`${s.label}分析结果`}
+                      readOnly={archived || !done}
                       value={editableResults[i]}
                       onChange={(e) =>
                         setEditableResults((prev) => {
@@ -481,6 +586,15 @@ function PolicyAnalysisFlow() {
                 </div>
               );
             })}
+            <div ref={el => { nodeRefs.current[STAGES.length] = el; }} className="rounded-xl border border-border bg-white p-6 text-center">
+              <Archive className={`mx-auto mb-3 h-8 w-8 ${archived ? "text-emerald-600" : "text-primary"}`} />
+              <h3 className="font-semibold">{archived ? "评价任务已归档" : "归档"}</h3>
+              <p className="my-3 text-sm text-muted-foreground">{archived ? "评价结果已保存，可点击已完成节点查看。" : allComplete ? "所有评价内容已生成，可归档完成当前任务。" : "全部评价内容生成完成后可归档。"}</p>
+              <div className="flex justify-center gap-3">
+                {allComplete && <Button variant="outline" onClick={() => selectNode(STAGES.length - 1)}><ArrowLeft className="mr-1 h-4 w-4" />返回上一步</Button>}
+                {allComplete && !archived && <ArchiveConfirmButton className="gov-gradient text-primary-foreground gap-2 px-8" onConfirm={archiveTask}><Archive className="h-4 w-4" />归档</ArchiveConfirmButton>}
+              </div>
+            </div>
           </div>
         </div>
       </div>

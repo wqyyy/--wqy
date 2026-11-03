@@ -14,6 +14,7 @@ export default function PolicyEstimationTaskList() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [tasks] = useState(() => [
     ...readFundingTasks().map(task => ({ ...task, progressStep: task.archived || (task.result && fundingTaskProgress(task).step === 2) ? 3 : fundingTaskProgress(task).step, scene: task.clause, budgetRange: task.result ? `${task.result.total} 万元` : "", status: task.archived ? "已归档" : task.result ? "已分析完成" : "进行中" })),
     ...POLICY_ESTIMATION_TASKS.map(task => ({ ...task, status: "已完成", progressStep: 3 })),
@@ -21,14 +22,15 @@ export default function PolicyEstimationTaskList() {
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return tasks;
-    return tasks.filter(
+    const matchingStatus = tasks.filter(task => !statusFilter || task.status === statusFilter);
+    if (!q) return matchingStatus;
+    return matchingStatus.filter(
       (task) =>
         task.title.toLowerCase().includes(q) ||
         task.scene.toLowerCase().includes(q) ||
         task.budgetRange.toLowerCase().includes(q),
     );
-  }, [searchQuery, tasks]);
+  }, [searchQuery, statusFilter, tasks]);
 
   const handleSearch = () => {
     setSearchQuery(keyword.trim());
@@ -37,6 +39,7 @@ export default function PolicyEstimationTaskList() {
   const handleReset = () => {
     setKeyword("");
     setSearchQuery("");
+    setStatusFilter("");
   };
 
   const {
@@ -47,7 +50,7 @@ export default function PolicyEstimationTaskList() {
     totalItems,
     totalPages,
     pagedItems,
-  } = useTaskListPagination(filteredTasks, searchQuery);
+  } = useTaskListPagination(filteredTasks, JSON.stringify([searchQuery, statusFilter]));
 
   return (
     <div className="h-full overflow-y-auto p-5 md:p-6">
@@ -70,6 +73,7 @@ export default function PolicyEstimationTaskList() {
           onChange={setKeyword}
           onSearch={handleSearch}
           onReset={handleReset}
+          statusFilter={{ value: statusFilter, onChange: setStatusFilter, options: ["进行中","已分析完成","已完成","已归档"] }}
           placeholder="请输入测算任务名称进行搜索"
           extraActions={
             <Button

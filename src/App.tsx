@@ -13,6 +13,7 @@ import PolicyReportTaskList from "./pages/PolicyReportTaskList";
 import PolicyReportCreate from "./pages/PolicyReportCreate";
 import PolicyReportDetail from "./pages/PolicyReportDetail";
 import EffectDashboard from "./pages/EffectDashboard";
+import EffectBusinessDetail from "./pages/EffectBusinessDetail";
 import EnterpriseEvaluation from "./pages/EnterpriseEvaluation";
 import EnterpriseEvaluationDetail from "./pages/EnterpriseEvaluationDetail";
 import PolicyEvaluation from "./pages/PolicyEvaluation";
@@ -52,6 +53,7 @@ const App = () => (
       <HashRouter>
         <Routes>
           <Route path="/funding-enterprise/:id" element={<FundingEnterpriseDetail />} />
+          <Route path="/effect-detail/:kind/:id" element={<EffectBusinessDetail />} />
           <Route path="/" element={<Navigate to="/home" replace />} />
 
           {/* 带侧栏的所有页面 */}

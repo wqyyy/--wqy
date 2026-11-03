@@ -1,3 +1,4 @@
+import { ArchiveConfirmButton } from "@/components/ArchiveConfirmButton";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { compareAnalysisTaskStatus, getCompareAnalysisTaskStep, loadPolicyCompareAnalysisTasks, savePolicyCompareAnalysisTasks, formatPolicyCompareAnalysisUpdatedAt } from "@/lib/policyCompareAnalysisTasks";
@@ -808,7 +809,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
                 {isAnalyzing ? "AI分析中…" : "开始AI分析"}
               </Button>
             ) : (
-              <Button className={cn("h-11 flex-1", archived ? "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100" : "gov-gradient text-primary-foreground hover:opacity-90")} variant={archived ? "outline" : "default"} disabled={archived || isAnalyzing || !hasAnalyzed} onClick={archiveTask}>{archived ? "已归档" : isAnalyzing ? "AI分析中…" : "归档"}</Button>
+              <ArchiveConfirmButton className={cn("h-11 flex-1", archived ? "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100" : "gov-gradient text-primary-foreground hover:opacity-90")} variant={archived ? "outline" : "default"} disabled={archived || isAnalyzing || !hasAnalyzed} onConfirm={archiveTask}>{archived ? "已归档" : isAnalyzing ? "AI分析中…" : "归档"}</ArchiveConfirmButton>
             )}
           </div>
         </div>

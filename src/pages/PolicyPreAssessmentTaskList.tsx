@@ -31,6 +31,7 @@ export default function PolicyPreAssessmentTaskList() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [tasks, setTasks] = useState<PolicyPreAssessmentTask[]>(() => loadPolicyPreAssessmentTasks());
   const [editingTask, setEditingTask] = useState<PolicyPreAssessmentTask | null>(null);
   const [deletingTask, setDeletingTask] = useState<PolicyPreAssessmentTask | null>(null);
@@ -42,9 +43,10 @@ export default function PolicyPreAssessmentTaskList() {
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return tasks;
-    return tasks.filter((task) => task.title.toLowerCase().includes(q));
-  }, [searchQuery, tasks]);
+    const matchingStatus = tasks.filter(task => !statusFilter || task.status === statusFilter);
+    if (!q) return matchingStatus;
+    return matchingStatus.filter((task) => task.title.toLowerCase().includes(q));
+  }, [searchQuery, statusFilter, tasks]);
 
   const handleSearch = () => {
     setSearchQuery(keyword.trim());
@@ -53,6 +55,7 @@ export default function PolicyPreAssessmentTaskList() {
   const handleReset = () => {
     setKeyword("");
     setSearchQuery("");
+    setStatusFilter("");
   };
 
   const {
@@ -63,7 +66,7 @@ export default function PolicyPreAssessmentTaskList() {
     totalItems,
     totalPages,
     pagedItems,
-  } = useTaskListPagination(filteredTasks, searchQuery);
+  } = useTaskListPagination(filteredTasks, JSON.stringify([searchQuery, statusFilter]));
 
   const openTask = (task: PolicyPreAssessmentTask) => {
     navigate(`/policy-writing/pre-evaluation?taskId=${task.id}`, {
@@ -128,6 +131,7 @@ export default function PolicyPreAssessmentTaskList() {
           onChange={setKeyword}
           onSearch={handleSearch}
           onReset={handleReset}
+          statusFilter={{ value: statusFilter, onChange: setStatusFilter, options: ["进行中","已完成","已归档"] }}
           placeholder="请输入前评估任务名称进行搜索"
         />
 

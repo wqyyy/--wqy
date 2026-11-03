@@ -1,3 +1,4 @@
+import { ArchiveConfirmButton } from "@/components/ArchiveConfirmButton";
 import { useEffect, useRef, useState } from "react";
 import { Archive, ArrowLeft, BadgeCheck, CheckCircle2, ChevronRight, CirclePlus, ListFilter, Loader2, Plus, Trash2, X } from "lucide-react";
 import { fundingTaskProgress, saveFundingTask, type FundingTask } from "@/lib/fundingTasks";
@@ -147,7 +148,7 @@ export function FundingWorkspace({ initialClauseContent = "", savedTask, persist
       {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
       <div className="flex items-center gap-3 border-t border-border px-5 py-5">
         {!archived && <Button className="h-11 shrink-0 px-5" variant="outline" onClick={() => setStep(1)}><ArrowLeft className="mr-1.5 h-4 w-4" />返回上一步</Button>}
-        <Button className={`h-11 flex-1 ${archived ? "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100" : "gov-gradient text-primary-foreground hover:opacity-90"}`} variant={archived ? "outline" : "default"} disabled={archived} onClick={archiveTask}>{archived ? "已归档" : "归档"}</Button>
+        <ArchiveConfirmButton className={`h-11 flex-1 ${archived ? "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100" : "gov-gradient text-primary-foreground hover:opacity-90"}`} variant={archived ? "outline" : "default"} disabled={archived} onConfirm={archiveTask}>{archived ? "已归档" : "归档"}</ArchiveConfirmButton>
       </div>
     </>}
     {pickerOpen && <ConditionPicker open selected={[...new Set(conditions.map(condition => condition.field))]} onClose={() => setPickerOpen(false)} onConfirm={fields => { updateConditions([...conditions.filter(condition => fields.includes(condition.field)), ...fields.filter(field => !conditions.some(condition => condition.field === field)).map(makeCondition)]); setPickerOpen(false); }} />}

@@ -10,6 +10,7 @@ type TaskListSearchBarProps = {
   onReset: () => void;
   placeholder: string;
   extraActions?: ReactNode;
+  statusFilter?: { value: string; options: readonly string[]; onChange: (value: string) => void };
 };
 
 export function TaskListSearchBar({
@@ -19,6 +20,7 @@ export function TaskListSearchBar({
   onReset,
   placeholder,
   extraActions,
+  statusFilter,
 }: TaskListSearchBarProps) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -35,6 +37,13 @@ export function TaskListSearchBar({
             className="h-9 pl-9"
           />
         </div>
+        {statusFilter && <label className="flex items-center gap-2 whitespace-nowrap text-sm">
+          <span>任务状态</span>
+          <select aria-label="任务状态" className="h-9 min-w-36 rounded-md border border-input bg-background px-3 text-sm" value={statusFilter.value} onChange={event => statusFilter.onChange(event.target.value)}>
+            <option value="">全部状态</option>
+            {statusFilter.options.map(status => <option key={status} value={status}>{status}</option>)}
+          </select>
+        </label>}
         <Button variant="outline" className="h-9 px-4" onClick={onReset}>
           重置
         </Button>

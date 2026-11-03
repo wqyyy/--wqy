@@ -32,6 +32,7 @@ export default function PolicyCompareAnalysisTaskList() {
   const navigate = useNavigate();
   const [keyword, setKeyword] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [tasks, setTasks] = useState<PolicyCompareAnalysisTask[]>(() => loadPolicyCompareAnalysisTasks());
   const [editingTask, setEditingTask] = useState<PolicyCompareAnalysisTask | null>(null);
   const [deletingTask, setDeletingTask] = useState<PolicyCompareAnalysisTask | null>(null);
@@ -43,9 +44,10 @@ export default function PolicyCompareAnalysisTaskList() {
 
   const filteredTasks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return tasks;
-    return tasks.filter((task) => task.title.toLowerCase().includes(q));
-  }, [searchQuery, tasks]);
+    const matchingStatus = tasks.filter(task => !statusFilter || task.status === statusFilter);
+    if (!q) return matchingStatus;
+    return matchingStatus.filter((task) => task.title.toLowerCase().includes(q));
+  }, [searchQuery, statusFilter, tasks]);
 
   const {
     currentPage,
@@ -55,7 +57,7 @@ export default function PolicyCompareAnalysisTaskList() {
     totalItems,
     totalPages,
     pagedItems,
-  } = useTaskListPagination(filteredTasks, searchQuery);
+  } = useTaskListPagination(filteredTasks, JSON.stringify([searchQuery, statusFilter]));
 
   const handleSearch = () => {
     setSearchQuery(keyword.trim());
@@ -64,6 +66,7 @@ export default function PolicyCompareAnalysisTaskList() {
   const handleReset = () => {
     setKeyword("");
     setSearchQuery("");
+    setStatusFilter("");
   };
 
   const openTask = (task: PolicyCompareAnalysisTask) => {
@@ -113,6 +116,7 @@ export default function PolicyCompareAnalysisTaskList() {
           onChange={setKeyword}
           onSearch={handleSearch}
           onReset={handleReset}
+          statusFilter={{ value: statusFilter, onChange: setStatusFilter, options: ["已创建","分析中","已分析完成","已归档"] }}
           placeholder="请输入分析任务名称进行搜索"
           extraActions={
             <Button

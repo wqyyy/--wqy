@@ -3,10 +3,14 @@ export type PolicyEvaluationTask = {
   title: string;
   department: string;
   domain: string;
-  status: "进行中" | "已完成";
+  status: "进行中" | "已完成" | "已归档";
   currentStep: number;
   createdAt: string;
   updatedAt: string;
+  completedCount?: number;
+  results?: string[];
+  thoughtLogs?: string[];
+  stopped?: boolean;
 };
 
 const STORAGE_KEY = "policy-evaluation-tasks";
@@ -79,7 +83,7 @@ export function loadPolicyEvaluationTasks(): PolicyEvaluationTask[] {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as PolicyEvaluationTask[];
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed)) return parsed;
     }
   } catch {
     // ignore invalid cache
@@ -101,7 +105,13 @@ export function getPolicyEvaluationTaskById(taskId: string): PolicyEvaluationTas
 }
 
 export function downloadPolicyEvaluationTask(task: PolicyEvaluationTask) {
-  const content = [
+  const content = task.results?.length === 5 ? [
+    `关于《${task.title}》的政策评价报告`,
+    `评价对象：${task.title}`,
+    `主管部门：${task.department}`,
+    `政策领域：${task.domain}`,
+    ...["一、整体情况分析", "二、内容逐条分析", "三、实施效果分析", "四、存在问题分析", "五、优化建议分析"].map((title, i) => `${title}\n${task.results![i]}`),
+  ].join("\n\n") : [
     `关于《${task.title}》的政策评价报告`,
     "",
     `评价对象：${task.title}`,
@@ -139,5 +149,5 @@ export function downloadPolicyEvaluationTask(task: PolicyEvaluationTask) {
 export function resolveEvaluationEntryFromTask(task: PolicyEvaluationTask): {
   directFinal: boolean;
 } {
-  return { directFinal: task.status === "已完成" || task.currentStep >= 5 };
+  return { directFinal: task.status === "已完成" || task.status === "已归档" };
 }
