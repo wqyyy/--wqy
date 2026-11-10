@@ -1,5 +1,5 @@
 const TASK_STATUS_BADGE_CLASS: Record<string, string> = {
-  已创建: "bg-blue-50 text-blue-600 border-blue-200",
+  待确认: "bg-blue-50 text-blue-600 border-blue-200",
   分析中: "bg-amber-50 text-amber-600 border-amber-200",
   生成中: "bg-amber-50 text-amber-600 border-amber-200",
   进行中: "bg-amber-50 text-amber-600 border-amber-200",

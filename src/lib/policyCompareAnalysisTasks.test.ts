@@ -3,8 +3,14 @@ import { compareAnalysisTaskStatus, loadPolicyCompareAnalysisTasks } from "./pol
 
 afterEach(() => localStorage.clear());
 describe("comparison task statuses", () => {
+  it("migrates created tasks to pending confirmation without changing progress", () => {
+    localStorage.setItem("policy-compare-analysis-tasks", JSON.stringify([
+      { id: "legacy-created", status: "已创建", currentStep: 2, completedThrough: 1 },
+    ]));
+    expect(loadPolicyCompareAnalysisTasks()[0]).toMatchObject({ id: "legacy-created", status: "待确认", currentStep: 2, completedThrough: 1 });
+  });
   it("maps the four lifecycle states", () => {
-    expect(compareAnalysisTaskStatus(false, false, false)).toBe("已创建");
+    expect(compareAnalysisTaskStatus(false, false, false)).toBe("待确认");
     expect(compareAnalysisTaskStatus(false, true, false)).toBe("分析中");
     expect(compareAnalysisTaskStatus(false, false, true)).toBe("已分析完成");
     expect(compareAnalysisTaskStatus(true, false, true)).toBe("已归档");
@@ -20,6 +26,6 @@ describe("comparison task statuses", () => {
       { id: "archived", status: "进行中", archived: true },
       { id: "failed", status: "失败" },
     ]));
-    expect(loadPolicyCompareAnalysisTasks().map(task => task.status)).toEqual(["已创建", "分析中", "已分析完成", "已归档", "已创建"]);
+    expect(loadPolicyCompareAnalysisTasks().map(task => task.status)).toEqual(["待确认", "分析中", "已分析完成", "已归档", "待确认"]);
   });
 });

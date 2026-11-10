@@ -116,7 +116,7 @@ export default function PolicyCompareAnalysisTaskList() {
           onChange={setKeyword}
           onSearch={handleSearch}
           onReset={handleReset}
-          statusFilter={{ value: statusFilter, onChange: setStatusFilter, options: ["已创建","分析中","已分析完成","已归档"] }}
+          statusFilter={{ value: statusFilter, onChange: setStatusFilter, options: ["待确认","分析中","已分析完成","已归档"] }}
           placeholder="请输入分析任务名称进行搜索"
           extraActions={
             <Button

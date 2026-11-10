@@ -40,7 +40,7 @@ describe("history task status filters", () => {
 
   it("returns to page one when status changes, even if multiple pages remain", () => {
     const base = loadPolicyCompareAnalysisTasks()[0];
-    savePolicyCompareAnalysisTasks(Array.from({ length: 30 }, (_, index) => ({ ...base, id: `status-test-${index}`, title: `测试任务${index}`, status: index < 20 ? "已分析完成" : "已创建", currentStep: index < 20 ? 3 : 1 })));
+    savePolicyCompareAnalysisTasks(Array.from({ length: 30 }, (_, index) => ({ ...base, id: `status-test-${index}`, title: `测试任务${index}`, status: index < 20 ? "已分析完成" : "待确认", currentStep: index < 20 ? 3 : 1 })));
     render(<MemoryRouter><PolicyCompareAnalysisTaskList /></MemoryRouter>);
     fireEvent.click(screen.getByRole("button", { name: "下一页" }));
     expect(screen.getByRole("button", { name: "上一页" })).toBeEnabled();

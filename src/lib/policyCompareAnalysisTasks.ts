@@ -5,7 +5,7 @@ export type PolicyCompareAnalysisTask = {
   id: string;
   title: string;
   taskType: "横向对比" | "查重" | "异同对比";
-  status: "已创建" | "分析中" | "已分析完成" | "已归档";
+  status: "待确认" | "分析中" | "已分析完成" | "已归档";
   createdAt: string;
   updatedAt: string;
   archived?: boolean;
@@ -32,7 +32,7 @@ export function getCompareAnalysisTaskStep(task: PolicyCompareAnalysisTask) {
 }
 
 export function compareAnalysisTaskStatus(archived: boolean, analyzing: boolean, completed: boolean): PolicyCompareAnalysisTask["status"] {
-  return archived ? "已归档" : analyzing ? "分析中" : completed ? "已分析完成" : "已创建";
+  return archived ? "已归档" : analyzing ? "分析中" : completed ? "已分析完成" : "待确认";
 }
 
 const STORAGE_KEY = "policy-compare-analysis-tasks";
@@ -60,7 +60,7 @@ export const POLICY_COMPARE_ANALYSIS_TASKS: PolicyCompareAnalysisTask[] = [
     id: "task-3",
     title: "章节任务测试",
     taskType: "横向对比",
-    status: "已创建",
+    status: "待确认",
     createdAt: "2026-02-12 09:56:32",
     updatedAt: "2026-02-12 09:56:32",
   },
@@ -84,7 +84,7 @@ export const POLICY_COMPARE_ANALYSIS_TASKS: PolicyCompareAnalysisTask[] = [
     id: "task-6",
     title: "机器人产业条款异同分析",
     taskType: "异同对比",
-    status: "已创建",
+    status: "待确认",
     createdAt: "2026-04-02 10:15:00",
     updatedAt: "2026-04-03 14:22:18",
   },
@@ -92,7 +92,7 @@ export const POLICY_COMPARE_ANALYSIS_TASKS: PolicyCompareAnalysisTask[] = [
     id: "task-7",
     title: "氢能政策横向对比分析",
     taskType: "横向对比",
-    status: "已创建",
+    status: "待确认",
     createdAt: "2026-04-08 15:20:11",
     updatedAt: "2026-04-08 15:21:03",
   },
@@ -102,7 +102,7 @@ export function loadPolicyCompareAnalysisTasks(): PolicyCompareAnalysisTask[] {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (raw) {
-      const parsed = JSON.parse(raw) as (Omit<PolicyCompareAnalysisTask, "status"> & { status: PolicyCompareAnalysisTask["status"] | "已完成" | "进行中" | "失败" })[];
+      const parsed = JSON.parse(raw) as (Omit<PolicyCompareAnalysisTask, "status"> & { status: PolicyCompareAnalysisTask["status"] | "已创建" | "已完成" | "进行中" | "失败" })[];
       if (Array.isArray(parsed) && parsed.length > 0) return parsed.map(task => ({ ...task, status: compareAnalysisTaskStatus(Boolean(task.archived || task.status === "已归档"), task.status === "分析中" || (task.status === "进行中" && task.currentStep === 3 && !task.snapshot?.results.length), task.status === "已完成" || task.status === "已分析完成" || Boolean(task.snapshot?.results.length)) }));
     }
   } catch {

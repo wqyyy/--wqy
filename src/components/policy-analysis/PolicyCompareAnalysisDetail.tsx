@@ -140,7 +140,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
   const [savedTask] = useState(() => loadPolicyCompareAnalysisTasks().find(task => task.id === taskId));
   const snapshot = savedTask?.snapshot;
   const [archived, setArchived] = useState(Boolean(savedTask?.archived || savedTask?.status === "已归档"));
-  const [completedThrough, setCompletedThrough] = useState(savedTask?.completedThrough ?? (savedTask?.archived ? 4 : savedTask && (savedTask.status === "已创建" || savedTask.status === "分析中") ? getCompareAnalysisTaskStep(savedTask) - 1 : isNew ? 0 : 3));
+  const [completedThrough, setCompletedThrough] = useState(savedTask?.completedThrough ?? (savedTask?.archived ? 4 : savedTask && (savedTask.status === "待确认" || savedTask.status === "分析中") ? getCompareAnalysisTaskStep(savedTask) - 1 : isNew ? 0 : 3));
   const [flowCurrent, setFlowCurrent] = useState(() => savedTask ? Math.min(getCompareAnalysisTaskStep(savedTask), 3) : isNew ? 1 : 3);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisStartedAt, setAnalysisStartedAt] = useState("");
@@ -156,12 +156,12 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
   const [selectedClauseIds, setSelectedClauseIds] = useState<string[]>(() =>
     snapshot?.selectedClauseIds ?? (isNew ? [] : defaultClauses.map((c) => c.id)),
   );
-  const [hasAnalyzed, setHasAnalyzed] = useState(() => snapshot ? snapshot.results.length > 0 : savedTask && (savedTask.status === "已创建" || savedTask.status === "分析中") ? false : !isNew);
+  const [hasAnalyzed, setHasAnalyzed] = useState(() => snapshot ? snapshot.results.length > 0 : savedTask && (savedTask.status === "待确认" || savedTask.status === "分析中") ? false : !isNew);
   const [clauses, setClauses] = useState<ClauseItem[]>(() => snapshot?.clauses ?? (isNew ? [] : defaultClauses));
   const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
   const [materialScope, setMaterialScope] = useState<ClauseMaterialScope>("personal");
   const [results, setResults] = useState<AnalysisResultItem[]>(() =>
-    snapshot?.results ?? (isNew || savedTask?.status === "已创建" || savedTask?.status === "分析中" ? [] : buildAnalysisResults("horizontal", defaultClauses, "80%")),
+    snapshot?.results ?? (isNew || savedTask?.status === "待确认" || savedTask?.status === "分析中" ? [] : buildAnalysisResults("horizontal", defaultClauses, "80%")),
   );
   const [viewingResultId, setViewingResultId] = useState<string | null>(null);
   const [publishDateStart, setPublishDateStart] = useState(snapshot?.publishDateStart ?? "");
