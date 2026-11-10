@@ -590,9 +590,9 @@ function PolicyAnalysisFlow() {
               <Archive className={`mx-auto mb-3 h-8 w-8 ${archived ? "text-emerald-600" : "text-primary"}`} />
               <h3 className="font-semibold">{archived ? "评价任务已归档" : "归档"}</h3>
               <p className="my-3 text-sm text-muted-foreground">{archived ? "评价结果已保存，可点击已完成节点查看。" : allComplete ? "所有评价内容已生成，可归档完成当前任务。" : "全部评价内容生成完成后可归档。"}</p>
-              <div className="flex justify-center gap-3">
-                {allComplete && <Button variant="outline" onClick={() => selectNode(STAGES.length - 1)}><ArrowLeft className="mr-1 h-4 w-4" />返回上一步</Button>}
-                {allComplete && !archived && <ArchiveConfirmButton className="gov-gradient text-primary-foreground gap-2 px-8" onConfirm={archiveTask}><Archive className="h-4 w-4" />归档</ArchiveConfirmButton>}
+              <div className="flex items-center gap-3 border-t border-border px-5 py-5">
+                {allComplete && <Button className="h-11" variant="outline" onClick={() => selectNode(STAGES.length - 1)}><ArrowLeft className="mr-1 h-4 w-4" />返回上一步</Button>}
+                {allComplete && <ArchiveConfirmButton type="button" disabled={archived} variant={archived ? "outline" : "default"} className={`h-11 flex-1 ${archived ? "border-gray-300 bg-gray-100 text-gray-700 disabled:opacity-100" : "gov-gradient text-primary-foreground hover:opacity-90"}`} onConfirm={archiveTask}>{archived ? "已归档" : "归档"}</ArchiveConfirmButton>}
               </div>
             </div>
           </div>

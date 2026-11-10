@@ -1,7 +1,13 @@
 import type { BusinessRecord } from "@/lib/effectDrilldown";
 
-// Official pages checked on 2026-10-27. These examples are not a complete ledger.
+// Official examples checked on 2026-11-03; this is not a complete publication ledger.
 const documents = [
+  { id: "bda-games", name: "中共北京市委经济技术开发区工委宣传文化部关于开展2025年度游戏电竞产业政策相关事项申报的通知", department: "宣传文化部", publisher: "中共北京市委经济技术开发区工作委员会宣传文化部", level: "经开区", date: "2026-10-09", sourceUrl: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202610/t20261008_4892811.html", item: "2025年度游戏电竞产业政策相关事项申报", startDate: "2026-10-10", endDate: "2026-10-30" },
+  { id: "bda-talent", name: "中共北京市委经济技术开发区工委组织人事部关于开展2026年亦城人才备案认定申报的通知", department: "组织人事部", publisher: "中共北京市委经济技术开发区工委组织人事部", level: "经开区", date: "2026-10-08", sourceUrl: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202610/t20261008_4892665.html", item: "2026年亦城人才备案认定申报", startDate: "2026-10-09", endDate: "2026-11-20" },
+  { id: "bda-space-industry", name: "北京经济技术开发区机器人和智能制造产业局关于开展2026年商业航天产业政策相关事项申报的通知", department: "机器人和智能制造产业局", publisher: "北京经济技术开发区机器人和智能制造产业局", level: "经开区", date: "2026-09-29", status: "已失效", sourceUrl: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202609/t20260928_4883934.html", item: "2026年商业航天产业政策相关事项申报", startDate: "2026-09-30", endDate: "2026-10-23" },
+  { id: "bda-services", name: "北京经济技术开发区经济发展局关于开展2026年生产性服务业十二条政策相关事项申报的通知", department: "经济发展局", publisher: "北京经济技术开发区经济发展局", level: "经开区", date: "2026-09-28", sourceUrl: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202609/t20260928_4883862.html", item: "2026年生产性服务业十二条政策相关事项申报", startDate: "2026-09-29", endDate: "2026-10-19" },
+  { id: "bda-ai-talent", name: "北京经济技术开发区信息技术产业局关于开展2026年人工智能创新创业人才支持申报的通知", department: "信息技术产业局", publisher: "北京经济技术开发区信息技术产业局", level: "经开区", date: "2026-10-30", sourceUrl: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202610/t20261030_4924619.html", item: "2026年人工智能创新创业人才支持申报", startDate: "2026-10-30", endDate: "2026-11-18" },
+  { id: "bda-global-rd", name: "北京经济技术开发区商务金融局关于开展2026年跨国公司全球研发中心认定奖励（第一年度）申报的通知", department: "商务金融局", publisher: "北京经济技术开发区商务金融局", level: "经开区", date: "2026-10-27", sourceUrl: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202610/t20261027_4920588.html", item: "2026年跨国公司全球研发中心认定奖励（第一年度）申报", startDate: "2026-10-28", endDate: "2026-11-16" },
   { id: "national-rd", name: "财政部 税务总局关于进一步完善研发费用税前加计扣除政策的公告", department: "财政部、税务总局", level: "国家", date: "2023-03-26", code: "财政部 税务总局公告2023年第7号", sourceUrl: "https://fgk.chinatax.gov.cn/zcfgk/c102416/c5201978/content.html", content: "明确企业研发投入所得税优惠的适用口径，执行要求以官方公告为准。" },
   { id: "national-sme", name: "关于进一步支持专精特新中小企业高质量发展的通知", department: "财政部、工业和信息化部", level: "国家", date: "2024-06-19", code: "财建〔2024〕148号", sourceUrl: "https://app.www.gov.cn/govdata/gov/202406/19/516322/article.html", content: "部署中央财政支持专精特新企业发展的工作，具体条件和组织流程见原文。" },
   { id: "beijing-ecommerce", name: "北京市商务局关于申报2026年促进电子商务高质量发展支持政策的通知", department: "北京市商务局", level: "北京市", date: "2026-03-30", code: "京商电商字〔2026〕8号", sourceUrl: "https://www.beijing.gov.cn/zhengce/zhengcefagui/202603/t20260330_4569992.html", content: "发布本年度电商支持方向与申报安排，各方向材料和时限以通知为准。" },
@@ -17,7 +23,7 @@ const documents = [
 export const EFFECT_OFFICIAL_RECORDS: BusinessRecord[] = documents.flatMap(doc => {
   const policy: BusinessRecord = { id: `official-policy-${doc.id}`, kind: "policy", name: doc.name, department: doc.department, publisher: doc.publisher ?? doc.department, level: doc.level, date: doc.date, code: doc.code, status: doc.status, sourceUrl: doc.sourceUrl, content: doc.content };
   if (!doc.item) return [policy];
-  const item: BusinessRecord = { id: `official-item-${doc.id}`, kind: "item", name: doc.item, department: doc.department, publisher: policy.publisher, level: doc.level, date: doc.date, startDate: doc.startDate, endDate: doc.endDate, policyId: policy.id, policyName: policy.name, sourceUrl: doc.sourceUrl, applicationStatus: doc.endDate < "2026-10-27" ? "申报已截止" : "申报中" };
+  const item: BusinessRecord = { id: `official-item-${doc.id}`, kind: "item", name: doc.item, department: doc.department, publisher: policy.publisher, level: doc.level, date: doc.date, startDate: doc.startDate, endDate: doc.endDate, policyId: policy.id, policyName: policy.name, sourceUrl: doc.sourceUrl, applicationStatus: doc.endDate < "2026-11-03" ? "申报已截止" : "申报中" };
   return [policy, item];
 });
 EFFECT_OFFICIAL_RECORDS.push({

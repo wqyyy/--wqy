@@ -229,7 +229,7 @@ function PolicyReferenceSourcesPanel({
                           href={cite.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="mt-1.5 inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline"
+                          className="mt-1.5 flex w-fit items-center gap-0.5 rounded-md border border-primary/40 bg-primary/5 px-2 py-0.5 text-[11px] text-primary hover:border-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         >
                           查看原文
                           <ExternalLink className="h-2.5 w-2.5" />
@@ -2120,7 +2120,7 @@ export function PolicyOutputPage({
                                     href={cite.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-0.5 ml-1.5 text-primary hover:underline"
+                                    className="mt-1.5 flex w-fit items-center gap-0.5 rounded-md border border-primary/40 bg-primary/5 px-2 py-0.5 text-primary hover:border-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                                   >
                                     查看原文
                                     <ExternalLink className="h-2.5 w-2.5" />

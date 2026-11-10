@@ -162,10 +162,10 @@ export function AssessmentStep3({ clauses, result: externalResult, onComplete }:
                           <p className="text-sm font-medium text-foreground">{check.policyTitle}</p>
                           <span className={`text-xs font-medium shrink-0 ${meta.color}`}>{meta.label}</span>
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5">
+                        <div className="mt-0.5 flex flex-col items-start gap-1">
                           <span className="text-xs text-muted-foreground">{check.source}</span>
                           <a href={check.url} target="_blank" rel="noopener noreferrer"
-                            className="text-xs text-primary flex items-center gap-0.5 hover:underline">
+                            className="inline-flex items-center gap-0.5 rounded-md border border-primary/40 bg-primary/5 px-2 py-0.5 text-xs text-primary hover:border-primary hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
                             <ExternalLink className="h-3 w-3" />查看原文
                           </a>
                         </div>

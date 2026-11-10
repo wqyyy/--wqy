@@ -32,6 +32,7 @@ describe("policy evaluation workflow", () => {
   it("retains edited results when switching completed steps and reopening", async () => {
     const first = openFlow();
     await act(async () => { await vi.advanceTimersByTimeAsync(6000); });
+    expect(screen.getAllByRole("button", { name: "归档" }).at(-1)).toHaveClass("h-11", "flex-1", "gov-gradient", "hover:opacity-90");
     fireEvent.change(screen.getByRole("textbox", { name: "整体情况分析分析结果" }), { target: { value: "已保存的修改结果" } });
     fireEvent.click(screen.getByRole("button", { name: "整体情况分析" }));
     fireEvent.click(screen.getByRole("button", { name: "优化建议分析" }));
@@ -62,6 +63,8 @@ describe("policy evaluation workflow", () => {
     first.unmount();
     openFlow();
     expect(screen.getByText("评价任务已归档")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "已归档" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "已归档" })).toHaveClass("h-11", "flex-1", "bg-gray-100");
     expect(screen.getAllByRole("textbox").every(input => input.hasAttribute("readonly"))).toBe(true);
   });
 

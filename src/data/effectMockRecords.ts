@@ -49,6 +49,50 @@ export function generateEffectMockRecords(): BusinessRecord[] {
 
 export type MockItemApplication = { id: string; itemId: string; enterpriseName: string; creditCode: string; date: string; status: string };
 
+export function addMockConfirmedItems(records: BusinessRecord[]): BusinessRecord[] {
+  const items = records.filter(r => r.kind === "item");
+  const fictional = items.filter(r => !r.sourceUrl);
+  const selected = new Set(fictional.slice(-16).map(r => r.id));
+  const paid = new Set(fictional.slice(0, 424).map(r => r.id));
+  const officialOpen = items.filter(r => r.sourceUrl && r.applicationStatus === "申报中").length;
+  const open = new Set(fictional.slice(0, Math.max(0, 16 - officialOpen)).map(r => r.id));
+  const mockIds = new Set(fictional.map(r => r.id));
+  return records.map(record => {
+    if (record.kind === "item" && mockIds.has(record.id)) return {
+      ...record, confirmed: paid.has(record.id) || selected.has(record.id), redeemed: paid.has(record.id),
+      redemptionStatus: paid.has(record.id) ? "已拨付" : selected.has(record.id) ? "已确定扶持结果" : "兑现流程中",
+      applicationStatus: open.has(record.id) ? "申报中" : "申报已截止",
+      startDate: open.has(record.id) ? "2026-11-01" : record.startDate,
+      endDate: open.has(record.id) ? "2026-12-31" : record.endDate && record.endDate > "2026-11-08" ? "2026-11-08" : record.endDate,
+    };
+    if (record.itemId && mockIds.has(record.itemId) && !paid.has(record.itemId)) {
+      // Unpaid fixtures must not contribute to actual expenditure.
+      return { ...record, confirmed: selected.has(record.itemId), redeemed: false, ...(record.kind === "fund" ? { status: "待拨付", amount: 0 } : record.kind === "result" && !selected.has(record.itemId) ? { status: "审核中" } : {}) };
+    }
+    return record;
+  });
+}
+
+export function addMockPolicyItemAssociations(records: BusinessRecord[]): BusinessRecord[] {
+  const policies = ["国家", "北京市"].flatMap(level =>
+    records.filter(r => r.kind === "policy" && r.level === level && !r.sourceUrl).slice(0, 12)
+  );
+  const items = records.filter(r => r.kind === "item" && !r.sourceUrl);
+  const associations = new Map<string, BusinessRecord>();
+  let index = 0;
+  for (const policy of policies) {
+    for (let n = 0; n < 2; n++) {
+      const item = items[index++];
+      if (item) associations.set(item.id, policy);
+    }
+  }
+  // Reuse existing fictional items so board totals and department counts stay unchanged.
+  return records.map(record => {
+    const policy = associations.get(record.kind === "item" ? record.id : record.itemId ?? "");
+    return policy ? { ...record, policyId: policy.id, policyName: policy.name } : record;
+  });
+}
+
 /** Publication fixtures follow the existing board, not the size of the template pool. */
 export function alignEffectPublicationRecords(templates: BusinessRecord[]): BusinessRecord[] {
   const records: BusinessRecord[] = [];
