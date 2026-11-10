@@ -2,10 +2,11 @@ import { createContext, useContext, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Boxes, HandCoins, ListFilter } from "lucide-react";
 import { EffectDetailDrawer } from "@/components/EffectDetailDrawer";
-import { resolveDrill, type DrillDetail as Detail } from "@/lib/effectDrilldown";
+import { DEMO_RECORDS, ENTERPRISE_CAPITAL_RANGES, filterRecords, resolveDrill, type DrillDetail as Detail } from "@/lib/effectDrilldown";
 import { EFFECT_DEPARTMENTS as departments, EFFECT_POLICY_LEVELS } from "@/data/effectPublicationCounts";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, LabelList } from "recharts";
 import { dashboardData } from "@/data/mockData";
+import { EFFECT_FUND_DEPARTMENTS as funds, EFFECT_FUND_METHODS } from "@/data/effectFundingAmounts";
 import "./EffectDashboard.css";
 
 const COLORS = ["#5672c8", "#91ca70", "#ffcb53", "#ef6267", "#65bfd1", "#42a78f"];
@@ -20,10 +21,6 @@ function DetailButton({ detail }: { detail: Detail }) {
 }
 
 const status = [{ name: "未知", value: 50 }, { name: "免申即享", value: 14 }, { name: "即申即享", value: 3 }, { name: "标准兑现", value: 27 }, { name: "预兑现", value: 6 }];
-const funds = [
-  ["市双智办", 13452.05], ["宣传文化部", 18880.9015], ["城市运行局", 1754.55], ["商务金融局", 759940.471731],
-  ["北京市集成电路产业局", 5847.87], ["信息技术产业局", 45039.48], ["人力资源和社会保障局", 9111.228973], ["None", 2392933.603485],
-].map(([name, amount]) => ({ name: String(name), amount: Number(amount) }));
 
 // Display original artwork through a clipped viewport; all dashboard data stays live DOM/charts.
 function Artwork({ x, y, width, height, className = "" }: { x: number; y: number; width: number; height: number; className?: string }) {
@@ -98,6 +95,32 @@ function AnalysisPanel({ title, index, children, tabs, values, label, max, distr
   const open = useContext(DrillContext);
   const month = useContext(PeriodContext);
   const data = values.map((value, i) => ({ year: String(2021 + i), value }));
+  const selectedYear = month.slice(0, 4) || "2026";
+  const monthlyValues = [
+    [0, 3, 0, 12, 8, 12, 29, 12, 30, 15, 19, 0],
+    [0, 0, 0, 65000, 3000, 195000, 165000, 35000, 12000, 0, 0, 0],
+    [0, 300, 0, 280, 70, 480, 850, 760, 30, 0, 0, 0],
+  ][index];
+  const monthlyData = monthlyValues.map((value, i) => ({ name: `${selectedYear}-${String(i + 1).padStart(2, "0")}`, value }));
+  const distributionData = index === 2 ? ENTERPRISE_CAPITAL_RANGES.map(range => ({
+    name: range.label, value: filterRecords(DEMO_RECORDS, "enterprise", { capitalBand: range.label }).length,
+  })) : [...new Set([...distribution.map(d => d.name), ...DEMO_RECORDS.filter(r => r.kind === (index === 0 ? "item" : "fund")).map(r => r.field ?? "None")])].map(name => {
+    const records = filterRecords(DEMO_RECORDS, index === 0 ? "item" : "fund", index === 0 ? { fulfillment: "已兑现" } : {}).filter(r => (r.field ?? "None") === name);
+    return { name, value: index === 0 ? records.length : records.filter(r => r.status === "已拨付").reduce((sum, r) => sum + (r.amount ?? 0), 0) };
+  });
+  const chartData = tab === 0 ? data.map(d => ({ name: d.year, value: d.value })) : tab === 1 ? monthlyData : distributionData;
+  const chartLabel = tab === 2 ? ["扶持领域数量", "兑现资金金额", "注册资本分布"][index] : tab === 1 && index === 2 ? "每月扶持企业数量" : label;
+  const openChartPoint = (point: { name: string; value: number }) => {
+    if (tab === 0) { selectYear({ year: point.name }); return; }
+    const kind = (["item", "fund", "enterprise"] as const)[index];
+    open({
+      title: tab === 1 ? `${title}月度统计` : tabs[2], kind,
+      dimension: tab === 1 ? "月份" : index === 2 ? "注册资本" : "扶持领域",
+      selected: point.name,
+      filters: { ...(tab === 1 ? { month: point.name } : index === 2 ? { capitalBand: point.name } : { field: point.name }), ...(index === 0 ? { fulfillment: "已兑现" } : {}) },
+      rows: [{ name: point.name, value: point.value, unit: ["项", "元", "家"][index], metric: chartLabel }],
+    });
+  };
   const trendDetail: Detail = { title: `${title}年度统计`, dimension: "年度", rows: data.map(d => ({ name: d.year, value: d.value, unit: ["项", "万元", "家"][index], metric: label })) };
   const selectYear = (d: { year: string }) => { if (d?.year) open({ ...trendDetail, selected: d.year, rows: trendDetail.rows.filter(r => r.name === d.year) }); };
   const totalDetail: Detail = index === 1 ? { title: "已拨付资金", dimension: "拨付单位", rows: funds.map(d => ({ name: d.name, value: d.amount, unit: "万元", metric: "已拨付资金" })) } : { title: "扶持企业数", dimension: "统计范围", rows: [{ name: "全部", value: 8020, unit: "家", metric: "扶持企业数" }] };
@@ -105,8 +128,17 @@ function AnalysisPanel({ title, index, children, tabs, values, label, max, distr
     <div className="effect-top-charts">{children}</div>
     <p className="effect-chart-caption">{["已兑现事项数量统计", "已兑现资金情况统计", "已扶持企业情况统计"][index]}</p>
     <div className="effect-subtabs" role="tablist">{tabs.map((t, i) => <button key={t} role="tab" aria-selected={tab === i} onClick={() => setTab(i)}>{t}</button>)}</div>
-    {tab === 1 && <div className="flex-1 min-h-52 p-3 bg-white"><p className="text-xs text-muted-foreground mb-3">{month.slice(0, 4) || "2026"} 年 · 月度统计尚未接入，选择月份查看明细</p><div className="grid grid-cols-4 gap-2">{Array.from({ length: 12 }, (_, i) => { const selectedMonth = `${month.slice(0, 4) || "2026"}-${String(i + 1).padStart(2, "0")}`; return <button className="rounded border border-red-100 p-2 text-xs text-primary hover:bg-red-50" key={i} onClick={() => open({ ...trendDetail, title: `${title}月度统计`, dimension: "月份", selected: selectedMonth, filters: { month: selectedMonth, ...(index === 0 ? { fulfillment: "已兑现" } : {}) }, rows: [] })}>{i + 1} 月</button>; })}</div></div>}
-    {tab !== 1 && <div className="effect-bottom-chart">{tab === 2 ? <Donut title={tabs[2]} data={distribution} /> : <><DetailButton detail={trendDetail} /><div className="effect-line-legend">{label}</div><ResponsiveContainer width="100%" height="90%"><LineChart data={data} onClick={state => { const d = state?.activePayload?.[0]?.payload; if (d) selectYear(d); }} margin={{ top: 10, right: 20, bottom: 5, left: index === 1 ? 14 : 0 }}><CartesianGrid vertical={false} stroke="#dce3f0" /><XAxis dataKey="year" tick={{ fontSize: 11 }} axisLine={{ stroke: "#7b7b86" }} tickLine={false} /><YAxis domain={[0, max]} tick={{ fontSize: 11 }} width={index === 1 ? 62 : 46} axisLine={{ stroke: "#7b7b86" }} tickLine={false} tickFormatter={v => v.toLocaleString()} /><Tooltip /><Line type="linear" dataKey="value" name={label} stroke="#ff3555" strokeWidth={1.6} dot={{ r: 2, fill: "white", strokeWidth: 1.5 }} activeDot={{ r: 5 }} isAnimationActive={false} /></LineChart></ResponsiveContainer></>}</div>}
+    <div className="effect-bottom-chart">
+      {tab === 0 && <DetailButton detail={trendDetail} />}
+      <div className={`effect-line-legend ${tab === 2 ? "effect-bar-legend" : ""}`}>{chartLabel}</div>
+      <ResponsiveContainer width="100%" height="90%">
+        {tab === 2 ? <BarChart data={chartData} onClick={state => { const point = state?.activePayload?.[0]?.payload; if (point) openChartPoint(point); }} margin={{ top: 10, right: 20, bottom: 5, left: index === 1 ? 24 : 0 }}>
+          <CartesianGrid vertical={false} stroke="#dce3f0" /><XAxis dataKey="name" tick={{ fontSize: 10 }} tickLine={false} axisLine={{ stroke: "#7b7b86" }} interval="preserveStartEnd" /><YAxis tick={{ fontSize: 11 }} width={index === 1 ? 68 : 46} tickLine={false} tickFormatter={v => v.toLocaleString()} /><Tooltip formatter={value => Number(value).toLocaleString("zh-CN")} /><Bar dataKey="value" name={chartLabel} fill="#ed3d59" maxBarSize={38} isAnimationActive={false} cursor="pointer" />
+        </BarChart> : <LineChart data={chartData} onClick={state => { const point = state?.activePayload?.[0]?.payload; if (point) openChartPoint(point); }} margin={{ top: 10, right: 20, bottom: 5, left: index === 1 ? 14 : 0 }}>
+          <CartesianGrid vertical={false} stroke="#dce3f0" /><XAxis dataKey="name" tick={{ fontSize: 11 }} axisLine={{ stroke: "#7b7b86" }} tickLine={false} interval={tab === 1 ? 2 : "preserveStartEnd"} /><YAxis domain={tab === 0 ? [0, max] : [0, [30, 210000, 1000][index]]} tickCount={tab === 1 ? [7, 8, 6][index] : undefined} tick={{ fontSize: 11 }} width={index === 1 ? 62 : 46} axisLine={{ stroke: "#7b7b86" }} tickLine={false} tickFormatter={v => v.toLocaleString()} /><Tooltip formatter={value => Number(value).toLocaleString("zh-CN")} /><Line type="linear" dataKey="value" name={chartLabel} stroke="#ff3555" strokeWidth={1.6} dot={{ r: 2, fill: "white", strokeWidth: 1.5 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+        </LineChart>}
+      </ResponsiveContainer>
+    </div>
   </section>;
 }
 
@@ -116,8 +148,8 @@ function RedeemView() {
     <AnalysisPanel title="已兑现事项分析" index={0} tabs={["近六年兑现事项数量", "所选年度兑现事项数量", "兑现事项扶持领域分布"]} values={[98, 131, 130, 144, 216, 111]} label="兑现数量" max={250} distribution={dashboardData.redeemedItems.byField}>
       <Donut title="已兑现事项类型分布" data={[{ name: "资金类", value: 49 }, { name: "非资金类", value: 2 }, { name: "未知", value: 49 }]} /><Donut title="已兑现事项兑现方式分布" data={status} />
     </AnalysisPanel>
-    <AnalysisPanel title="已兑现资金分析" index={1} tabs={["近六年兑现资金统计", "所选年度兑资金统计", "兑现资金扶持领域分布"]} values={[380000, 650000, 850000, 735000, 925000, 475000]} label="兑现资金金额" max={1000000} distribution={dashboardData.redeemedFunds.byField}>
-      <div className="effect-fund-bars">{funds.map(d => <div key={d.name} {...drillTarget(() => open({ title: `${d.name}已拨付资金`, dimension: "拨付单位", rows: [{ name: d.name, value: d.amount, unit: "万元", metric: "已拨付资金" }] }), `${d.name}已拨付资金`)}><span title={d.name}>{d.name === "None" ? "未提供部门" : d.name}</span><b>{d.amount.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b><i style={{ width: `${d.amount / 2392933.603485 * 100}%` }} /></div>)}</div><Donut title="已兑现资金兑现方式分布" data={status} />
+    <AnalysisPanel title="已兑现资金分析" index={1} tabs={["近六年兑现资金统计", "所选年度兑现资金统计", "兑现资金扶持领域分布"]} values={[380000, 650000, 850000, 735000, 925000, 475000]} label="兑现资金金额" max={1000000} distribution={dashboardData.redeemedFunds.byField}>
+      <div className="effect-fund-bars">{funds.map(d => <div key={d.name} {...drillTarget(() => open({ title: `${d.name}已拨付资金`, dimension: "拨付单位", rows: [{ name: d.name, value: d.amount, unit: "万元", metric: "已拨付资金" }] }), `${d.name}已拨付资金`)}><span title={d.name}>{d.name === "None" ? "未提供部门" : d.name}</span><b>{d.amount.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</b><i style={{ width: `${d.amount / 2392933.603485 * 100}%` }} /></div>)}</div><Donut title="已兑现资金兑现方式分布" data={EFFECT_FUND_METHODS} />
     </AnalysisPanel>
     <AnalysisPanel title="扶持企业情况" index={2} tabs={["近六年扶持企业数量", "所选年度扶持企业数量", "扶持企业注册资本分布"]} values={[1500, 3000, 3380, 3210, 3950, 1640]} label="年度扶持企业数量" max={4000} distribution={dashboardData.supportedEnterprises.capitalDistribution}>
       <Donut title="扶持企业规模分布" data={[{ name: "其他", value: 5 }, { name: "1 个体工商户", value: 2 }, { name: "2 微型企业", value: 32 }, { name: "3 小型企业", value: 44 }, { name: "4 中型企业", value: 14 }, { name: "大型企业", value: 3 }]} /><Donut title="扶持企业行业分布" data={[{ name: "其他", value: 51 }, { name: "新一代信息技术领域", value: 14 }, { name: "", value: 5 }, { name: "生物医药和大健康领域", value: 13 }, { name: " ", value: 13 }, { name: "  ", value: 4 }]} />

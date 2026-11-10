@@ -20,11 +20,27 @@ const documents = [
   { id: "bda-challenge", name: "北京经济技术开发区科技和产业促进局关于发布北京经济技术开发区2026年度第二批“揭榜挂帅”项目榜单的通知", department: "科技和产业促进局", publisher: "北京经济技术开发区科技和产业促进局", level: "经开区", date: "2026-09-29", sourceUrl: "https://kfqgw.beijing.gov.cn/zwgkkfq/2024zcwj/202609/t20260929_4885044.html", item: "2026年度第二批“揭榜挂帅”项目申报", endDate: "2026-10-28" },
 ];
 
+// Topic classification follows notice subjects; missing payout progress defaults to 未开始 for this demo.
+const officialItemMetadata: Record<string, { itemType: string; field: string }> = {
+  "bda-games": { itemType: "待核实", field: "文化创意" },
+  "bda-talent": { itemType: "非资金类", field: "人才引进" },
+  "bda-space-industry": { itemType: "待核实", field: "商业航天" },
+  "bda-services": { itemType: "待核实", field: "生产性服务业" },
+  "bda-ai-talent": { itemType: "资金类", field: "人工智能" },
+  "bda-global-rd": { itemType: "资金类", field: "科技创新" },
+  "bda-space": { itemType: "待核实", field: "产业空间" },
+  "bda-finance": { itemType: "待核实", field: "产业金融" },
+  "bda-xr": { itemType: "资金类", field: "新一代信息技术领域" },
+  "bda-energy": { itemType: "待核实", field: "绿色发展" },
+  "bda-biomed": { itemType: "待核实", field: "生物医药和大健康领域" },
+  "bda-challenge": { itemType: "待核实", field: "科技创新" },
+};
+
 export const EFFECT_OFFICIAL_RECORDS: BusinessRecord[] = documents.flatMap(doc => {
   const policy: BusinessRecord = { id: `official-policy-${doc.id}`, kind: "policy", name: doc.name, department: doc.department, publisher: doc.publisher ?? doc.department, level: doc.level, date: doc.date, code: doc.code, status: doc.status, sourceUrl: doc.sourceUrl, content: doc.content };
   if (!doc.item) return [policy];
   const item: BusinessRecord = { id: `official-item-${doc.id}`, kind: "item", name: doc.item, department: doc.department, publisher: policy.publisher, level: doc.level, date: doc.date, startDate: doc.startDate, endDate: doc.endDate, policyId: policy.id, policyName: policy.name, sourceUrl: doc.sourceUrl, applicationStatus: doc.endDate < "2026-11-03" ? "申报已截止" : "申报中" };
-  return [policy, item];
+  return [policy, { ...item, ...officialItemMetadata[doc.id], method: "未知", redemptionStatus: "未开始" }];
 });
 EFFECT_OFFICIAL_RECORDS.push({
   id: "official-interpretation-beijing-ecommerce", kind: "interpretation",

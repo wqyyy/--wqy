@@ -11,6 +11,33 @@ function renderBoard(focus = "publish") {
   return render(<MemoryRouter initialEntries={[`/effect-dashboard?focus=${focus}`]}><EffectDashboard /></MemoryRouter>);
 }
 describe("unified dashboard detail drawer", () => {
+  it("adds left-aligned original buttons below funding item names", () => {
+    render(<EffectDetailDrawer detail={{ title: "资金明细", kind: "fund", dimension: "范围", rows: [] }} onClose={vi.fn()} />);
+    const cell = within(screen.getAllByRole("row")[1]).getAllByRole("cell")[2];
+    const original = within(cell).getByRole("button", { name: "查看原文" });
+    expect(original).toBeDisabled();
+    expect(original.parentElement).toHaveClass("flex", "w-full", "justify-start");
+    expect(within(cell).getAllByRole("button")).toHaveLength(2);
+  });
+  it("sums paid funding for all filtered enterprises beside their count", () => {
+    render(<EffectDetailDrawer detail={{ title: "扶持企业", kind: "enterprise", dimension: "范围", rows: [] }} onClose={vi.fn()} />);
+    const total = (filters: Parameters<typeof filterRecords>[2]) => filterRecords(DEMO_RECORDS, "enterprise", filters).reduce((sum, r) => sum + (r.paidAmount ?? 0), 0).toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    expect(screen.getByLabelText("企业兑现资金总额")).toHaveTextContent(`兑现资金总额${total({})}元`);
+    fireEvent.change(screen.getByLabelText("所属产业"), { target: { value: "科技创新" } });
+    expect(screen.getByLabelText("企业兑现资金总额")).toHaveTextContent(`兑现资金总额${total({ field: "科技创新" })}元`);
+    fireEvent.change(screen.getByLabelText("企业名称"), { target: { value: "不存在的企业" } });
+    expect(screen.getByLabelText("企业兑现资金总额")).toHaveTextContent("兑现资金总额0.00元");
+  });
+  it("counts distinct involved enterprises beside the funding total and follows filters", () => {
+    render(<EffectDetailDrawer detail={{ title: "资金明细", kind: "fund", dimension: "范围", rows: [] }} onClose={vi.fn()} />);
+    const count = (records: typeof DEMO_RECORDS) => new Set(records.map(r => r.creditCode || r.enterpriseId || r.enterpriseName).filter(Boolean)).size.toLocaleString("zh-CN");
+    const summary = () => screen.getByLabelText("涉及企业数量");
+    expect(summary()).toHaveTextContent(`涉及企业${count(filterRecords(DEMO_RECORDS, "fund", {}))}家`);
+    fireEvent.change(screen.getByLabelText("扶持领域"), { target: { value: "科技创新" } });
+    expect(summary()).toHaveTextContent(`涉及企业${count(filterRecords(DEMO_RECORDS, "fund", { field: "科技创新" }))}家`);
+    fireEvent.change(screen.getByLabelText("企业名称"), { target: { value: "不存在的企业" } });
+    expect(summary()).toHaveTextContent("涉及企业0家");
+  });
   it("filters funding by support field and updates the paid total", () => {
     render(<EffectDetailDrawer detail={{ title: "资金明细", kind: "fund", dimension: "范围", rows: [] }} onClose={vi.fn()} />);
     expect(screen.getByRole("columnheader", { name: "扶持领域" })).toBeInTheDocument();
@@ -83,7 +110,7 @@ describe("unified dashboard detail drawer", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "企业申报明细" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: company.name })).toBeInTheDocument();
-    for (const name of ["事项名称", "累计兑现（万元）", "资金拨付时间", "兑现时间"]) expect(screen.getByRole("columnheader", { name, exact: true })).toBeInTheDocument();
+    for (const name of ["事项名称", "累计兑现（元）", "资金拨付时间", "兑现时间"]) expect(screen.getByRole("columnheader", { name, exact: true })).toBeInTheDocument();
     const row = screen.getAllByRole("row")[1];
     const cells = within(row).getAllByRole("cell");
     const itemButton = within(cells[0]).getAllByRole("button")[0];
@@ -195,9 +222,9 @@ describe("unified dashboard detail drawer", () => {
     expect(screen.getByText(`共 ${matching.length} 条业务记录`)).toBeInTheDocument();
     expect(summary.querySelector("strong")).toHaveTextContent(format(matching.reduce((sum, r) => sum + (r.amount ?? 0), 0)));
     expect(screen.getByText(/^1 \/ /)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("主管部门"), { target: { value: "组织人事部" } });
+    fireEvent.change(screen.getByLabelText("主管部门"), { target: { value: "宣传文化部" } });
     expect(screen.getByText("共 0 条业务记录")).toBeInTheDocument();
-    expect(summary).toHaveTextContent("组织人事部资金兑现总额");
+    expect(summary).toHaveTextContent("宣传文化部资金兑现总额");
     expect(summary.querySelector("strong")).toHaveTextContent("0.00");
     expect(screen.getByRole("button", { name: "导出当前结果" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "重置筛选" }));
@@ -464,7 +491,7 @@ describe("unified dashboard detail drawer", () => {
     expect(screen.getByLabelText("主管部门")).toHaveValue("商务金融局");
     expect(screen.getByText(/^2 \/ /)).toBeInTheDocument();
     const restoredRow = screen.getAllByRole("row")[1];
-    const itemName = within(restoredRow).getAllByRole("cell")[2].textContent!;
+    const itemName = within(within(restoredRow).getAllByRole("cell")[2]).getAllByRole("button")[0].textContent!;
     expect(within(restoredRow).queryByRole("link", { name: itemName, exact: true })).not.toBeInTheDocument();
     fireEvent.click(within(restoredRow).getByRole("button", { name: itemName, exact: true }));
     expect(screen.getByRole("heading", { name: "政策事项明细" })).toBeInTheDocument();
@@ -506,9 +533,15 @@ describe("unified dashboard detail drawer", () => {
     expect(screen.getByRole("heading", { level: 2, name: name! })).toBeInTheDocument();
     expect(within(screen.getByRole("status", { name: "申报企业数" })).getByText("3")).toBeInTheDocument();
     expect(within(screen.getByRole("status", { name: "兑现企业数" })).getByText("2")).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: "累计兑现金额" })).toHaveTextContent("万元");
+    expect(screen.getByRole("status", { name: "累计兑现金额" })).toHaveTextContent("元");
+    expect(screen.getByRole("status", { name: "累计兑现金额" })).not.toHaveTextContent("万元");
     const item = DEMO_RECORDS.find(r => r.kind === "item" && r.name === name)!;
-    expect(screen.getByRole("button", { name: "查看原文" })).toBeDisabled();
+    const originals = screen.getAllByRole("button", { name: "查看原文" });
+    expect(originals).toHaveLength(2);
+    for (const original of originals) {
+      expect(original).toBeDisabled();
+      expect(original.parentElement).toHaveClass("inline-flex", "shrink-0");
+    }
     fireEvent.click(screen.getByRole("button", { name: item.policyName!, exact: true }));
     expect(screen.getByRole("heading", { name: "政策文件明细" })).toBeInTheDocument();
     expect(screen.getByText(item.policyName!, { exact: true }).tagName).toBe("SPAN");
@@ -545,7 +578,8 @@ describe("unified dashboard detail drawer", () => {
     render(<EffectDetailDrawer detail={{ title: "事项发布", kind: "item", dimension: "范围", rows: [] }} onClose={vi.fn()} />);
     const row = screen.getAllByRole("row")[1];
     fireEvent.click(within(row).getAllByRole("button")[0]);
-    const title = screen.getByRole("heading", { level: 2 });
+    expect(screen.getByRole("heading", { name: "事项申报明细" })).toBeInTheDocument();
+    const title = screen.getAllByRole("heading", { level: 2 }).find(heading => within(heading).queryByRole("link"))!;
     expect(within(title).getByRole("link")).toHaveAttribute("href", expect.stringContaining("https://kfqgw.beijing.gov.cn/"));
     expect(screen.getByRole("status", { name: "申报企业数" })).toHaveTextContent("—");
     expect(screen.getByText("暂无申报企业")).toBeInTheDocument();

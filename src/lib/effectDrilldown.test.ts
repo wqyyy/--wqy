@@ -1,10 +1,35 @@
 import { describe, expect, it } from "vitest";
 import { EFFECT_DEPARTMENTS } from "@/data/effectPublicationCounts";
+import { EFFECT_FUND_DEPARTMENTS, EFFECT_FUND_METHODS } from "@/data/effectFundingAmounts";
 import { EFFECT_OFFICIAL_RECORDS } from "@/data/effectOfficialRecords";
 import { summarizeEnterpriseCategories } from "./effectDrilldown";
 import { DEMO_RECORDS, DEMO_APPLICATIONS, REFERENCE_RECORDS, csvCell, effectRecordHref, filterRecords, resolveDrill, summarizeRecords, type BusinessRecord } from "./effectDrilldown";
 
 describe("effect dashboard business drill-down", () => {
+  it("matches dashboard funding amounts by department and redemption method", () => {
+    const toCents = (value: number) => Math.round(value * 100);
+    const total = EFFECT_FUND_DEPARTMENTS.reduce((sum, d) => sum + toCents(d.amount), 0);
+    for (const department of EFFECT_FUND_DEPARTMENTS) {
+      const paid = filterRecords(DEMO_RECORDS, "fund", { department: department.name }).filter(r => r.status === "已拨付");
+      expect(paid.reduce((sum, r) => sum + toCents(r.amount ?? 0), 0)).toBe(toCents(department.amount));
+    }
+    for (const method of EFFECT_FUND_METHODS) {
+      const paid = filterRecords(DEMO_RECORDS, "fund", { method: method.name }).filter(r => r.status === "已拨付");
+      expect(Math.abs(paid.reduce((sum, r) => sum + toCents(r.amount ?? 0), 0) - Math.round(total * method.value / 100))).toBeLessThanOrEqual(1);
+    }
+  });
+  it("provides item classification fields and defaults missing demo payout progress to not started", () => {
+    const items = filterRecords(DEMO_RECORDS, "item", {});
+    for (const item of items) {
+      for (const key of ["itemType", "method", "field", "redemptionStatus"] as const) expect(item[key]?.trim()).toBeTruthy();
+      if (item.sourceUrl) {
+        expect(item.redemptionStatus).toBe("未开始");
+        expect(item.method).toBe("未知");
+      }
+    }
+    expect(items).toHaveLength(606);
+    expect(filterRecords(DEMO_RECORDS, "item", { redemptionStatus: "已拨付" })).toHaveLength(424);
+  });
   it("counts enterprise categories once per credit code and includes missing categories", () => {
     const rows: BusinessRecord[] = [
       { id: "a", kind: "enterprise", name: "甲", creditCode: "A", scale: "小型企业", field: "信息技术" },

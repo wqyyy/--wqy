@@ -1,4 +1,5 @@
 import clauses from "@/data/kaifaClauseMaterials.json";
+import { alignEffectFundingAmounts } from "@/data/effectFundingAmounts";
 import { withOfficialEffectRecords } from "@/data/effectOfficialRecords";
 import { addMockConfirmedItems, addMockPolicyItemAssociations, alignEffectPublicationRecords, generateEffectMockApplications, generateEffectMockRecords } from "@/data/effectMockRecords";
 
@@ -56,9 +57,9 @@ export const DETAIL_CONFIG: Record<DetailKind, { title: string; columns: Column[
   policy: { title: "政策文件明细", dateLabel: "发布日期", columns: [{ key: "name", label: "政策名称" }, { key: "level", label: "政策级别" }, { key: "department", label: "发文部门" }, { key: "code", label: "政策文号" }, { key: "date", label: "发布日期" }, { key: "status", label: "政策状态" }] },
   interpretation: { title: "政策解读明细", dateLabel: "解读发布日期", columns: [{ key: "name", label: "解读标题" }, { key: "policyName", label: "关联政策" }, { key: "department", label: "发布部门" }, { key: "date", label: "发布日期" }] },
   item: { title: "政策事项明细", dateLabel: "事项发布时间", columns: [{ key: "name", label: "事项名称" }, { key: "policyName", label: "关联政策" }, { key: "department", label: "主管部门" }, { key: "itemType", label: "事项类型" }, { key: "method", label: "兑现方式" }, { key: "field", label: "扶持领域" }, { key: "startDate", label: "申报开始时间" }, { key: "endDate", label: "申报截止时间" }, { key: "applicationStatus", label: "申报状态" }, { key: "redemptionStatus", label: "兑现状态" }] },
-  result: { title: "扶持结果明细", dateLabel: "结果确认时间", columns: [{ key: "enterpriseName", label: "企业名称" }, { key: "itemName", label: "事项名称" }, { key: "department", label: "主管部门" }, { key: "approvedAmount", label: "核定金额（万元）" }, { key: "date", label: "确认时间" }, { key: "status", label: "扶持结果状态" }] },
-  fund: { title: "兑现资金明细", dateLabel: "实际拨付日期", columns: [{ key: "enterpriseName", label: "企业名称" }, { key: "creditCode", label: "统一社会信用代码" }, { key: "itemName", label: "兑现事项" }, { key: "department", label: "主管部门" }, { key: "method", label: "兑现方式" }, { key: "field", label: "扶持领域" }, { key: "amount", label: "实际拨付（万元）" }, { key: "date", label: "兑现时间" }] },
-  enterprise: { title: "扶持企业明细", dateLabel: "获得扶持时间", columns: [{ key: "name", label: "企业名称" }, { key: "creditCode", label: "统一社会信用代码" }, { key: "scale", label: "企业规模" }, { key: "field", label: "所属产业" }, { key: "capital", label: "注册资本（万元）" }, { key: "supportCount", label: "扶持事项数" }, { key: "paidAmount", label: "累计实际兑现（万元）" }] },
+  result: { title: "扶持结果明细", dateLabel: "结果确认时间", columns: [{ key: "enterpriseName", label: "企业名称" }, { key: "itemName", label: "事项名称" }, { key: "department", label: "主管部门" }, { key: "approvedAmount", label: "核定金额（元）" }, { key: "date", label: "确认时间" }, { key: "status", label: "扶持结果状态" }] },
+  fund: { title: "兑现资金明细", dateLabel: "实际拨付日期", columns: [{ key: "enterpriseName", label: "企业名称" }, { key: "creditCode", label: "统一社会信用代码" }, { key: "itemName", label: "兑现事项" }, { key: "department", label: "主管部门" }, { key: "method", label: "兑现方式" }, { key: "field", label: "扶持领域" }, { key: "amount", label: "实际拨付（元）" }, { key: "date", label: "兑现时间" }] },
+  enterprise: { title: "扶持企业明细", dateLabel: "获得扶持时间", columns: [{ key: "name", label: "企业名称" }, { key: "creditCode", label: "统一社会信用代码" }, { key: "scale", label: "企业规模" }, { key: "field", label: "所属产业" }, { key: "capital", label: "注册资本（万元）" }, { key: "supportCount", label: "扶持事项数" }, { key: "paidAmount", label: "累计实际兑现（元）" }] },
 };
 export const FILTER_LABELS: Record<keyof DetailFilters, string> = { department: "部门", level: "政策级别", applicationStatus: "申报状态", redemptionStatus: "兑现状态", fulfillment: "办理进度", itemType: "事项类型", method: "兑现方式", field: "扶持领域", scale: "企业规模", capitalBand: "注册资本区间", year: "年度", month: "月份", policyId: "关联政策", itemId: "关联事项", enterpriseId: "关联企业" };
 
@@ -186,7 +187,7 @@ for (const c of clauses) {
 export const REFERENCE_RECORDS: BusinessRecord[] = [...referencePolicies.values()];
 
 export function createDemoRecords(): BusinessRecord[] {
-  return addMockConfirmedItems(addMockPolicyItemAssociations(withOfficialEffectRecords(alignEffectPublicationRecords(generateEffectMockRecords()))));
+  return alignEffectFundingAmounts(addMockConfirmedItems(addMockPolicyItemAssociations(withOfficialEffectRecords(alignEffectPublicationRecords(generateEffectMockRecords())))));
 }
 export const DEMO_RECORDS = createDemoRecords();
 export const DEMO_APPLICATIONS = generateEffectMockApplications(DEMO_RECORDS);
