@@ -49,6 +49,7 @@ describe("task version entry", () => {
   it.each([
     ["preAssessment", "/policy-writing/pre-evaluation?taskId=a"],
     ["evaluation", "/policy-analysis?mode=evaluation&taskId=a"],
+    ["drafting", "/policy-writing/drafting?taskId=a"],
   ])("shows only detail and delete actions before archival in %s", (kind, route) => {
     recordTaskVersion(kind as TaskKind, { id: "a", title: "成功版本", status: "已完成" });
     recordTaskVersion(kind as TaskKind, { id: "a", title: "失败版本", status: "失败" });

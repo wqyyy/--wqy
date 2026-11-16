@@ -108,7 +108,7 @@ export function TaskVersionBoundary({ children }: { children: ReactNode }) {
   }
   function actions(version: TaskVersion) {
     const permissions = versionPermissions(version, versions);
-    const detailOnly = kind === "preAssessment" || kind === "evaluation";
+    const detailOnly = kind === "drafting" || kind === "preAssessment" || kind === "evaluation";
     return <div className="flex flex-wrap items-center gap-2">
       <Button size="sm" variant="outline" onClick={() => switchVersion(version)}>查看详情</Button>
       {!detailOnly && permissions.archive && <Button size="sm" variant="outline" onClick={() => setArchiving(version)}>归档</Button>}
