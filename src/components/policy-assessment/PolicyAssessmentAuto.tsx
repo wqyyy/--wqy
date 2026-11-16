@@ -1,3 +1,4 @@
+import { useTaskVersionView } from "@/lib/taskVersionView";
 import { ArchiveConfirmButton } from "@/components/ArchiveConfirmButton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, Search, GitCompare, Cpu, Shield, Workflow, FileText, Check, ChevronDown, Square, RotateCcw } from "lucide-react";
@@ -185,6 +186,7 @@ const FULL_REPORT_SUMMARY =
   "综合条款拆解、一致性、落地性、合规性、流程管理及其他意见六个维度的评估结果，本政策整体方向清晰，条款结构较为完整，扶持对象和支持方式基本明确，与上位政策及区域产业发展要求总体一致。当前主要问题集中在市区政策衔接边界、部分条款执行口径、资金测算依据、程序合规说明及解读兑现流程安排等方面。建议在正式印发前，进一步细化申报审核流程、资金安排和配套解读材料，并建立动态评估机制，以提升政策可执行性与兑现效果。";
 
 export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, onStageChange, archived = false, initialSections, onArchive, scrollRequest, onProgressSave }: Props) {
+  const versionView = useTaskVersionView();
   const [clauses, setClauses] = useState<Clause[]>([]);
   const [step3, setStep3] = useState<Step3Result | null>(null);
   const [step4, setStep4] = useState<Step4Result | null>(null);
@@ -262,6 +264,14 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
 
   // ── 自动执行流程 ──────────────────────────────────────────
   useEffect(() => {
+    if (versionView.version) {
+      const task = versionView.version.task as typeof versionView.version.task & { currentStep?: number; reportText?: string; editableSections?: string[] };
+      setEditableResults(task.editableSections ?? initialSections ?? (task.reportText ? mapReportToEditableSections(task.reportText) : Array(STAGES.length).fill("")));
+      setStage(Math.max(0, Math.min(STAGES.length, (task.currentStep ?? 2) - 2)));
+      setFinished(["已完成", "已归档"].includes(task.status ?? ""));
+      setStopped(task.stopped ?? false);
+      return;
+    }
     if (openFinalMode) {
       const defaultClauses = mockExtractClauses(policy.title);
       const defaultStep3 = mockStep3(defaultClauses);
@@ -461,6 +471,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
 
   // ── 每步骤进入时打字机输出思考文字 ────────────────────────
   useEffect(() => {
+    if (versionView.version) return;
     typingCancelRef.current?.();
     setTypingText("");
 
@@ -518,7 +529,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
     onStageChange?.(stage, finished);
   }, [stage, finished, onStageChange]);
 
-  const finalReportText = generateReportText({
+  const finalReportText = versionView.version ? (versionView.version.task as typeof versionView.version.task & { reportText?: string }).reportText ?? "" : generateReportText({
     policy,
     clauses: clauses.length > 0 ? clauses : mockExtractClauses(policy.title),
     step3: step3 ?? mockStep3([]),
@@ -528,7 +539,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
   });
   const mergedFinalReportText = mergeEditableSectionsIntoReport(finalReportText, editableResults);
   useEffect(() => {
-    if (archived) return;
+    if ((archived && !versionView.version) || versionView.readOnly) return;
     onProgressSave?.(mergedFinalReportText, editableResults, stage, finished && !stopped && editableResults.every(section => Boolean(section.trim())));
   }, [mergedFinalReportText, editableResults, stage, finished, stopped, archived, onProgressSave]);
 
@@ -652,7 +663,7 @@ export function PolicyAssessmentAuto({ policy, onBack, directOpenFinal = false, 
                   <div className="px-4 pb-4">
                     <p className="mb-2 text-xs font-medium text-muted-foreground">分析结果（可编辑）</p>
                     <textarea
-                      readOnly={archived}
+                      readOnly={(archived && !versionView.version) || versionView.readOnly}
                       ref={element => { resultFieldsRef.current[i] = element; }}
                       value={editableResults[i]}
                       onChange={(e) =>

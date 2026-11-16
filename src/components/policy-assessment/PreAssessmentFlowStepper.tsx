@@ -11,7 +11,7 @@ type PreAssessmentFlowStepperProps = {
 
 export function PreAssessmentFlowStepper({ currentStep, progressStep = currentStep, archived = false, onSelect }: PreAssessmentFlowStepperProps) {
   return (
-    <div className="rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
+    <div data-version-navigation className="rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">前评估流程</h3>
         <span className="text-xs font-medium text-muted-foreground">

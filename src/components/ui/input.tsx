@@ -1,9 +1,11 @@
 import * as React from "react";
+import { useTaskVersionView } from "@/lib/taskVersionView";
 
 import { cn } from "@/lib/utils";
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
   ({ className, type, ...props }, ref) => {
+    const versionView = useTaskVersionView();
     return (
       <input
         type={type}
@@ -13,6 +15,7 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
         )}
         ref={ref}
         {...props}
+        readOnly={versionView.readOnly || props.readOnly}
       />
     );
   },

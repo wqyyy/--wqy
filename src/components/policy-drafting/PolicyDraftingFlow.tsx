@@ -1,3 +1,6 @@
+import { archivedTaskVersion, taskArchiveState, editTaskVersion, readTaskVersions, recordTaskVersion, versionPermissions } from "@/lib/taskVersions";
+import { TaskVersionNotice } from "@/components/TaskVersionBoundary";
+import { useTaskVersionView } from "@/lib/taskVersionView";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -194,9 +197,15 @@ export function PolicyDraftingFlow({
   resumeTask,
 }: PolicyDraftingFlowProps) {
   const initialDraft = resolveInitialDraftState(resumeTask);
+  const versionView = useTaskVersionView();
   const navigate = useNavigate();
   const [sessionId] = useState(() => resumeTask?.id || ((!initialTitle && !directContent && localStorage.getItem(ACTIVE_DRAFT_KEY)) || `draft-${Date.now()}`));
   const [saved] = useState<DraftSession | null>(() => {
+    const versions = readTaskVersions("drafting", sessionId);
+    const versionId = new URLSearchParams(window.location.hash.split("?")[1] || "").get("taskVersion");
+    const version = versions.find(v => v.id === versionId) ?? archivedTaskVersion(versions) ?? (taskArchiveState(versions)?.deleted ? versions.at(-1) : undefined);
+    if (version?.extra?.session) return { ...(version.extra.session as DraftSession), ...(archivedTaskVersion([version]) ? { archived: true, currentStep: 5 } : {}) };
+    if (version) return { currentStep: Math.min((version.task as typeof version.task & { currentStep?: number }).currentStep ?? 1, 5), maxReachedStep: 5, title: version.task.title, body: "", archived: !!archivedTaskVersion([version]), stepSignatures: {} } as DraftSession;
     try { return JSON.parse(localStorage.getItem(`policy-draft-session:${sessionId}`) || "null"); } catch { return null; }
   });
   const [body, setBody] = useState(saved?.body || directContent || "");
@@ -250,7 +259,20 @@ export function PolicyDraftingFlow({
 
   useEffect(() => {
     const session: DraftSession = { currentStep, maxReachedStep, direction, title, policyType, customPolicyType, coreElements, coreItems, selectedPolicies, analysisResult, outlineResult, body, archived, stepSignatures };
+    if (versionView.readOnly) return;
+    const versions = readTaskVersions("drafting", sessionId);
+    const versionId = new URLSearchParams(window.location.hash.split("?")[1] || "").get("taskVersion");
+    const selected = versions.find(v => v.id === versionId) ?? (archived ? archivedTaskVersion(versions) : undefined);
+    if (selected) {
+      if (versionPermissions(selected, versions).edit) {
+        try { editTaskVersion("drafting", sessionId, selected.id, { ...selected.task, title: title || direction }, { ...selected.extra, session }); }
+        catch { window.dispatchEvent(new CustomEvent("task-version-error")); }
+      }
+      return;
+    }
     localStorage.setItem(`policy-draft-session:${sessionId}`, JSON.stringify(session));
+    try { recordTaskVersion("drafting", { id: sessionId, title: title || direction, status: archived ? "已归档" : body ? "已完成" : "生成中", archived }, { session }); }
+    catch { window.dispatchEvent(new CustomEvent("task-version-error")); }
     if (!archived) localStorage.setItem(ACTIVE_DRAFT_KEY, sessionId);
     else if (localStorage.getItem(ACTIVE_DRAFT_KEY) === sessionId) localStorage.removeItem(ACTIVE_DRAFT_KEY);
   }, [sessionId, currentStep, maxReachedStep, direction, title, policyType, customPolicyType, coreElements, coreItems, selectedPolicies, analysisResult, outlineResult, body, archived, stepSignatures]);
@@ -511,23 +533,19 @@ export function PolicyDraftingFlow({
           <ArrowLeft className="h-4 w-4" />
           返回政策制定
         </button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => navigate("/policy-writing/drafting/tasks")}
-        >
-          <List className="h-4 w-4" />
-          历史任务列表
-        </Button>
       </div>
 
       {/* Flow stepper — 按截图样式改为卡片式流程条 */}
+      <div className="flex flex-wrap items-center justify-end gap-2" aria-label="起草历史导航">
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={() => navigate("/policy-writing/drafting/tasks")}><List className="h-4 w-4" />历史任务列表</Button>
+      </div>
       {draftStepper}
+      <div className="flex flex-wrap items-center justify-end gap-2" aria-label="起草操作">
+        <TaskVersionNotice />
+        {currentStep > 1 && !archived && <Button variant="outline" size="sm" onClick={regenerateCurrentStep}>{currentStep === 2 ? "重新检索" : "重新生成"}</Button>}
+      </div>
 
       {/* Step content */}
-      {currentStep > 1 && !archived && <div className="flex justify-end"><Button variant="outline" onClick={regenerateCurrentStep}>{currentStep === 2 ? "重新检索" : "重新生成"}</Button></div>}
       <motion.div
         key={currentStep}
         initial={{ opacity: 0, x: 16 }}

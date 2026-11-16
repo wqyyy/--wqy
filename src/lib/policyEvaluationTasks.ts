@@ -1,3 +1,4 @@
+import { recordTaskCollection, saveViewedTaskVersion, taskFromVersion } from "./taskVersions";
 export type PolicyEvaluationTask = {
   id: string;
   title: string;
@@ -92,6 +93,8 @@ export function loadPolicyEvaluationTasks(): PolicyEvaluationTask[] {
 }
 
 export function savePolicyEvaluationTasks(tasks: PolicyEvaluationTask[]) {
+  if (saveViewedTaskVersion("evaluation", tasks)) return;
+  recordTaskCollection("evaluation", STORAGE_KEY, tasks);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
 }
 
@@ -101,7 +104,7 @@ export function formatPolicyEvaluationUpdatedAt(date = new Date()) {
 }
 
 export function getPolicyEvaluationTaskById(taskId: string): PolicyEvaluationTask | undefined {
-  return loadPolicyEvaluationTasks().find((task) => task.id === taskId);
+  return taskFromVersion("evaluation", taskId, loadPolicyEvaluationTasks().find((task) => task.id === taskId));
 }
 
 export function downloadPolicyEvaluationTask(task: PolicyEvaluationTask) {

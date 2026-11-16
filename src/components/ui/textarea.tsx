@@ -1,10 +1,12 @@
 import * as React from "react";
+import { useTaskVersionView } from "@/lib/taskVersionView";
 
 import { cn } from "@/lib/utils";
 
 export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
 
 const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, ...props }, ref) => {
+  const versionView = useTaskVersionView();
   return (
     <textarea
       className={cn(
@@ -13,6 +15,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ classNa
       )}
       ref={ref}
       {...props}
+      readOnly={versionView.readOnly || props.readOnly}
     />
   );
 });

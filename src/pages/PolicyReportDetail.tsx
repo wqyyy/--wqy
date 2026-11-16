@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { reportDetail } from "@/data/mockData";
+import { useTaskVersionView } from "@/lib/taskVersionView";
 import { getPolicyReportTaskById } from "@/lib/policyReportTasks";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 
@@ -13,7 +14,8 @@ const COLORS = ["hsl(350,85%,42%)", "hsl(210,70%,45%)", "hsl(38,90%,55%)", "hsl(
 const PolicyReportDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const data = reportDetail;
+  const versionView = useTaskVersionView();
+  const data = (versionView.version?.extra?.report as typeof reportDetail | undefined) ?? reportDetail;
   const task = id ? getPolicyReportTaskById(id) : undefined;
   const displayTitle = task?.title ?? data.title;
 

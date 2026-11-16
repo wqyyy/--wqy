@@ -1,3 +1,6 @@
+import { useTaskVersionView } from "@/lib/taskVersionView";
+import { editTaskVersion, archiveTaskVersion } from "@/lib/taskVersions";
+import { TaskHistoryButton, TaskVersionNotice } from "@/components/TaskVersionBoundary";
 import { ArchiveConfirmButton } from "@/components/ArchiveConfirmButton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -147,9 +150,10 @@ const FULL_REPORT_SUMMARY =
 
 
 export default function PolicyAnalysis() {
+  const versionView = useTaskVersionView();
   const [searchParams] = useSearchParams();
   const mode = searchParams.get("mode");
-  const taskName = searchParams.get("taskName") || "测试11";
+  const taskName = versionView.version?.task.title || searchParams.get("taskName") || "测试11";
 
   if (mode === "compare-new") {
     return <PolicyCompareAnalysisDetail taskName={taskName} isNew />;
@@ -163,15 +167,16 @@ export default function PolicyAnalysis() {
 }
 
 function PolicyAnalysisFlow() {
+  const versionView = useTaskVersionView();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const policyName = searchParams.get("policy") || "北京经开区产业发展促进办法";
+  const policyName = versionView.version?.task.title || searchParams.get("policy") || "北京经开区产业发展促进办法";
   const directFinal = searchParams.get("directFinal") === "1";
 
   const [savedTask] = useState(() => getPolicyEvaluationTaskById(searchParams.get("taskId") ?? ""));
   const [taskId] = useState(() => savedTask?.id ?? searchParams.get("taskId") ?? crypto.randomUUID());
   const initialCount = savedTask?.completedCount ?? ((directFinal || savedTask?.status === "已归档") ? STAGES.length : Math.max(0, (savedTask?.currentStep ?? 1) - 1));
-  const initialResults = savedTask?.results ?? STAGE_OUTPUTS.map((text, i) => i < initialCount ? text : "");
+  const initialResults = savedTask?.results ?? (versionView.version ? STAGES.map(() => "") : STAGE_OUTPUTS.map((text, i) => i < initialCount ? text : ""));
   const [stage, setStage] = useState(initialCount);
   const [completedCount, setCompletedCount] = useState(initialCount);
   const [currentNode, setCurrentNode] = useState(Math.min((savedTask?.currentStep ?? initialCount + 1) - 1, STAGES.length));
@@ -221,6 +226,7 @@ function PolicyAnalysisFlow() {
   }, []);
 
   useEffect(() => {
+    if (versionView.version) return;
     if (openFinalMode) {
       setFinished(true);
       setStopped(false);
@@ -274,6 +280,7 @@ function PolicyAnalysisFlow() {
 
   useEffect(() => {
     typingCancelRef.current?.();
+    if (versionView.version) return;
     setTypingText("");
     const stageIdx = finished ? -1 : stage;
     if (stageIdx < 0 || stageIdx >= STAGES.length) return;
@@ -297,7 +304,7 @@ function PolicyAnalysisFlow() {
 
   /** 评估流程自然完成后记录，供政策评价列表展示「重新评估」（中途停止不计入） */
   useEffect(() => {
-    if (!finished || stopped) return;
+    if (versionView.version || !finished || stopped) return;
     markPolicyEvaluated(policyName);
   }, [finished, stopped, policyName]);
 
@@ -329,7 +336,13 @@ function PolicyAnalysisFlow() {
   const persistTask = useCallback((isArchived: boolean) => {
     const tasks = loadPolicyEvaluationTasks();
     const previous = tasks.find(task => task.id === taskId);
-    if (previous?.status === "已归档") return;
+    if (versionView.readOnly || (!versionView.version && previous?.status === "已归档")) return;
+    if (versionView.version) {
+      const version = versionView.version;
+      editTaskVersion("evaluation", taskId, version.id, { ...version.task, results: editableResults, thoughtLogs } as PolicyEvaluationTask);
+      if (isArchived && version.task.status !== "已归档") archiveTaskVersion("evaluation", taskId, version.id);
+      return;
+    }
     const timestamp = formatPolicyEvaluationUpdatedAt();
     const task: PolicyEvaluationTask = {
       ...previous,
@@ -394,6 +407,7 @@ function PolicyAnalysisFlow() {
             <ArrowLeft className="h-4 w-4" />
             返回政策评价
           </button>
+          <div className="flex flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
@@ -404,9 +418,11 @@ function PolicyAnalysisFlow() {
             <List className="h-4 w-4" />
             历史任务列表
           </Button>
+          <TaskHistoryButton />
+          </div>
         </div>
 
-        <div className="rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
+        <div data-version-navigation className="rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">政策评价流程</h3>
             <span className="text-xs font-medium text-muted-foreground">{`第 ${flowCurrent} / ${STAGES.length + 1} 步`}</span>
@@ -440,6 +456,8 @@ function PolicyAnalysisFlow() {
             })}
           </div>
         </div>
+
+        <div className="flex empty:hidden" aria-label="版本归档提示"><TaskVersionNotice /></div>
 
         <div className="rounded-xl border border-border bg-card">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border">
@@ -562,7 +580,7 @@ function PolicyAnalysisFlow() {
                     <p className="mb-2 text-xs font-medium text-muted-foreground">{archived ? "分析结果" : "分析结果（可编辑）"}</p>
                     <textarea
                       aria-label={`${s.label}分析结果`}
-                      readOnly={archived || !done}
+                      readOnly={(archived && !versionView.version) || !done || versionView.readOnly}
                       value={editableResults[i]}
                       onChange={(e) =>
                         setEditableResults((prev) => {

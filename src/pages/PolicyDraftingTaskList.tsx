@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TaskListCard, TaskListIconButton } from "@/components/TaskListCard";
 import { TaskListSearchBar } from "@/components/TaskListSearchBar";
+import { draftingTaskProgress } from "@/lib/taskProgress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -136,6 +137,7 @@ export default function PolicyDraftingTaskList() {
                 key={task.id}
                 title={task.title}
                 status={task.status}
+                progress={`第 ${draftingTaskProgress(task)} / 6 步`}
                 icon={PenTool}
                 createdAt={task.createdAt}
                 updatedAt={task.updatedAt}

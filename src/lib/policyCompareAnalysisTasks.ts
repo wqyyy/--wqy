@@ -1,3 +1,4 @@
+import { recordTaskCollection, saveViewedTaskVersion, taskFromVersion } from "./taskVersions";
 import type { AnalysisResultItem, ClauseItem } from "@/components/policy-analysis/compareAnalysisResults";
 import type { ContrastType } from "@/components/policy-analysis/compareAnalysisTypes";
 
@@ -112,6 +113,8 @@ export function loadPolicyCompareAnalysisTasks(): PolicyCompareAnalysisTask[] {
 }
 
 export function savePolicyCompareAnalysisTasks(tasks: PolicyCompareAnalysisTask[]) {
+  if (saveViewedTaskVersion("compare", tasks)) return;
+  recordTaskCollection("compare", STORAGE_KEY, tasks);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
 }
 
@@ -121,5 +124,5 @@ export function formatPolicyCompareAnalysisUpdatedAt(date = new Date()) {
 }
 
 export function getPolicyCompareAnalysisTaskById(taskId: string): PolicyCompareAnalysisTask | undefined {
-  return loadPolicyCompareAnalysisTasks().find((task) => task.id === taskId);
+  return taskFromVersion("compare", taskId, loadPolicyCompareAnalysisTasks().find((task) => task.id === taskId));
 }

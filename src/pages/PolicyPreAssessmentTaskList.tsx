@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TaskListCard, TaskListIconButton } from "@/components/TaskListCard";
 import { TaskListSearchBar } from "@/components/TaskListSearchBar";
+import { taskProgressStep } from "@/lib/taskProgress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -146,6 +147,7 @@ export default function PolicyPreAssessmentTaskList() {
                 key={task.id}
                 title={task.title}
                 status={task.status}
+                progress={`第 ${taskProgressStep(task, 8)} / 8 步`}
                 icon={ClipboardCheck}
                 createdAt={task.createdAt}
                 updatedAt={task.updatedAt}

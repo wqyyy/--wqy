@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TaskListCard, TaskListIconButton } from "@/components/TaskListCard";
 import { TaskListSearchBar } from "@/components/TaskListSearchBar";
+import { taskProgressStep } from "@/lib/taskProgress";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -162,7 +163,7 @@ export default function PolicyEvaluationTaskList() {
                 icon={BarChart3}
                 createdAt={task.createdAt}
                 updatedAt={task.updatedAt}
-                progress={`第 ${task.currentStep} / 6 步`}
+                progress={`第 ${taskProgressStep(task, 6)} / 6 步`}
                 onOpen={() => openTask(task)}
                 actions={
                   <>

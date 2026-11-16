@@ -1,3 +1,5 @@
+import { recordTaskCollection, saveViewedTaskVersion, taskFromVersion } from "./taskVersions";
+import { reportDetail } from "@/data/mockData";
 export type PolicyReportTask = {
   id: string;
   title: string;
@@ -100,6 +102,8 @@ export function loadPolicyReportTasks(): PolicyReportTask[] {
 }
 
 export function savePolicyReportTasks(tasks: PolicyReportTask[]) {
+  if (saveViewedTaskVersion("report", tasks)) return;
+  recordTaskCollection("report", STORAGE_KEY, tasks, { report: reportDetail });
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
 }
 
@@ -132,5 +136,5 @@ export function downloadPolicyReportTask(task: PolicyReportTask) {
 }
 
 export function getPolicyReportTaskById(taskId: string): PolicyReportTask | undefined {
-  return loadPolicyReportTasks().find((task) => task.id === taskId);
+  return taskFromVersion("report", taskId, loadPolicyReportTasks().find((task) => task.id === taskId));
 }

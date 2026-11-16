@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { AiAssistant } from "@/components/AiAssistant";
+import { TaskVersionBoundary } from "@/components/TaskVersionBoundary";
 import { NavLink } from "@/components/NavLink";
 import {
   DropdownMenu,
@@ -232,7 +233,7 @@ export function AppLayout() {
             collapsed ? "left-[72px]" : "left-[244px]",
           )}
         >
-          <Outlet />
+          <TaskVersionBoundary><Outlet /></TaskVersionBoundary>
         </div>
       </div>
 

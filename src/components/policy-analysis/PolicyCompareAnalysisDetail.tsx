@@ -1,3 +1,5 @@
+import { useTaskVersionView } from "@/lib/taskVersionView";
+import { taskFromVersion } from "@/lib/taskVersions";
 import { ArchiveConfirmButton } from "@/components/ArchiveConfirmButton";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -137,7 +139,8 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [taskId] = useState(() => searchParams.get("taskId") || `compare-${Date.now()}`);
-  const [savedTask] = useState(() => loadPolicyCompareAnalysisTasks().find(task => task.id === taskId));
+  const versionView = useTaskVersionView();
+  const [savedTask] = useState(() => taskFromVersion("compare", taskId, loadPolicyCompareAnalysisTasks().find(task => task.id === taskId)));
   const snapshot = savedTask?.snapshot;
   const [archived, setArchived] = useState(Boolean(savedTask?.archived || savedTask?.status === "已归档"));
   const [completedThrough, setCompletedThrough] = useState(savedTask?.completedThrough ?? (savedTask?.archived ? 4 : savedTask && (savedTask.status === "待确认" || savedTask.status === "分析中") ? getCompareAnalysisTaskStep(savedTask) - 1 : isNew ? 0 : 3));
@@ -145,7 +148,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisStartedAt, setAnalysisStartedAt] = useState("");
   const analysisTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const resumeAnalysisRef = useRef(savedTask?.status === "分析中");
+  const resumeAnalysisRef = useRef(!versionView.version && savedTask?.status === "分析中");
   useEffect(() => () => {
     if (analysisTimer.current) clearTimeout(analysisTimer.current);
   }, []);
@@ -154,14 +157,14 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
   const [optionalFieldsOpen, setOptionalFieldsOpen] = useState(true);
   const [overlapRate, setOverlapRate] = useState(snapshot?.overlapRate ?? "80%");
   const [selectedClauseIds, setSelectedClauseIds] = useState<string[]>(() =>
-    snapshot?.selectedClauseIds ?? (isNew ? [] : defaultClauses.map((c) => c.id)),
+    snapshot?.selectedClauseIds ?? (isNew || versionView.version ? [] : defaultClauses.map((c) => c.id)),
   );
   const [hasAnalyzed, setHasAnalyzed] = useState(() => snapshot ? snapshot.results.length > 0 : savedTask && (savedTask.status === "待确认" || savedTask.status === "分析中") ? false : !isNew);
-  const [clauses, setClauses] = useState<ClauseItem[]>(() => snapshot?.clauses ?? (isNew ? [] : defaultClauses));
+  const [clauses, setClauses] = useState<ClauseItem[]>(() => snapshot?.clauses ?? (isNew || versionView.version ? [] : defaultClauses));
   const [materialPickerOpen, setMaterialPickerOpen] = useState(false);
   const [materialScope, setMaterialScope] = useState<ClauseMaterialScope>("personal");
   const [results, setResults] = useState<AnalysisResultItem[]>(() =>
-    snapshot?.results ?? (isNew || savedTask?.status === "待确认" || savedTask?.status === "分析中" ? [] : buildAnalysisResults("horizontal", defaultClauses, "80%")),
+    snapshot?.results ?? (isNew || versionView.version || savedTask?.status === "待确认" || savedTask?.status === "分析中" ? [] : buildAnalysisResults("horizontal", defaultClauses, "80%")),
   );
   const [viewingResultId, setViewingResultId] = useState<string | null>(null);
   const [publishDateStart, setPublishDateStart] = useState(snapshot?.publishDateStart ?? "");
@@ -171,7 +174,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
   const customInputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (archived || resumeAnalysisRef.current) return;
+    if (versionView.readOnly || archived || resumeAnalysisRef.current) return;
     try {
       const tasks = loadPolicyCompareAnalysisTasks();
       const existing = tasks.find(task => task.id === taskId);
@@ -353,7 +356,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
         </div>
 
         {/* 对比分析业务流程 */}
-        <div className="shrink-0 rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
+        <div data-version-navigation className="shrink-0 rounded-2xl border border-border bg-card px-5 py-4 md:px-7 md:py-5">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-foreground">对比分析流程</h3>
             <span className="text-xs font-medium text-muted-foreground">{`第 ${flowCurrent === 3 && completedThrough >= 3 ? 4 : flowCurrent} / ${FLOW_STEPS.length} 步`}</span>
@@ -473,7 +476,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
 
                     {contrastType === "duplicate" && (
                       <FormRow label="条款查重相似度阈值" required>
-                        <select
+                        <select disabled={versionView.readOnly}
                           value={overlapRate}
                           onChange={(e) => setOverlapRate(e.target.value)}
                           className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:border-primary"
@@ -513,7 +516,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
                             <FormRow label={contrastType === "horizontal" ? "对比政策时间范围" : "查重政策时间范围"}>
                               <p className="mb-2 text-xs text-muted-foreground">{contrastType === "horizontal" ? "请选择对比政策的开始日期和结束日期" : "请选择查重政策的开始日期和结束日期"}</p>
                               <div className="flex h-9 w-full items-center rounded border border-border bg-background">
-                                <input
+                                <input disabled={versionView.readOnly}
                                   type="date"
                                   aria-label={contrastType === "horizontal" ? "对比政策开始日期" : "查重政策开始日期"}
                                   value={publishDateStart}
@@ -521,7 +524,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
                                   className="h-full min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none [color-scheme:light]"
                                 />
                                 <span className="px-2 text-xs text-muted-foreground">~</span>
-                                <input
+                                <input disabled={versionView.readOnly}
                                   type="date"
                                   aria-label={contrastType === "horizontal" ? "对比政策结束日期" : "查重政策结束日期"}
                                   value={publishDateEnd}
@@ -533,7 +536,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
                             </FormRow>
 
                             <FormRow label={contrastType === "horizontal" ? "对比地区范围" : "查重地区范围"}>
-                              <select className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-muted-foreground outline-none focus:border-primary">
+                              <select disabled={versionView.readOnly} className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-muted-foreground outline-none focus:border-primary">
                                 <option>{contrastType === "horizontal" ? "请选择对比地区" : "请选择查重地区"}</option>
                                 <option>北京市</option>
                                 <option>上海市</option>
@@ -592,7 +595,7 @@ export function PolicyCompareAnalysisDetail({ isNew = false, taskName }: PolicyC
                   <div className="mb-3 rounded-lg border border-border bg-muted/15 p-3">
                     <div className="flex items-start gap-2">
                       <FilePlus className="mt-2 h-4 w-4 shrink-0 text-muted-foreground" />
-                      <textarea
+                      <textarea readOnly={versionView.readOnly}
                         ref={customInputRef}
                         value={customInputText}
                         onChange={(e) => setCustomInputText(e.target.value)}

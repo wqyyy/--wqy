@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { FundingWorkspace } from "@/components/funding/FundingWorkspace";
 import { readFundingTasks } from "@/lib/fundingTasks";
+import { taskFromVersion } from "@/lib/taskVersions";
 import { useState } from "react";
 import { PageHero } from "@/components/PageHero";
 
@@ -18,7 +19,7 @@ function PolicyModelEstimationSession() {
   const clause = searchParams.get("clause") ?? "";
   const [savedTask] = useState(() => {
     const tasks = readFundingTasks();
-    if (taskId) return tasks.find(task => task.id === taskId);
+    if (taskId) return taskFromVersion("funding", taskId, tasks.find(task => task.id === taskId));
     if (clause || searchParams.has("new")) return undefined;
     return tasks[0]?.archived ? undefined : tasks[0];
   });

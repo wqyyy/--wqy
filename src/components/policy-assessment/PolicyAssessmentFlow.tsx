@@ -1,4 +1,7 @@
 import { useCallback, useState } from "react";
+import { useTaskVersionView } from "@/lib/taskVersionView";
+import { editTaskVersion, archiveTaskVersion } from "@/lib/taskVersions";
+import { TaskHistoryButton, TaskVersionNotice } from "@/components/TaskVersionBoundary";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { getPolicyPreAssessmentTaskById, loadPolicyPreAssessmentTasks, savePolicyPreAssessmentTasks, formatPolicyPreAssessmentUpdatedAt } from "@/lib/policyPreAssessmentTasks";
@@ -27,6 +30,7 @@ export function PolicyAssessmentFlow({
 }: Props) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
+  const versionView = useTaskVersionView();
   const [savedTask] = useState(() => {
     if (params.get("taskId")) return getPolicyPreAssessmentTaskById(params.get("taskId")!);
     if (params.has("new") || startEvaluation || initialPolicyTitle || directOpenFinal) return undefined;
@@ -65,8 +69,13 @@ export function PolicyAssessmentFlow({
   const [assessmentStarted, setAssessmentStarted] = useState(openFinal || startEvaluation || Boolean(savedTask));
   const [selectionVisible, setSelectionVisible] = useState(false);
   const persistAssessment = useCallback((reportText: string, editableSections: string[], stage: number, finished: boolean) => {
-    if (!selectedPolicy || archived) return;
+    if (!selectedPolicy || versionView.readOnly || (archived && !versionView.version)) return;
     try {
+      if (versionView.version) {
+        const version = versionView.version;
+        editTaskVersion("preAssessment", taskId, version.id, { ...version.task, reportText, editableSections } as typeof savedTask & { id: string; title: string });
+        return;
+      }
       const tasks = loadPolicyPreAssessmentTasks();
       const previous = tasks.find(task => task.id === taskId);
       if (previous?.status === "已归档") return;
@@ -77,6 +86,14 @@ export function PolicyAssessmentFlow({
   const archiveAssessment = (reportText: string, editableSections: string[]) => {
     if (!assessmentFinished || !selectedPolicy || archived) return;
     try {
+      if (versionView.version) {
+        const version = versionView.version;
+        editTaskVersion("preAssessment", taskId, version.id, { ...version.task, reportText, editableSections } as typeof savedTask & { id: string; title: string });
+        archiveTaskVersion("preAssessment", taskId, version.id);
+        setArchived(true);
+        toast.success("前评估任务已归档");
+        return;
+      }
       const tasks = loadPolicyPreAssessmentTasks();
       const now = formatPolicyPreAssessmentUpdatedAt();
       const previous = tasks.find(task => task.id === taskId);
@@ -122,6 +139,7 @@ export function PolicyAssessmentFlow({
           <ArrowLeft className="h-4 w-4" />
           返回政策制定
         </button>
+        <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
           variant="outline"
@@ -132,6 +150,8 @@ export function PolicyAssessmentFlow({
           <List className="h-4 w-4" />
           历史任务列表
         </Button>
+        <TaskHistoryButton />
+        </div>
       </div>
 
       <PreAssessmentFlowStepper currentStep={currentFlowStep} progressStep={progressFlowStep} archived={archived} onSelect={step => {
@@ -142,6 +162,7 @@ export function PolicyAssessmentFlow({
         setSelectionVisible(false);
         setScrollRequest(previous => ({ step, revision: previous.revision + 1 }));
       }} />
+      <div className="flex shrink-0 empty:hidden" aria-label="版本归档提示"><TaskVersionNotice /></div>
 
       <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card">
         {(!selectedPolicy || !assessmentStarted || selectionVisible) && (

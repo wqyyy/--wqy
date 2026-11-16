@@ -1,4 +1,5 @@
 import type { FundingCondition, FundingResult, FundingSupport } from "./fundingEstimation";
+import { recordTaskCollection, saveViewedTaskVersion } from "./taskVersions";
 
 export type FundingTask = {
   flowVersion?: 2;
@@ -27,8 +28,10 @@ export function readFundingTasks(): FundingTask[] {
   } catch { return []; }
 }
 export function saveFundingTask(task: FundingTask) {
+  if (saveViewedTaskVersion("funding", [task])) return;
   const tasks = readFundingTasks();
   const previous = tasks.find(item => item.id === task.id);
   if (previous?.archived) return;
+  recordTaskCollection("funding", storageKey, [task]);
   localStorage.setItem(storageKey, JSON.stringify([task, ...tasks.filter(item => item.id !== task.id)]));
 }

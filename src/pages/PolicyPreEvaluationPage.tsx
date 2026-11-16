@@ -1,7 +1,9 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { PolicyAssessmentFlow } from "@/components/policy-assessment/PolicyAssessmentFlow";
+import { useTaskVersionView } from "@/lib/taskVersionView";
 
 export default function PolicyPreEvaluationPage() {
+  const versionView = useTaskVersionView();
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as
@@ -19,10 +21,10 @@ export default function PolicyPreEvaluationPage() {
         <PolicyAssessmentFlow
           key={location.key}
           onBack={() => navigate("/policy-writing")}
-          directOpenFinal={!!state?.directOpenFinal}
-          initialPolicyTitle={state?.policyTitle}
-          initialPolicyContent={state?.policyContent}
-          startEvaluation={!!state?.startEvaluation}
+          directOpenFinal={versionView.version ? ["已完成", "已归档"].includes(versionView.version.task.status ?? "") : !!state?.directOpenFinal}
+          initialPolicyTitle={versionView.version?.task.title ?? state?.policyTitle}
+          initialPolicyContent={versionView.version ? undefined : state?.policyContent}
+          startEvaluation={versionView.version ? false : !!state?.startEvaluation}
         />
       </div>
     </div>

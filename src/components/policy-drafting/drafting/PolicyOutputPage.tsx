@@ -1,4 +1,6 @@
 import { ArchiveConfirmButton } from "@/components/ArchiveConfirmButton";
+import { TaskHistoryButton, TaskVersionNotice } from "@/components/TaskVersionBoundary";
+import { useTaskVersionView } from "@/lib/taskVersionView";
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -1323,6 +1325,7 @@ export function PolicyOutputPage({
   onRegenerate,
   archived = false,
 }: PolicyOutputPageProps) {
+  const versionView = useTaskVersionView();
   const navigate = useNavigate();
   const [displayedText, setDisplayedText] = useState("");
   const [isComplete, setIsComplete] = useState(false);
@@ -1557,6 +1560,7 @@ export function PolicyOutputPage({
 
   useEffect(() => {
     if (directContent) return;
+    if (versionView.version) { setIsLoading(false); setError("该历史版本未保存政策正文"); return; }
     setIsLoading(true);
     setError(null);
     generateContent({ policyTitle, coreElements, selectedPolicies, outline: outlineProp })
@@ -1813,13 +1817,24 @@ export function PolicyOutputPage({
           </button>
           <h2 className="text-base font-semibold text-foreground">政策文件编辑</h2>
         </div>
-        <div className="flex items-center gap-2">
+      </div>
+
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-end gap-2" aria-label="起草历史导航">
+        <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => navigate("/policy-writing/drafting/tasks")}>
+          <List className="h-4 w-4" />历史任务列表
+        </Button>
+        <TaskHistoryButton />
+      </div>
+      {flowHeader}
+
+        <div className="mb-4 flex shrink-0 flex-wrap items-center justify-end gap-2" aria-label="起草操作">
+          <TaskVersionNotice />
           {isComplete && !archived && onRegenerate && <Button variant="outline" size="sm" onClick={onRegenerate}>重新生成正文</Button>}
           {isComplete && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="flex gap-2"
+              className="flex flex-wrap gap-2"
             >
               <Button
                 size="sm"
@@ -1850,20 +1865,7 @@ export function PolicyOutputPage({
               </Button>
             </motion.div>
           )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => navigate("/policy-writing/drafting/tasks")}
-          >
-            <List className="h-4 w-4" />
-            历史任务列表
-          </Button>
         </div>
-      </div>
-
-      {flowHeader}
 
       <div className="flex gap-4 flex-1 min-h-0">
         {/* Left tool sidebar */}
@@ -2021,7 +2023,7 @@ export function PolicyOutputPage({
 
                           {/* 段落文字 */}
                           <div
-                            contentEditable
+                            contentEditable={!versionView.readOnly}
                             suppressContentEditableWarning
                             role="textbox"
                             aria-multiline="true"

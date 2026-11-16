@@ -1,3 +1,4 @@
+import { recordTaskCollection, saveViewedTaskVersion, taskFromVersion } from "./taskVersions";
 export type PolicyDraftingTask = {
   id: string;
   title: string;
@@ -95,6 +96,8 @@ export function loadPolicyDraftingTasks(): PolicyDraftingTask[] {
 }
 
 export function savePolicyDraftingTasks(tasks: PolicyDraftingTask[]) {
+  if (saveViewedTaskVersion("drafting", tasks)) return;
+  recordTaskCollection("drafting", STORAGE_KEY, tasks);
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
 }
 
@@ -104,7 +107,7 @@ export function formatPolicyDraftingUpdatedAt(date = new Date()) {
 }
 
 export function getPolicyDraftingTaskById(taskId: string): PolicyDraftingTask | undefined {
-  return loadPolicyDraftingTasks().find((task) => task.id === taskId);
+  return taskFromVersion("drafting", taskId, loadPolicyDraftingTasks().find((task) => task.id === taskId));
 }
 
 /** 已完成任务进入正文详情页，生成中任务恢复到对应步骤 */

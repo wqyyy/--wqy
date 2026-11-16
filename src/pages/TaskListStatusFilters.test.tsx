@@ -21,6 +21,9 @@ describe("history task status filters", () => {
   ] as const)("filters %s with keywords and resets both controls", (_, Page, status) => {
     render(<MemoryRouter><Page /></MemoryRouter>);
     const initialCount = screen.getAllByRole("heading", { level: 3 }).length;
+    for (const title of screen.getAllByRole("heading", { level: 3 })) {
+      expect(within(title.closest('[role="button"]')!).getByText(/当前进度：第 \d+ \/ \d+ 步/)).toBeInTheDocument();
+    }
     fireEvent.change(screen.getByLabelText("任务状态"), { target: { value: status } });
     const titles = screen.getAllByRole("heading", { level: 3 });
     for (const title of titles) expect(within(title.closest('[role="button"]')!).getByText(status)).toBeInTheDocument();
