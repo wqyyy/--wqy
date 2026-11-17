@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Check } from "lucide-react";
+import { ArchiveConfirmButton } from "@/components/ArchiveConfirmButton";
 import {
   defaultScoringCriteria,
   defaultScoringResults,
@@ -62,36 +64,63 @@ function useFontAwesome() {
 }
 
 export default function EnterpriseEvaluationDetail() {
+  const { id } = useParams();
+  return <EnterpriseEvaluationWorkspace key={id ?? "default"} />;
+}
+
+function EnterpriseEvaluationWorkspace() {
   useFontAwesome();
   const { id } = useParams();
   const navigate = useNavigate();
   const item = evaluationItems.find((entry) => entry.id === id);
   const title = item?.name ?? "经开区高质量数据集典型案例认定";
 
-  const [currentView, setCurrentView] = useState<WorkflowView>("upload");
-  const [criteriaUploaded, setCriteriaUploaded] = useState(false);
-  const [criteriaParsed, setCriteriaParsed] = useState(false);
-  const [criteriaConfirmed, setCriteriaConfirmed] = useState(false);
-  const [scoringInProgress, setScoringInProgress] = useState(false);
-  const [scoringCompleted, setScoringCompleted] = useState(false);
+  const archiveKey = `enterprise-evaluation-archive:${id ?? "default"}`;
+  const progressKey = `enterprise-evaluation-progress:${id ?? "default"}`;
+  const [savedProgress] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(progressKey) || "null") as {
+      criteriaUploaded: boolean; criteriaParsed: boolean; criteriaConfirmed: boolean; scoringCompleted: boolean;
+      scoringInProgress: boolean; parsing: boolean; archived: boolean;
+      uploadedFile: { name: string; size: string } | null; criteria: ScoringCriteria; results: ScoringResult[];
+      scoringProgress: { index: number; total: number; name: string };
+    } | null; } catch { return null; }
+  });
+  const [savedArchive] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(archiveKey) || "null") as { criteria: ScoringCriteria; results: ScoringResult[] } | null; } catch { return null; }
+  });
+  const [archived, setArchived] = useState(Boolean(savedArchive) || !!savedProgress?.archived);
+  const [currentView, setCurrentView] = useState<WorkflowView>(savedArchive || savedProgress?.scoringCompleted ? "preview" : savedProgress?.criteriaParsed ? "criteria" : "upload");
+  const [criteriaUploaded, setCriteriaUploaded] = useState(Boolean(savedArchive) || !!savedProgress?.criteriaUploaded);
+  const [criteriaParsed, setCriteriaParsed] = useState(Boolean(savedArchive) || !!savedProgress?.criteriaParsed);
+  const [criteriaConfirmed, setCriteriaConfirmed] = useState(Boolean(savedArchive) || !!savedProgress?.criteriaConfirmed);
+  const [scoringInProgress, setScoringInProgress] = useState(!!savedProgress?.scoringInProgress);
+  const [scoringCompleted, setScoringCompleted] = useState(Boolean(savedArchive) || !!savedProgress?.scoringCompleted);
   const [parsing, setParsing] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string } | null>(null);
-  const [editedCriteria, setEditedCriteria] = useState<ScoringCriteria>(() => deepCloneCriteria(defaultScoringCriteria));
-  const [results, setResults] = useState<ScoringResult[]>(() => deepCloneResults(defaultScoringResults));
+  const [uploadedFile, setUploadedFile] = useState<{ name: string; size: string } | null>(savedProgress?.uploadedFile ?? null);
+  const [editedCriteria, setEditedCriteria] = useState<ScoringCriteria>(() => savedArchive?.criteria ?? savedProgress?.criteria ?? deepCloneCriteria(defaultScoringCriteria));
+  const [results, setResults] = useState<ScoringResult[]>(() => savedArchive?.results ?? savedProgress?.results ?? deepCloneResults(defaultScoringResults));
   const [collapsedLevel1, setCollapsedLevel1] = useState<Record<number, boolean>>({});
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [companyPage, setCompanyPage] = useState(1);
-  const [scoringProgress, setScoringProgress] = useState({ index: 0, total: 0, name: "" });
+  const [scoringProgress, setScoringProgress] = useState(savedProgress?.scoringProgress ?? { index: 0, total: 0, name: "" });
   const [materialCompany, setMaterialCompany] = useState<EvaluationCompany | null>(null);
   const [activeMaterialId, setActiveMaterialId] = useState<number | null>(null);
+  const [materialLocation, setMaterialLocation] = useState<{ page: number | null; excerpt: string } | null>(null);
   const [scoringCompanyId, setScoringCompanyId] = useState<number | null>(null);
   const [draftScores, setDraftScores] = useState<Record<string, number>>({});
   const [toastMessage, setToastMessage] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scoringTimerRef = useRef<number | null>(null);
+  const parsingTimerRef = useRef<number | null>(null);
   const toastTimerRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!criteriaUploaded && !savedProgress) return;
+    try {
+      localStorage.setItem(progressKey, JSON.stringify({ criteriaUploaded, criteriaParsed, criteriaConfirmed, scoringCompleted, scoringInProgress, parsing, archived, uploadedFile, criteria: editedCriteria, results, scoringProgress }));
+    } catch { setToastMessage("评优进度保存失败，请检查浏览器存储空间"); }
+  }, [progressKey, criteriaUploaded, criteriaParsed, criteriaConfirmed, scoringCompleted, scoringInProgress, parsing, archived, uploadedFile, editedCriteria, results, scoringProgress]);
 
   const showToast = useCallback((message: string) => {
     setToastMessage(message);
@@ -102,6 +131,7 @@ export default function EnterpriseEvaluationDetail() {
   useEffect(() => {
     return () => {
       if (scoringTimerRef.current) window.clearTimeout(scoringTimerRef.current);
+      if (parsingTimerRef.current) window.clearTimeout(parsingTimerRef.current);
       if (toastTimerRef.current) window.clearTimeout(toastTimerRef.current);
     };
   }, []);
@@ -153,8 +183,9 @@ export default function EnterpriseEvaluationDetail() {
       doneSteps.add(3);
       activeStep = 4;
     }
+    if (archived) doneSteps.add(4);
     return { doneSteps, activeStep };
-  }, [criteriaConfirmed, criteriaUploaded, scoringCompleted, scoringInProgress]);
+  }, [criteriaConfirmed, criteriaUploaded, scoringCompleted, scoringInProgress, archived]);
 
   const statistics = useMemo(() => {
     if (!scoringCompleted || !results.length) return null;
@@ -179,12 +210,14 @@ export default function EnterpriseEvaluationDetail() {
     materialCompany?.materials.find((material) => material.id === activeMaterialId) ?? null;
   const activeMaterialUrl =
     activeMaterial && activeMaterial.url !== "#"
-      ? `${import.meta.env.BASE_URL}${activeMaterial.url}`
+      ? `${import.meta.env.BASE_URL}${activeMaterial.url}${materialLocation ? `#${materialLocation.page && materialLocation.page <= activeMaterial.pages ? `page=${materialLocation.page}&` : ""}search=${encodeURIComponent(materialLocation.excerpt)}` : ""}`
       : null;
   const showCompanyPanel = currentView === "upload" || currentView === "preview";
 
   const resetWorkflow = useCallback(() => {
     if (scoringTimerRef.current) window.clearTimeout(scoringTimerRef.current);
+    if (parsingTimerRef.current) window.clearTimeout(parsingTimerRef.current);
+    localStorage.removeItem(progressKey);
     setCurrentView("upload");
     setCriteriaUploaded(false);
     setCriteriaParsed(false);
@@ -198,13 +231,13 @@ export default function EnterpriseEvaluationDetail() {
     setCollapsedLevel1({});
     setScoringProgress({ index: 0, total: 0, name: "" });
     if (fileInputRef.current) fileInputRef.current.value = "";
-  }, []);
+  }, [progressKey]);
 
   const startParse = useCallback(() => {
     if (parsing) return;
     setParsing(true);
     setCurrentView("upload");
-    window.setTimeout(() => {
+    parsingTimerRef.current = window.setTimeout(() => {
       const cloned = syncCriteriaScores(deepCloneCriteria(defaultScoringCriteria));
       setEditedCriteria(cloned);
       setResults(deepCloneResults(defaultScoringResults).map((result) => ensureScoreRecordsForCriteria(result, cloned)));
@@ -216,7 +249,7 @@ export default function EnterpriseEvaluationDetail() {
   }, [parsing, showToast]);
 
   const handleFile = (file?: File | null) => {
-    if (!file) return;
+    if (!file || archived) return;
     const lower = file.name.toLowerCase();
     if (![".pdf", ".doc", ".docx"].some((ext) => lower.endsWith(ext))) {
       showToast("仅支持 pdf、word 格式");
@@ -229,7 +262,7 @@ export default function EnterpriseEvaluationDetail() {
     setScoringCompleted(false);
     setScoringInProgress(false);
     showToast("文件上传成功，开始自动解析");
-    window.setTimeout(() => startParse(), 300);
+    parsingTimerRef.current = window.setTimeout(() => startParse(), 300);
   };
 
   const updateCriteria = (updater: (prev: ScoringCriteria) => ScoringCriteria) => {
@@ -323,10 +356,31 @@ export default function EnterpriseEvaluationDetail() {
     scoreNext(0);
   };
 
+  useEffect(() => {
+    if (savedArchive || savedProgress?.archived) return;
+    if (savedProgress?.criteriaUploaded && !savedProgress.criteriaParsed) {
+      startParse();
+      return;
+    }
+    if (!savedProgress?.scoringInProgress) return;
+    let index = savedProgress.scoringProgress.index;
+    const total = evaluationCompanies.length;
+    const resume = () => {
+      if (index >= total) {
+        setScoringInProgress(false);
+        setScoringCompleted(true);
+        setCurrentView("preview");
+        return;
+      }
+      setScoringProgress({ index: index + 1, total, name: evaluationCompanies[index]?.name ?? "" });
+      index++;
+      scoringTimerRef.current = window.setTimeout(resume, 350);
+    };
+    resume();
+    return () => { if (scoringTimerRef.current) window.clearTimeout(scoringTimerRef.current); };
+  }, []);
+
   const backToCriteriaEdit = () => {
-    setCriteriaConfirmed(false);
-    setScoringCompleted(false);
-    setScoringInProgress(false);
     setCurrentView("criteria");
   };
 
@@ -394,7 +448,7 @@ export default function EnterpriseEvaluationDetail() {
     { key: 1, label: "上传标准", icon: "fa-solid fa-cloud-arrow-up" },
     { key: 2, label: "解析标准", icon: "fa-solid fa-wand-magic-sparkles" },
     { key: 3, label: "智能评分", icon: "fa-solid fa-chart-line" },
-    { key: 4, label: "结果预览", icon: "fa-solid fa-clipboard-check" },
+    { key: 4, label: "归档", icon: "fa-solid fa-box-archive" },
   ];
 
   return (
@@ -416,29 +470,33 @@ export default function EnterpriseEvaluationDetail() {
       </header>
 
       <main className="page-container">
-        <div className="process-flow-card" aria-label="评审流程">
+        <div className="process-flow-card" aria-label="评优流程">
           <div className="process-flow-header">
-            <h3>评审流程</h3>
+            <h3>评优流程</h3>
             <span>第 {processFlow.activeStep} / 4 步</span>
           </div>
           <div className="process-flow-steps">
             {processSteps.flatMap((step, index) => {
               const nodes = [
-                <div
+                <button
+                  type="button"
+                  disabled={!processFlow.doneSteps.has(step.key) && processFlow.activeStep !== step.key}
+                  aria-current={processFlow.activeStep === step.key && !processFlow.doneSteps.has(step.key) ? "step" : undefined}
+                  onClick={() => setCurrentView(step.key === 1 ? "upload" : step.key >= 3 && scoringCompleted ? "preview" : "criteria")}
                   key={`step-${step.key}`}
                   className={[
                     "process-step",
-                    processFlow.activeStep === step.key ? "active" : "",
+                    processFlow.activeStep === step.key && !processFlow.doneSteps.has(step.key) ? "active" : "",
                     processFlow.doneSteps.has(step.key) ? "done" : "",
                   ]
                     .filter(Boolean)
                     .join(" ")}
                 >
                   <span className="process-step-icon" aria-hidden="true">
-                    <i className={step.icon} />
+                    {processFlow.doneSteps.has(step.key) ? <Check size={20} /> : <i className={step.icon} />}
                   </span>
                   <span className="process-step-label">{step.label}</span>
-                </div>,
+                </button>,
               ];
               if (index < processSteps.length - 1) {
                 nodes.push(
@@ -507,7 +565,7 @@ export default function EnterpriseEvaluationDetail() {
                                 <div className="file-size">{uploadedFile.size}</div>
                               </div>
                             </div>
-                            <button type="button" className="btn-link" onClick={resetWorkflow}>
+                            <button type="button" className="btn btn-secondary btn-sm" disabled={archived} onClick={() => { resetWorkflow(); fileInputRef.current?.click(); }}>
                               重新上传
                             </button>
                           </div>
@@ -536,7 +594,7 @@ export default function EnterpriseEvaluationDetail() {
           )}
 
           {currentView === "criteria" && (
-            <section className="workflow-page active" aria-label="解析标准">
+            <fieldset disabled={archived} className="workflow-page active" aria-label="解析标准">
               <div className="card criteria-workspace-card">
                 <div className="card-header-flex-compact">
                   <h2>解析出的评分标准</h2>
@@ -817,7 +875,7 @@ export default function EnterpriseEvaluationDetail() {
                       {scoringInProgress ? (
                         <>
                           <button type="button" className="btn btn-secondary btn-sm" disabled>
-                            重新上传
+                            返回上一步
                           </button>
                           <button type="button" className="btn btn-primary btn-sm" style={{ flex: 1 }} disabled>
                             评分中...
@@ -828,14 +886,14 @@ export default function EnterpriseEvaluationDetail() {
                           <button type="button" className="btn btn-secondary btn-sm" onClick={backToCriteriaEdit}>
                             返回编辑
                           </button>
-                          <button type="button" className="btn btn-secondary btn-sm" onClick={resetWorkflow}>
-                            重新上传
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCurrentView("upload")}>
+                            返回上一步
                           </button>
                         </>
                       ) : (
                         <>
-                          <button type="button" className="btn btn-secondary btn-sm" onClick={resetWorkflow}>
-                            重新上传
+                          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setCurrentView("upload")}>
+                            返回上一步
                           </button>
                           <button type="button" className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={beginScoring}>
                             开始评分
@@ -846,7 +904,7 @@ export default function EnterpriseEvaluationDetail() {
                   </div>
                 </div>
               </div>
-            </section>
+            </fieldset>
           )}
 
           {currentView === "preview" && (
@@ -1006,6 +1064,7 @@ export default function EnterpriseEvaluationDetail() {
                                 onClick={() => {
                                   setMaterialCompany(company);
                                   setActiveMaterialId(company.materials[0]?.id ?? null);
+                                  setMaterialLocation(null);
                                 }}
                               >
                                 查看材料
@@ -1089,15 +1148,22 @@ export default function EnterpriseEvaluationDetail() {
         )}
 
         {currentView === "preview" && (
-          <div className="action-bar-compact action-bar-preview" aria-label="结果预览操作">
-            <button type="button" className="btn btn-primary" onClick={backToCriteriaEdit}>
-              返回标准
+          <div className="action-bar-compact action-bar-preview" aria-label="智能评分操作">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={backToCriteriaEdit}>
+              返回上一步
             </button>
+            <ArchiveConfirmButton className="btn btn-primary" disabled={archived || !scoringCompleted} onConfirm={() => {
+              try {
+                localStorage.setItem(archiveKey, JSON.stringify({ criteria: editedCriteria, results }));
+                setArchived(true);
+                showToast("评优任务已归档");
+              } catch { showToast("归档失败，请检查浏览器存储空间"); }
+            }}>{archived ? "已归档" : "归档"}</ArchiveConfirmButton>
           </div>
         )}
       </main>
 
-      <div className={`modal-overlay${materialCompany ? " show" : ""}`} id="material-modal">
+      <div className={`modal-overlay${materialCompany ? " show" : ""}`} id="material-modal" style={materialCompany ? { zIndex: 1100 } : undefined}>
         <div className="modal modal-large">
           <div className="modal-header">
             <h2>
@@ -1117,7 +1183,7 @@ export default function EnterpriseEvaluationDetail() {
                       key={material.id}
                       type="button"
                       className={activeMaterialId === material.id ? "material-item active" : "material-item"}
-                      onClick={() => setActiveMaterialId(material.id)}
+                      onClick={() => { setActiveMaterialId(material.id); setMaterialLocation(null); }}
                       style={{
                         display: "block",
                         width: "100%",
@@ -1235,7 +1301,26 @@ export default function EnterpriseEvaluationDetail() {
                                 color: "var(--color-text-secondary)",
                               }}
                             >
-                              {buildScoreBasis(score, child)}
+                              <div style={{ marginBottom: 8 }}><strong>评分标准：</strong>{child.rules || "未提供评分标准"}</div>
+                              {buildScoreBasis(score, child).split("\n").filter(line => !line.startsWith("材料摘录：")).join("\n")}
+                              <div style={{ marginTop: 8 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                                  <strong>材料摘录</strong>
+                                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => {
+                                    if (!scoringCompany) return;
+                                    const source = score.evidence.source.trim();
+                                    const stem = source.replace(/\.[^.]+$/, "");
+                                    const exact = scoringCompany.materials.find(material => material.name === source);
+                                    const matches = scoringCompany.materials.filter(material => stem && material.name.includes(stem));
+                                    const material = exact ?? (matches.length === 1 ? matches[0] : undefined);
+                                    if (!material || !material.url || material.url === "#") { showToast("未找到对应的企业原始文件，请补充材料或核对来源文件名"); return; }
+                                    setMaterialCompany(scoringCompany);
+                                    setActiveMaterialId(material.id);
+                                    setMaterialLocation({ page: score.evidence.page, excerpt: score.evidence.excerpt });
+                                  }}>查看原文件</button>
+                                </div>
+                                {score.evidence.excerpt || "暂无材料摘录"}
+                              </div>
                             </div>
                           </div>
                           <div>
@@ -1271,7 +1356,7 @@ export default function EnterpriseEvaluationDetail() {
             <button type="button" className="btn btn-secondary" onClick={() => setScoringCompanyId(null)}>
               关闭
             </button>
-            <button type="button" className="btn btn-primary" onClick={saveScoringDetail}>
+            <button type="button" className="btn btn-primary" disabled={archived} onClick={saveScoringDetail}>
               保存修改
             </button>
           </div>
