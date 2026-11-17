@@ -44,15 +44,6 @@ function taskContext(path: string, search: string) {
   } else return null;
   let task = id ? tasks.find(t => t.id === id) : undefined;
   if (id && !task) task = readTaskVersions(kind, id).at(-1)?.task;
-  if (!task && !id) {
-    // Newly generated tasks may not yet have an ID in the URL.
-    const prefix = `task-versions:v1:${kind}:`;
-    const versions = Object.keys(localStorage).filter(k => k.startsWith(prefix)).flatMap(k => {
-      const history = readTaskVersions(kind, k.slice(prefix.length));
-      return history.length ? [history.at(-1)!] : [];
-    }).sort((a, b) => b.savedAt.localeCompare(a.savedAt));
-    if (versions[0]) task = tasks.find(t => t.id === versions[0].task.id) ?? versions[0].task;
-  }
   return { kind, task };
 }
 

@@ -29,13 +29,12 @@ export function PolicyAssessmentFlow({
   startEvaluation = false,
 }: Props) {
   const navigate = useNavigate();
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   const versionView = useTaskVersionView();
   const [savedTask] = useState(() => {
     if (params.get("taskId")) return getPolicyPreAssessmentTaskById(params.get("taskId")!);
     if (params.has("new") || startEvaluation || initialPolicyTitle || directOpenFinal) return undefined;
-    const latest = [...loadPolicyPreAssessmentTasks()].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-    return latest?.status === "已归档" ? undefined : latest;
+    return undefined;
   });
   const [taskId] = useState(() => savedTask?.id || `pre-${crypto.randomUUID()}`);
   const [archived, setArchived] = useState(savedTask?.status === "已归档");
@@ -81,6 +80,12 @@ export function PolicyAssessmentFlow({
       if (previous?.status === "已归档") return;
       const now = formatPolicyPreAssessmentUpdatedAt();
       savePolicyPreAssessmentTasks([{ id: taskId, title: selectedPolicy.title, source: selectedPolicy.source === "upload" ? "上传文件" : "起草库", status: finished ? "已完成" : "进行中", currentStep: assessmentStageToFlowStep(stage, finished), riskLevel: previous?.riskLevel || "中", createdAt: previous?.createdAt || now, updatedAt: now, reportText, editableSections, policyContent: selectedPolicy.content }, ...tasks.filter(task => task.id !== taskId)]);
+      if (finished && !params.get("taskId")) {
+        const next = new URLSearchParams(params);
+        next.set("taskId", taskId);
+        next.delete("new");
+        setParams(next, { replace: true });
+      }
     } catch { toast.error("评估报告保存失败，请检查浏览器存储空间"); }
   }, [selectedPolicy, archived, taskId]);
   const archiveAssessment = (reportText: string, editableSections: string[]) => {

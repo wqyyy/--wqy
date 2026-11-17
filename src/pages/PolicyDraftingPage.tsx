@@ -28,6 +28,7 @@ export default function PolicyDraftingPage() {
   return (
     <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden p-5 md:p-6">
       <PolicyDraftingFlow
+        key={location.key}
         onBack={handleBack}
         initialTitle={versionView.version?.task.title ?? state?.policyTitle ?? state?.initialTitle ?? resumeTask?.title}
         directContent={versionView.version ? undefined : state?.directContent}

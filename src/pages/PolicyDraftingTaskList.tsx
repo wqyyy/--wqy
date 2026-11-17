@@ -110,7 +110,7 @@ export default function PolicyDraftingTaskList() {
           <h1 className="text-xl font-semibold text-foreground">政策起草任务列表</h1>
           <Button
             className="h-9 gap-1.5 px-4 gov-gradient text-primary-foreground hover:opacity-90"
-            onClick={() => navigate("/policy-writing/drafting")}
+            onClick={() => navigate("/policy-writing/drafting?new=1")}
           >
             <Plus className="h-4 w-4" />
             新建起草任务

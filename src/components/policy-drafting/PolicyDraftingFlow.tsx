@@ -2,7 +2,7 @@ import { archivedTaskVersion, taskArchiveState, editTaskVersion, readTaskVersion
 import { TaskVersionNotice } from "@/components/TaskVersionBoundary";
 import { useTaskVersionView } from "@/lib/taskVersionView";
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -199,7 +199,8 @@ export function PolicyDraftingFlow({
   const initialDraft = resolveInitialDraftState(resumeTask);
   const versionView = useTaskVersionView();
   const navigate = useNavigate();
-  const [sessionId] = useState(() => resumeTask?.id || ((!initialTitle && !directContent && localStorage.getItem(ACTIVE_DRAFT_KEY)) || `draft-${Date.now()}`));
+  const [params, setParams] = useSearchParams();
+  const [sessionId] = useState(() => resumeTask?.id || params.get("taskId") || `draft-${crypto.randomUUID()}`);
   const [saved] = useState<DraftSession | null>(() => {
     const versions = readTaskVersions("drafting", sessionId);
     const versionId = new URLSearchParams(window.location.hash.split("?")[1] || "").get("taskVersion");
@@ -273,6 +274,12 @@ export function PolicyDraftingFlow({
     localStorage.setItem(`policy-draft-session:${sessionId}`, JSON.stringify(session));
     try { recordTaskVersion("drafting", { id: sessionId, title: title || direction, status: archived ? "已归档" : body ? "已完成" : "生成中", archived }, { session }); }
     catch { window.dispatchEvent(new CustomEvent("task-version-error")); }
+    if (!params.get("taskId")) {
+      const next = new URLSearchParams(params);
+      next.set("taskId", sessionId);
+      next.delete("new");
+      setParams(next, { replace: true });
+    }
     if (!archived) localStorage.setItem(ACTIVE_DRAFT_KEY, sessionId);
     else if (localStorage.getItem(ACTIVE_DRAFT_KEY) === sessionId) localStorage.removeItem(ACTIVE_DRAFT_KEY);
   }, [sessionId, currentStep, maxReachedStep, direction, title, policyType, customPolicyType, coreElements, coreItems, selectedPolicies, analysisResult, outlineResult, body, archived, stepSignatures]);

@@ -23,7 +23,7 @@ interface StepDef {
 const STEPS: StepDef[] = [
   {
     id: 1,
-    label: "政策检索",
+    label: "检索相似政策",
     sublabel: "根据标题检索相关政策文件",
     icon: Search,
     thoughts: [
@@ -34,7 +34,7 @@ const STEPS: StepDef[] = [
   },
   {
     id: 2,
-    label: "核心要素生成",
+    label: "生成核心要素",
     sublabel: "提取政策核心条款与关键要素",
     icon: BarChart2,
     thoughts: [
@@ -56,7 +56,7 @@ const STEPS: StepDef[] = [
   },
   {
     id: 4,
-    label: "政策编辑",
+    label: "生成政策正文",
     sublabel: "载入大纲，即将输出全文",
     icon: BookOpen,
     thoughts: [
