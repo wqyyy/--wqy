@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -710,6 +711,7 @@ export default function PolicySearchNew() {
   const [searchMode, setSearchMode] = useState<'intelligent' | 'traditional'>('intelligent');
   /** 检索范围：互联网官方站 / 系统政策库 */
   const [searchScope, setSearchScope] = useState<SearchScope>("system");
+  const [officialDomain, setOfficialDomain] = useState("gov.cn");
   const [internetResults, setInternetResults] = useState<InternetPolicyHit[]>([]);
   const [internetLoading, setInternetLoading] = useState(false);
   const [internetQuery, setInternetQuery] = useState("");
@@ -787,6 +789,13 @@ export default function PolicySearchNew() {
   const changeSearchMode = (newMode: 'intelligent' | 'traditional') => {
     if (newMode === searchMode) return;
     setSearchMode(newMode);
+    if (newMode === "traditional") {
+      setSearchScope("system");
+      internetRequestIdRef.current++;
+      setInternetLoading(false);
+      setInternetResults([]);
+      setInternetQuery("");
+    }
 
     // 切换模式时重置筛选条件，但保持搜索结果
     setYearFilter("all");
@@ -861,6 +870,7 @@ export default function PolicySearchNew() {
     }
 
     const requestId = ++internetRequestIdRef.current;
+    setInternetResults([]);
     setInternetLoading(true);
     setInternetQuery(trimmedKeyword);
     setShowHistory(false);
@@ -869,9 +879,13 @@ export default function PolicySearchNew() {
     setSearchHistory(loadSearchHistory());
 
     try {
-      const hits = await searchInternetGovPolicies(trimmedKeyword);
+      const hits = await searchInternetGovPolicies(trimmedKeyword, [officialDomain]);
       if (requestId !== internetRequestIdRef.current) return;
-      setInternetResults(hits);
+      setInternetResults(hits.filter(hit => {
+        if (hit.id.startsWith("portal-")) return false;
+        const url = new URL(hit.url);
+        return !url.pathname.endsWith("/") && !/\/so\/|policyDocumentLibrary/.test(url.pathname);
+      }));
     } catch {
       if (requestId !== internetRequestIdRef.current) return;
       setInternetResults([]);
@@ -883,6 +897,7 @@ export default function PolicySearchNew() {
   };
 
   const handleSearchScopeChange = (scope: SearchScope) => {
+    if (scope === "internet" && searchMode !== "intelligent") return;
     setSearchScope(scope);
     setShowHistory(false);
     setShowSuggestions(false);
@@ -982,6 +997,7 @@ export default function PolicySearchNew() {
       .map((item, index) => ({
         ...item.policy,
         guessYouWant: index < 3,
+        popular: hotKeywords.some(term => item.policy.title.includes(term)),
       }));
   }, [keyword, policies]);
 
@@ -1366,8 +1382,8 @@ export default function PolicySearchNew() {
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-            <div className="flex items-center gap-4">
-              <div className="relative flex-1">
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="relative min-w-[240px] flex-1">
                 <Input
                   ref={searchInputRef}
                   value={keyword}
@@ -1481,12 +1497,15 @@ export default function PolicySearchNew() {
                               <span className="truncate text-[15px] text-foreground">
                                 {item.title}
                               </span>
+                              {searchMode === "traditional" && item.popular && (
+                                <Badge variant="outline" className="shrink-0 border-red-200 bg-red-50 px-1.5 py-0 text-[10px] font-normal text-red-700">热门</Badge>
+                              )}
                               {item.guessYouWant && (
                                 <Badge
                                   variant="outline"
                                   className="shrink-0 border-amber-300 bg-amber-50 px-1.5 py-0 text-[10px] font-normal text-amber-700"
                                 >
-                                  猜你想搜
+                                  {searchMode === "traditional" ? "推荐" : "猜你想搜"}
                                 </Badge>
                               )}
                             </div>
@@ -1496,29 +1515,33 @@ export default function PolicySearchNew() {
                     </div>
                   )}
                 </div>
-                <div className="flex h-14 shrink-0 items-center gap-3 rounded-2xl border border-[#e5e7eb] bg-[#fafbfc] px-4">
-                  <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">检索范围：</span>
-                  <label className="flex cursor-pointer items-center gap-1.5 text-sm text-foreground">
-                    <input
-                      type="radio"
-                      name="search-scope"
-                      className="h-3.5 w-3.5 accent-primary"
-                      checked={searchScope === "system"}
-                      onChange={() => handleSearchScopeChange("system")}
-                    />
-                    系统政策库
-                  </label>
-                  <label className="flex cursor-pointer items-center gap-1.5 text-sm text-foreground">
-                    <input
-                      type="radio"
-                      name="search-scope"
-                      className="h-3.5 w-3.5 accent-primary"
-                      checked={searchScope === "internet"}
-                      onChange={() => handleSearchScopeChange("internet")}
-                    />
-                    互联网
-                  </label>
-                </div>
+                {searchMode === "intelligent" && <div className="flex min-h-14 shrink-0 flex-wrap items-center gap-3 rounded-2xl border border-[#e5e7eb] bg-[#fafbfc] px-4 py-2">
+                  <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">检索来源：</span>
+                  <Select value={searchScope} onValueChange={value => handleSearchScopeChange(value as SearchScope)}>
+                    <SelectTrigger aria-label="检索来源" className="h-9 w-36 rounded-md border-[#e5e7eb] bg-white text-sm shadow-none focus:ring-primary/20"><SelectValue /></SelectTrigger>
+                    <SelectContent className="rounded-md border-[#e5e7eb] bg-white p-1 shadow-lg">
+                      <SelectItem value="system">系统政策库</SelectItem>
+                      <SelectItem value="internet" disabled={searchMode !== "intelligent"}>政府网站</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {searchMode === "intelligent" && searchScope === "internet" && <Select value={officialDomain} onValueChange={value => {
+                    setOfficialDomain(value);
+                    internetRequestIdRef.current++;
+                    setInternetLoading(false);
+                    setInternetResults([]);
+                    setInternetQuery("");
+                  }}>
+                    <SelectTrigger aria-label="政府官网检索范围" className="h-9 w-52 rounded-md border-[#e5e7eb] bg-white text-sm shadow-none focus:ring-primary/20"><SelectValue /></SelectTrigger>
+                    <SelectContent className="rounded-md border-[#e5e7eb] bg-white p-1 shadow-lg">
+                      <SelectItem value="gov.cn">全部政府官网（gov.cn）</SelectItem>
+                      <SelectItem value="www.gov.cn">中国政府网</SelectItem>
+                      <SelectItem value="beijing.gov.cn">北京市政府及部门官网</SelectItem>
+                      <SelectItem value="kfqgw.beijing.gov.cn">北京经开区管委会官网</SelectItem>
+                      <SelectItem value="ndrc.gov.cn">国家发展改革委官网</SelectItem>
+                      <SelectItem value="mof.gov.cn">财政部官网</SelectItem>
+                    </SelectContent>
+                  </Select>}
+                </div>}
                 <button
                   type="button"
                   onClick={handleReset}
@@ -1876,6 +1899,20 @@ export default function PolicySearchNew() {
               </div>
             </Card>
           )}
+
+        {searchScope === "internet" && searchMode === "intelligent" && internetQuery && (
+          <Card className="rounded-lg border border-primary/15 bg-primary/5 px-6 py-5 shadow-none">
+            <div className="mb-3 flex items-center gap-2 font-semibold text-foreground">
+              {internetLoading ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : <Sparkles className="h-4 w-4 text-primary" />}
+              <h3>AI 为您总结</h3>
+              <span role="status" className="text-xs font-normal text-muted-foreground">{internetLoading ? "正在整理检索结果…" : "整理完成"}</span>
+            </div>
+            {internetLoading ? <p className="text-sm text-muted-foreground">正在整理指定政府官网中的相关政策…</p> : internetResults.length ? <div className="space-y-3 text-sm leading-7">
+              <div><h4 className="font-semibold">搜索结果概览</h4><p>引用结果 <span className="font-semibold text-primary">{internetResults.length}</span> 条</p></div>
+              <div><h4 className="font-semibold">智能简要回答</h4><p>围绕“{internetQuery}”，本次检索匹配到{internetResults.slice(0, 3).map(hit => `《${hit.title}》`).join("、")}{internetResults.length > 3 ? "等政策" : ""}。可查看下方结果中的政策原文，进一步核对适用对象、支持条件和申报要求。</p><p className="mt-2 text-xs text-muted-foreground">以上依据检索标题与来源整理，具体条款及有效期以政策原文为准。</p></div>
+            </div> : <p className="text-sm text-muted-foreground">指定官网范围内暂无匹配的政策原文，暂无法生成总结。请调整关键词或官网范围。</p>}
+          </Card>
+        )}
 
         {searchScope === "internet" ? (
           <Card className="overflow-hidden rounded-[28px] border-none bg-white shadow-[0_18px_60px_rgba(15,23,42,0.05)]">

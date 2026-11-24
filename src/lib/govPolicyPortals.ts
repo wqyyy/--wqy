@@ -160,12 +160,13 @@ export function dedupePoliciesByUrl(items: PolicyItem[]): PolicyItem[] {
   });
 }
 
-export async function fetchOptionalRemotePolicyList(keyword: string): Promise<PolicyItem[]> {
+export async function fetchOptionalRemotePolicyList(keyword: string, domains?: string[]): Promise<PolicyItem[]> {
   const tpl = trimEnv(import.meta.env.VITE_GOV_POLICY_SEARCH_API);
   if (!tpl) return [];
 
   const q = encodeURIComponent(keyword);
-  const url = tpl.replace(/\{q\}/g, q).replace(/\{keyword\}/g, q);
+  const url = new URL(tpl.replace(/\{q\}/g, q).replace(/\{keyword\}/g, q), window.location.origin);
+  if (domains?.length) url.searchParams.set("domains", domains.join(","));
 
   try {
     const res = await fetch(url, { method: "GET" });
@@ -360,14 +361,27 @@ function scoreInternetTitle(title: string, query: string): number {
  * 在政府官方网站政策目录中检索关键词，返回政策名称与详情页 URL。
  * 优先合并可选远端聚合接口结果。
  */
-export async function searchInternetGovPolicies(keyword: string): Promise<InternetPolicyHit[]> {
+export function isAllowedGovPolicyUrl(value: string, domains: string[] = ["gov.cn"]): boolean {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || url.username || url.password) return false;
+    const host = url.hostname.toLowerCase();
+    if (host !== "gov.cn" && !host.endsWith(".gov.cn")) return false;
+    return domains.some(domain => {
+      const normalized = domain.toLowerCase();
+      return (normalized === "gov.cn" || normalized.endsWith(".gov.cn")) && (host === normalized || host.endsWith(`.${normalized}`));
+    });
+  } catch { return false; }
+}
+
+export async function searchInternetGovPolicies(keyword: string, domains: string[] = ["gov.cn"]): Promise<InternetPolicyHit[]> {
   const q = keyword.trim();
   if (!q) return [];
 
   // 轻微检索过程，便于展示加载态
   await new Promise((resolve) => setTimeout(resolve, 450));
 
-  const remote = await fetchOptionalRemotePolicyList(q);
+  const remote = await fetchOptionalRemotePolicyList(q, domains);
   const remoteHits: InternetPolicyHit[] = remote.map((item, index) => ({
     id: item.id || `remote-hit-${index}`,
     title: item.title,
@@ -403,7 +417,7 @@ export async function searchInternetGovPolicies(keyword: string): Promise<Intern
       source: h.source,
       selected: false,
     })),
-  ).map((p) => ({
+  ).filter(p => isAllowedGovPolicyUrl(p.url, domains)).map((p) => ({
     id: p.id,
     title: p.title,
     url: p.url,

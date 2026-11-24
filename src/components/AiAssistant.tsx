@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ChatFundingEstimator } from "@/components/ChatFundingEstimator";
 import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import avatarImg from "@/assets/ai-assistant-avatar.png";
@@ -157,6 +158,7 @@ export function AiAssistant() {
   const [maximized, setMaximized] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [input, setInput] = useState("");
+  const [fundingConversation, setFundingConversation] = useState<string | null>(null);
   const [isThinking, setIsThinking] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>(() => loadConversations());
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(() => loadCurrentConversationId());
@@ -613,6 +615,11 @@ export function AiAssistant() {
     const nextMessages = [...currentConversation.messages, userMessage];
     updateConversation(currentConversation.id, nextMessages);
     setInput("");
+    if (/资金|金额|额度|补贴|补助|资助/.test(content) && /测算|计算|预估|预计|享受|能拿|能领/.test(content)) {
+      setFundingConversation(currentConversation.id);
+      updateConversation(currentConversation.id, [...nextMessages, { role: "assistant", content: "请上传政策文件或粘贴资金条款，在下方逐项填写兑现事项的实际金额并确认适用条件。系统将按可识别的比例、定额和封顶规则测算；复杂条款标记为待确认，确认可叠加后汇总预计支持金额。" }]);
+      return;
+    }
     setIsThinking(true);
 
     try {
@@ -935,6 +942,7 @@ export function AiAssistant() {
             </div>
           )}
 
+          {fundingConversation === currentConversation?.id && <ChatFundingEstimator key={currentConversation.id} onClose={() => setFundingConversation(null)} />}
           <div ref={messagesEndRef} />
         </div>
       </div>
@@ -978,7 +986,7 @@ export function AiAssistant() {
               <button className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted">
                 <Mic className="h-4 w-4" />
               </button>
-              <button className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted">
+              <button title="上传政策文件并测算支持金额" onClick={() => { if (currentConversation) setFundingConversation(currentConversation.id); }} className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted">
                 <Paperclip className="h-4 w-4" />
               </button>
               <Button

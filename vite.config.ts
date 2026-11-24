@@ -1,4 +1,5 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
+import { createPolicyChatHandler } from "./server/policyChat.mjs";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
@@ -19,7 +20,11 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), mode === "development" && componentTagger(), {
+    name: "policy-chat-server",
+    configureServer(server) { server.middlewares.use(createPolicyChatHandler({ ...loadEnv(mode, process.cwd(), ""), ...process.env })); },
+    configurePreviewServer(server) { server.middlewares.use(createPolicyChatHandler({ ...loadEnv(mode, process.cwd(), ""), ...process.env })); },
+  }].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

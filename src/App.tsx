@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/AppLayout";
 import HomePage from "./pages/HomePage";
 import PolicyOverviewPage from "./pages/PolicyOverviewPage";
 import BrainChatPage from "./pages/BrainChatPage";
+import PolicyConsultationPage from "./pages/PolicyConsultationPage";
 import Index from "./pages/Index";
 import PolicyReport from "./pages/PolicyReport";
 import PolicyReportTaskList from "./pages/PolicyReportTaskList";
@@ -53,6 +54,7 @@ const App = () => (
       <Sonner />
       <HashRouter>
         <Routes>
+          <Route path="/policy-consultation" element={<PolicyConsultationPage />} />
           <Route path="/funding-enterprise/:id" element={<FundingEnterpriseDetail />} />
           <Route path="/effect-detail/:kind/:id" element={<EffectBusinessDetail />} />
           <Route path="/effect-enterprise-applications/:creditCode" element={<EffectEnterpriseApplications />} />

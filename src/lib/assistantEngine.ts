@@ -1,4 +1,6 @@
 import { POLICY_ITEMS, PUSHED_COMPANIES } from "@/data/policyReachData";
+import { requestPolicyAnswer } from "./policyChat";
+import { buildPolicyDemoAnswer } from "./policyDemoAnswer";
 import { dashboardData, policyReports } from "@/data/mockData";
 
 export type AssistantSceneKey = "writing" | "reach" | "redeem" | "evaluation";
@@ -182,6 +184,11 @@ const findEvaluationPolicy = (text: string) => {
 };
 
 const likelyPolicySuffix = /(政策|办法|措施|方案|意见|通知|细则|条例|指引|规范)$/;
+export function isPolicyQuestion(text: string): boolean {
+  const value = text.trim();
+  if (/^(?:请|请你|请帮我|帮我|麻烦|我想|我需要)?\s*(?:起草|撰写|草拟|写一|写个|写份|写.*政策)/.test(value)) return false;
+  return /哪些|什么|怎么|如何|是否|能否|可否|多少|能不能|有没有|可以.*吗|[?？]|请问|咨询|解读|解释/.test(value);
+}
 
 const isLikelyPolicyTitle = (text: string) => {
   const value = text.trim();
@@ -497,20 +504,7 @@ function buildFallbackPlan(scene: AssistantScene, rawText: string): AssistantPla
       };
     }
 
-    const title = extractWriteTitle(text);
-    return {
-      reply: `已根据“${title}”创建起草任务，并自动带入政策标题和核心要素。`,
-      action: {
-        kind: "navigate",
-        path: "/policy-writing/drafting",
-        state: {
-          initialTitle: title,
-          initialCoreElements: fallbackCoreElements,
-          autoGenerateCoreElements: true,
-        },
-      },
-      source: "fallback",
-    };
+    return { reply: "您希望了解这项政策的支持对象、奖励标准还是申报条件？可以直接提出问题；如需起草，请明确说明“帮我起草政策”。", action: { kind: "none" }, source: "fallback" };
   }
 
   return { reply: scene.prompt, action: { kind: "none" }, source: "fallback" };
@@ -641,6 +635,16 @@ async function callOpenAI(scene: AssistantScene, input: string, history: Assista
 }
 
 export async function getAssistantPlan(scene: AssistantScene, input: string, history: AssistantMessage[]): Promise<AssistantPlan> {
+  if (isPolicyQuestion(input) || detectIntent(input) === "other") {
+    if (import.meta.env.VITE_POLICY_QA_MODE !== "real") {
+      return { reply: buildPolicyDemoAnswer(input, history), action: { kind: "none" }, source: "fallback" };
+    }
+    try {
+      return { reply: await requestPolicyAnswer(input, history), action: { kind: "none" }, source: "model" };
+    } catch (error) {
+      return { reply: `本次未能获取模型回答：${error instanceof Error ? error.message : "模型服务不可用"}。请检查服务配置后重新提问。`, action: { kind: "none" }, source: "fallback" };
+    }
+  }
   const intent = detectIntent(input);
 
   if (intent === "write_policy") {
