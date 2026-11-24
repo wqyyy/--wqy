@@ -1829,7 +1829,6 @@ export function PolicyOutputPage({
 
         <div className="mb-4 flex shrink-0 flex-wrap items-center justify-end gap-2" aria-label="起草操作">
           <TaskVersionNotice />
-          {isComplete && !archived && onRegenerate && <Button variant="outline" size="sm" onClick={onRegenerate}>重新生成正文</Button>}
           {isComplete && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
